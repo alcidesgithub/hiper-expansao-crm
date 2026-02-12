@@ -1,0 +1,79 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-hiperfarma_crm}?schema=public}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      NEXTAUTH_URL: ${NEXTAUTH_URL}
+      AUTH_SECRET: ${AUTH_SECRET}
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL}
+      MS_TEAMS_CLIENT_ID: ${MS_TEAMS_CLIENT_ID}
+      MS_TEAMS_CLIENT_SECRET: ${MS_TEAMS_CLIENT_SECRET}
+      MS_TEAMS_TENANT_ID: ${MS_TEAMS_TENANT_ID}
+      MS_TEAMS_GRAPH_SCOPE: ${MS_TEAMS_GRAPH_SCOPE:-https://graph.microsoft.com/.default}
+      UPLOAD_DIR: /app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - uploads_data:/app/uploads
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: migrator
+    command: ["/usr/local/bin/migrate-and-seed.sh"]
+    restart: "no"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-hiperfarma_crm}?schema=public}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      
+  postgres:
+    image: postgres:17-alpine
+    restart: always
+    environment:
+        POSTGRES_USER: ${POSTGRES_USER:-postgres}
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+        POSTGRES_DB: ${POSTGRES_DB:-hiperfarma_crm}
+    volumes:
+        - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+  redis_data:
+  uploads_data:

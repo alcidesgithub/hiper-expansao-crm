@@ -1,0 +1,334 @@
+import { NextResponse } from 'next/server';
+import { LeadStatus, Prisma, UserRole } from '@prisma/client';
+import { prisma } from '@/lib/prisma';
+import { auth } from '@/auth';
+import { leadUpdateSchema } from '@/lib/validation';
+import { logAudit } from '@/lib/audit';
+import { buildLeadScope, getManagerScopedUserIds, mergeLeadWhere } from '@/lib/lead-scope';
+import { can, canAny } from '@/lib/permissions';
+import { buildLeadSelect } from '@/lib/lead-select';
+
+interface SessionUser {
+    id?: string;
+    role?: UserRole;
+}
+
+function getSessionUser(session: unknown): SessionUser | null {
+    if (!session || typeof session !== 'object') return null;
+    return (session as { user?: SessionUser }).user || null;
+}
+
+type AuthHandler = typeof auth;
+let authHandler: AuthHandler = auth;
+
+export function __setAuthHandlerForTests(handler: AuthHandler): void {
+    authHandler = handler;
+}
+
+export function __resetAuthHandlerForTests(): void {
+    authHandler = auth;
+}
+
+function canView(role?: UserRole): boolean {
+    return canAny(role, ['leads:read:all', 'leads:read:team', 'leads:read:own']);
+}
+
+function canManage(role?: UserRole): boolean {
+    return can(role, 'leads:write:own');
+}
+
+async function getLeadDetails(id: string, scope: Prisma.LeadWhereInput, role?: UserRole) {
+    const leadSelect = buildLeadSelect({
+        role,
+        includeRelations: true,
+        includeSensitive: true,
+        includeQualificationData: true,
+        includeRoiData: true,
+    });
+
+    const lead = await prisma.lead.findFirst({
+        where: mergeLeadWhere({ id }, scope),
+        select: {
+            ...leadSelect,
+            pipelineStage: true,
+            assignedUser: { select: { id: true, name: true, email: true } },
+            activities: { orderBy: { createdAt: 'desc' }, take: 50, include: { user: { select: { id: true, name: true } } } },
+            notes: { orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }], take: 100, include: { user: { select: { id: true, name: true } } } },
+            meetings: { orderBy: { startTime: 'desc' }, take: 30 },
+            tasks: { orderBy: [{ status: 'asc' }, { dueDate: 'asc' }, { createdAt: 'desc' }], take: 100, include: { user: { select: { id: true, name: true } } } },
+        },
+    });
+
+    if (!lead) return null;
+
+    const pipelineId = lead.pipelineStage?.pipelineId || null;
+    const availableStages = pipelineId
+        ? await prisma.pipelineStage.findMany({
+            where: { pipelineId },
+            orderBy: { order: 'asc' },
+            select: { id: true, name: true, order: true, color: true, isWon: true, isLost: true },
+        })
+        : [];
+
+    return {
+        ...lead,
+        availableStages,
+    };
+}
+
+export async function GET(
+    request: Request,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    const session = await authHandler();
+    const user = getSessionUser(session);
+    if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    if (!canView(user.role)) return NextResponse.json({ error: 'Sem permissão para visualizar leads' }, { status: 403 });
+
+    const { id } = await params;
+
+    try {
+        const leadScope = await buildLeadScope(user);
+        const lead = await getLeadDetails(id, leadScope, user.role);
+        if (!lead) return NextResponse.json({ error: 'Lead não encontrado' }, { status: 404 });
+
+        return NextResponse.json(lead);
+    } catch (error) {
+        console.error('Error fetching lead:', error);
+        return NextResponse.json({ error: 'Erro ao buscar lead' }, { status: 500 });
+    }
+}
+
+export async function PATCH(
+    request: Request,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    const session = await authHandler();
+    const user = getSessionUser(session);
+    if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    if (!canManage(user.role)) return NextResponse.json({ error: 'Sem permissão para editar leads' }, { status: 403 });
+
+    const { id } = await params;
+
+    try {
+        const body = await request.json();
+        const parsed = leadUpdateSchema.safeParse(body);
+        if (!parsed.success) {
+            return NextResponse.json(
+                { error: 'Dados inválidos', details: parsed.error.flatten().fieldErrors },
+                { status: 400 }
+            );
+        }
+
+        const data = parsed.data;
+        if (Object.keys(data).length === 0) {
+            return NextResponse.json({ error: 'Nenhum campo para atualizar' }, { status: 400 });
+        }
+
+        if (data.pipelineStageId !== undefined && !can(user.role, 'pipeline:advance')) {
+            return NextResponse.json({ error: 'Sem permissão para avançar pipeline' }, { status: 403 });
+        }
+
+        const leadScope = await buildLeadScope(user);
+        const existing = await prisma.lead.findFirst({
+            where: mergeLeadWhere({ id }, leadScope),
+            include: { pipelineStage: { select: { id: true, name: true, pipelineId: true } } },
+        });
+
+        if (!existing) return NextResponse.json({ error: 'Lead não encontrado' }, { status: 404 });
+
+        if (data.assignedUserId) {
+            const assigned = await prisma.user.findUnique({
+                where: { id: data.assignedUserId },
+                select: { id: true, status: true },
+            });
+            if (!assigned || assigned.status !== 'ACTIVE') {
+                return NextResponse.json({ error: 'Usuário responsável inválido ou inativo' }, { status: 400 });
+            }
+        }
+
+        if (data.assignedUserId !== undefined && !can(user.role, 'leads:assign')) {
+            if (!user.id || data.assignedUserId !== user.id) {
+                return NextResponse.json(
+                    { error: 'Sem permissão para atribuir leads' },
+                    { status: 403 }
+                );
+            }
+        }
+
+        if (user.role === 'SDR' || user.role === 'CONSULTANT') {
+            if (!user.id) return NextResponse.json({ error: 'Usuário inválido' }, { status: 401 });
+            if (data.assignedUserId && data.assignedUserId !== user.id) {
+                return NextResponse.json(
+                    { error: 'Sem permissão para transferir este lead' },
+                    { status: 403 }
+                );
+            }
+        }
+
+        if (user.role === 'MANAGER' && data.assignedUserId) {
+            if (!user.id) return NextResponse.json({ error: 'Usuário inválido' }, { status: 401 });
+            const allowedAssignees = new Set(await getManagerScopedUserIds(user.id));
+            if (!allowedAssignees.has(data.assignedUserId)) {
+                return NextResponse.json(
+                    { error: 'Sem permissão para atribuir lead para este usuário' },
+                    { status: 403 }
+                );
+            }
+        }
+
+        const stageNameBefore = existing.pipelineStage?.name || null;
+        let stageNameAfter: string | null = null;
+        let resolvedStatus = data.status || existing.status;
+
+        if (data.pipelineStageId) {
+            const stage = await prisma.pipelineStage.findUnique({
+                where: { id: data.pipelineStageId },
+                select: { id: true, name: true, pipelineId: true, isWon: true, isLost: true },
+            });
+            if (!stage) return NextResponse.json({ error: 'Etapa de pipeline não encontrada' }, { status: 400 });
+
+            if (existing.pipelineStage?.pipelineId && existing.pipelineStage.pipelineId !== stage.pipelineId) {
+                return NextResponse.json({ error: 'Etapa não pertence ao mesmo pipeline do lead' }, { status: 400 });
+            }
+
+            stageNameAfter = stage.name;
+            if (!data.status) {
+                if (stage.isWon) resolvedStatus = 'WON';
+                else if (stage.isLost) resolvedStatus = 'LOST';
+                else if (existing.status === 'WON' || existing.status === 'LOST' || existing.status === 'ARCHIVED') resolvedStatus = 'PROPOSAL';
+            }
+        }
+
+        const updateData: Record<string, unknown> = {};
+        if (data.name !== undefined) updateData.name = data.name;
+        if (data.email !== undefined) updateData.email = data.email;
+        if (data.phone !== undefined) updateData.phone = data.phone || '';
+        if (data.company !== undefined) updateData.company = data.company;
+        if (data.position !== undefined) updateData.position = data.position;
+        if (data.priority !== undefined) updateData.priority = data.priority;
+        if (data.pipelineStageId !== undefined) updateData.pipelineStageId = data.pipelineStageId;
+        if (data.assignedUserId !== undefined) updateData.assignedUserId = data.assignedUserId;
+
+        updateData.status = resolvedStatus;
+        if (resolvedStatus === 'WON') {
+            updateData.convertedAt = new Date();
+            updateData.lostAt = null;
+        } else if (resolvedStatus === 'LOST') {
+            updateData.lostAt = new Date();
+            updateData.convertedAt = null;
+        } else if (data.status !== undefined || data.pipelineStageId !== undefined) {
+            updateData.convertedAt = null;
+            updateData.lostAt = null;
+        }
+
+        const updated = await prisma.lead.update({
+            where: { id },
+            data: updateData,
+            select: buildLeadSelect({
+                role: user.role,
+                includeRelations: true,
+                includeSensitive: true,
+                includeQualificationData: true,
+                includeRoiData: true,
+            }),
+        });
+
+        if (user.id && data.pipelineStageId && existing.pipelineStageId !== data.pipelineStageId) {
+            await prisma.activity.create({
+                data: {
+                    leadId: id,
+                    userId: user.id,
+                    type: 'STAGE_CHANGE',
+                    title: 'Etapa do pipeline alterada',
+                    description: `De ${stageNameBefore || 'Sem etapa'} para ${stageNameAfter || 'Sem etapa'}`,
+                },
+            });
+        }
+
+        if (user.id && existing.status !== resolvedStatus) {
+            await prisma.activity.create({
+                data: {
+                    leadId: id,
+                    userId: user.id,
+                    type: 'STATUS_CHANGE',
+                    title: 'Status do lead alterado',
+                    description: `De ${existing.status} para ${resolvedStatus}`,
+                },
+            });
+        }
+
+        await logAudit({
+            userId: user.id,
+            action: 'UPDATE',
+            entity: 'Lead',
+            entityId: id,
+            changes: {
+                ...data,
+                resolvedStatus,
+                previousStatus: existing.status,
+            } as Record<string, unknown>,
+        });
+
+        return NextResponse.json(updated);
+    } catch (error) {
+        console.error('Error updating lead:', error);
+        return NextResponse.json({ error: 'Erro ao atualizar lead' }, { status: 500 });
+    }
+}
+
+export async function DELETE(
+    request: Request,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    const session = await authHandler();
+    const user = getSessionUser(session);
+    if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    if (!can(user.role, 'leads:delete')) return NextResponse.json({ error: 'Sem permissão para arquivar leads' }, { status: 403 });
+
+    const { id } = await params;
+
+    try {
+        const leadScope = await buildLeadScope(user);
+        const existing = await prisma.lead.findFirst({
+            where: mergeLeadWhere({ id }, leadScope),
+            select: { id: true, status: true },
+        });
+
+        if (!existing) return NextResponse.json({ error: 'Lead não encontrado' }, { status: 404 });
+
+        if (existing.status !== 'ARCHIVED') {
+            await prisma.lead.update({
+                where: { id },
+                data: {
+                    status: 'ARCHIVED' as LeadStatus,
+                },
+            });
+
+            if (user.id) {
+                await prisma.activity.create({
+                    data: {
+                        leadId: id,
+                        userId: user.id,
+                        type: 'STATUS_CHANGE',
+                        title: 'Lead arquivado',
+                        description: `Status alterado de ${existing.status} para ARCHIVED`,
+                    },
+                });
+            }
+        }
+
+        await logAudit({
+            userId: user.id,
+            action: 'DELETE',
+            entity: 'Lead',
+            entityId: id,
+            changes: { softDelete: true },
+        });
+
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        console.error('Error archiving lead:', error);
+        return NextResponse.json({ error: 'Erro ao arquivar lead' }, { status: 500 });
+    }
+}

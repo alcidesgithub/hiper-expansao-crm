@@ -1,0 +1,580 @@
+// Schema Prisma v2.0 - Sistema de Funil Digital Hiperfarma
+// Revisão: ROI calculado internamente, nunca exposto ao lead
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==========================================
+// USUÁRIOS E AUTENTICAÇÃO
+// ==========================================
+
+enum UserRole {
+  ADMIN
+  DIRECTOR
+  MANAGER
+  SDR
+  CONSULTANT
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model User {
+  id            String      @id @default(cuid())
+  email         String      @unique
+  name          String
+  avatar        String?
+  role          UserRole
+  status        UserStatus  @default(ACTIVE)
+  password      String
+  phone         String?
+  department    String?
+  
+  // Permissões customizadas (JSON)
+  permissions   Json?
+  
+  // Configurações pessoais
+  settings      Json?
+  
+  // Relações
+  managedTeams  Team[]      @relation("TeamManager")
+  teamMemberships TeamMember[]
+  assignedLeads Lead[]      @relation("AssignedUser")
+  activities    Activity[]
+  meetings      Meeting[]
+  availabilitySlots AvailabilitySlot[]
+  availabilityBlocks AvailabilityBlock[]
+  notes         Note[]
+  tasks         Task[]
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  lastLoginAt   DateTime?
+  
+  @@index([email])
+  @@index([role])
+  @@index([status])
+}
+
+model Team {
+  id          String       @id @default(cuid())
+  name        String
+  description String?
+  managerId   String
+  manager     User         @relation("TeamManager", fields: [managerId], references: [id])
+  members     TeamMember[]
+  
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  
+  @@index([managerId])
+}
+
+model TeamMember {
+  id        String   @id @default(cuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  joinedAt  DateTime @default(now())
+  
+  @@unique([teamId, userId])
+  @@index([teamId])
+  @@index([userId])
+}
+
+// ==========================================
+// LEADS E FUNIL DE VENDAS
+// ==========================================
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL
+  NEGOTIATION
+  WON
+  LOST
+  ARCHIVED
+}
+
+enum LeadSource {
+  WEBSITE
+  FACEBOOK
+  INSTAGRAM
+  GOOGLE_ADS
+  LINKEDIN
+  EMAIL
+  PHONE
+  REFERRAL
+  EVENT
+  OTHER
+}
+
+enum LeadPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum LeadGrade {
+  A
+  B
+  C
+  D
+  F
+}
+
+model Lead {
+  id              String        @id @default(cuid())
+  
+  // Informações básicas
+  name            String
+  email           String
+  phone           String
+  company         String?
+  position        String?
+  
+  // Classificação
+  status          LeadStatus    @default(NEW)
+  source          LeadSource
+  priority        LeadPriority  @default(MEDIUM)
+  score           Int           @default(0)
+  grade           LeadGrade?    // A, B, C, D ou F
+  
+  // Dados de negócio
+  estimatedValue  Decimal?      @db.Decimal(10, 2)
+  expectedCloseDate DateTime?
+  
+  // Tracking (UTM)
+  utmSource       String?
+  utmMedium       String?
+  utmCampaign     String?
+  utmTerm         String?
+  utmContent      String?
+  
+  // Dados completos do formulário de qualificação (armazenados no servidor)
+  qualificationData Json?
+  
+  // ROI calculado internamente — NUNCA exposto em endpoints públicos
+  // Visível apenas para usuários autenticados com role SDR, MANAGER, DIRECTOR ou ADMIN
+  roiData         Json?         // { roiPercentual, resultadoMensal, viavel, ... }
+  
+  customFields    Json?
+  
+  // Atribuição
+  assignedUserId  String?
+  assignedUser    User?         @relation("AssignedUser", fields: [assignedUserId], references: [id])
+  
+  // Relações
+  pipelineStageId String?
+  pipelineStage   PipelineStage? @relation(fields: [pipelineStageId], references: [id])
+  activities      Activity[]
+  meetings        Meeting[]
+  notes           Note[]
+  tasks           Task[]
+  documents       Document[]
+  
+  // Timestamps
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  convertedAt     DateTime?
+  lostAt          DateTime?
+  
+  @@index([email])
+  @@index([phone])
+  @@index([status])
+  @@index([source])
+  @@index([grade])
+  @@index([assignedUserId])
+  @@index([pipelineStageId])
+  @@index([score])
+  @@index([createdAt])
+}
+
+// ==========================================
+// PIPELINE E KANBAN
+// ==========================================
+
+model Pipeline {
+  id          String          @id @default(cuid())
+  name        String
+  description String?
+  isDefault   Boolean         @default(false)
+  isActive    Boolean         @default(true)
+  
+  stages      PipelineStage[]
+  
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model PipelineStage {
+  id          String    @id @default(cuid())
+  pipelineId  String
+  pipeline    Pipeline  @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  
+  name        String
+  description String?
+  color       String    @default("#114F99")
+  order       Int
+  
+  // Configurações
+  isWon       Boolean   @default(false)
+  isLost      Boolean   @default(false)
+  
+  // Automações (JSON)
+  automations Json?
+  
+  leads       Lead[]
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@unique([pipelineId, order])
+  @@index([pipelineId])
+}
+
+// ==========================================
+// ATIVIDADES E INTERAÇÕES
+// ==========================================
+
+enum ActivityType {
+  EMAIL
+  CALL
+  MEETING
+  NOTE
+  TASK
+  STATUS_CHANGE
+  STAGE_CHANGE
+  ASSIGNMENT_CHANGE
+}
+
+model Activity {
+  id          String        @id @default(cuid())
+  leadId      String
+  lead        Lead          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User          @relation(fields: [userId], references: [id])
+  
+  type        ActivityType
+  title       String
+  description String?
+  metadata    Json?
+  
+  createdAt   DateTime      @default(now())
+  
+  @@index([leadId])
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+// ==========================================
+// REUNIÕES E AGENDA
+// ==========================================
+
+enum MeetingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  RESCHEDULED
+}
+
+model Meeting {
+  id              String        @id @default(cuid())
+  leadId          String
+  lead            Lead          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User          @relation(fields: [userId], references: [id])
+  
+  title           String
+  description     String?
+  startTime       DateTime
+  endTime         DateTime
+  
+  // Agendamento nativo + integração opcional (Teams, Zoom, etc.)
+  externalEventId String?       @unique  // ID do evento externo (Teams/Zoom)
+  meetingLink     String?                // Link de videoconferência
+  provider        String?                // 'teams' | 'zoom' | null (presencial)
+  
+  status          MeetingStatus @default(SCHEDULED)
+  location        String?
+  attendees       Json?
+  
+  // Anotações pós-reunião (preenchidas pelo consultor, não pelo lead)
+  notes           String?
+  nextSteps       String?
+  outcome         String?       // INTERESTED, NOT_INTERESTED, FOLLOW_UP, CLOSED
+  
+  // Agendado pelo próprio lead via self-service?
+  selfScheduled   Boolean       @default(false)
+  
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+  
+  @@index([leadId])
+  @@index([userId])
+  @@index([startTime])
+  @@index([status])
+  @@index([externalEventId])
+}
+
+model AvailabilitySlot {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  dayOfWeek Int      // 0=domingo, 1=segunda, ... 6=sabado
+  startTime String   // "09:00"
+  endTime   String   // "12:00"
+  isActive  Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, dayOfWeek])
+}
+
+model AvailabilityBlock {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  startDate DateTime
+  endDate   DateTime
+  reason    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, startDate])
+  @@index([userId, endDate])
+}
+
+// ==========================================
+// NOTAS E TAREFAS
+// ==========================================
+
+model Note {
+  id          String   @id @default(cuid())
+  leadId      String
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  
+  content     String   @db.Text
+  isPinned    Boolean  @default(false)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([leadId])
+  @@index([userId])
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Task {
+  id          String        @id @default(cuid())
+  leadId      String?
+  lead        Lead?         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User          @relation(fields: [userId], references: [id])
+  
+  title       String
+  description String?
+  priority    TaskPriority  @default(MEDIUM)
+  status      TaskStatus    @default(PENDING)
+  
+  dueDate     DateTime?
+  completedAt DateTime?
+  
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  
+  @@index([leadId])
+  @@index([userId])
+  @@index([status])
+  @@index([dueDate])
+}
+
+// ==========================================
+// DOCUMENTOS E ARQUIVOS
+// ==========================================
+
+model Document {
+  id          String   @id @default(cuid())
+  leadId      String
+  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  
+  name        String
+  type        String
+  size        Int
+  url         String
+  
+  uploadedBy  String
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([leadId])
+}
+
+// ==========================================
+// INTEGRAÇÕES E TRACKING
+// ==========================================
+
+model Integration {
+  id          String   @id @default(cuid())
+  provider    String   // 'google', 'meta', 'google_ads'
+  accountId   String
+  
+  credentials Json     // Encrypted
+  settings    Json?
+  
+  isActive    Boolean  @default(true)
+  lastSyncAt  DateTime?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([provider, accountId])
+}
+
+model AdsCampaign {
+  id              String   @id @default(cuid())
+  provider        String   // 'meta' | 'google'
+  campaignId      String
+  campaignName    String
+  
+  impressions     Int      @default(0)
+  clicks          Int      @default(0)
+  conversions     Int      @default(0)
+  spend           Decimal  @default(0) @db.Decimal(10, 2)
+  
+  startDate       DateTime
+  endDate         DateTime?
+  
+  leads           Json?
+  
+  lastSyncAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([provider, campaignId])
+  @@index([provider])
+}
+
+// ==========================================
+// CONFIGURAÇÕES CUSTOMIZÁVEIS
+// ==========================================
+
+model CustomField {
+  id          String   @id @default(cuid())
+  entity      String   // 'lead' | 'user' | 'company'
+  name        String
+  label       String
+  type        String   // 'text' | 'number' | 'date' | 'select' | 'multiselect'
+  options     Json?
+  
+  isRequired  Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  order       Int
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([entity, name])
+}
+
+model SystemSettings {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       Json
+  
+  updatedAt   DateTime @updatedAt
+}
+
+// ==========================================
+// AUDITORIA E LOGS
+// ==========================================
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  action      String
+  entity      String
+  entityId    String
+  changes     Json?
+  ipAddress   String?
+  userAgent   String?
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
+
+// ==========================================
+// CONFIGURAÇÃO DE PREÇOS E INVESTIMENTO
+// ==========================================
+
+model AssociationPricing {
+  id                    String   @id @default(cuid())
+  
+  // Identificação e vigência
+  name                  String   // "Tabela 2026", "Tabela 2027", etc
+  effectiveDate         DateTime
+  expiryDate            DateTime?
+  isActive              Boolean  @default(false)
+  
+  // Mensalidade de Marketing (exibida ao lead)
+  marketingMonthly      Decimal  @db.Decimal(10, 2)
+  marketingDescription  String   @db.Text
+  
+  // Mensalidade Administrativa (exibida ao lead)
+  adminMonthly          Decimal  @db.Decimal(10, 2)
+  adminDescription      String   @db.Text
+  
+  // Total calculado (exibido ao lead)
+  totalMonthly          Decimal  @db.Decimal(10, 2)
+  
+  // Configuração por porte (futuro)
+  enableTiers           Boolean  @default(false)
+  tiers                 Json?
+  
+  // Auditoria
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  createdBy             String?
+  
+  @@index([effectiveDate, isActive])
+  @@index([isActive])
+}
