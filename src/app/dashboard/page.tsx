@@ -10,10 +10,11 @@ import {
     Clock,
     BarChart3,
     Target,
+    PieChart,
 } from 'lucide-react';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { RecentLeadsTable } from '@/components/dashboard/RecentLeadsTable';
-import { getDashboardMetrics, getRecentLeads, getFunnelMetrics, getUpcomingMeetings } from './actions';
+import { getDashboardMetrics, getRecentLeads, getFunnelGateAnalytics, getFunnelMetrics, getUpcomingMeetings } from './actions';
 import { auth } from '@/auth';
 import { canAny } from '@/lib/permissions';
 
@@ -56,6 +57,7 @@ export default async function DashboardPage({ searchParams }: { searchParams?: D
         getFunnelMetrics(period),
         getUpcomingMeetings(5),
     ]);
+    const gateAnalytics = await getFunnelGateAnalytics(period);
 
     const gradeColors: Record<string, string> = {
         A: 'bg-green-500',
@@ -190,6 +192,82 @@ export default async function DashboardPage({ searchParams }: { searchParams?: D
                     </div>
                 </div>
             </div>
+
+            {gateAnalytics && (
+                <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                            <PieChart size={18} className="text-red-600" />
+                            <h3 className="font-semibold text-gray-900">Gate de Decisão</h3>
+                        </div>
+                        <span className="text-xs text-gray-500">
+                            Decisores: {gateAnalytics.totals.decisorRate}%
+                        </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+                        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                            <p className="text-xs text-gray-500">Total</p>
+                            <p className="text-lg font-bold text-gray-900">{gateAnalytics.totals.total}</p>
+                        </div>
+                        <div className="rounded-lg border border-green-200 bg-green-50 p-3">
+                            <p className="text-xs text-green-700">Decisor</p>
+                            <p className="text-lg font-bold text-green-700">{gateAnalytics.totals.decisor}</p>
+                        </div>
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                            <p className="text-xs text-amber-700">Influenciador</p>
+                            <p className="text-lg font-bold text-amber-700">{gateAnalytics.totals.influenciador}</p>
+                        </div>
+                        <div className="rounded-lg border border-blue-200 bg-blue-50 p-3">
+                            <p className="text-xs text-blue-700">Pesquisador</p>
+                            <p className="text-lg font-bold text-blue-700">{gateAnalytics.totals.pesquisador}</p>
+                        </div>
+                    </div>
+
+                    {gateAnalytics.totals.total > 0 ? (
+                        <div className="space-y-2">
+                            <div>
+                                <div className="flex justify-between text-xs text-gray-600 mb-1">
+                                    <span>Decisor</span>
+                                    <span>{gateAnalytics.totals.decisor}</span>
+                                </div>
+                                <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                                    <div
+                                        className="h-full bg-green-500 rounded-full"
+                                        style={{ width: `${(gateAnalytics.totals.decisor / gateAnalytics.totals.total) * 100}%` }}
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <div className="flex justify-between text-xs text-gray-600 mb-1">
+                                    <span>Influenciador</span>
+                                    <span>{gateAnalytics.totals.influenciador}</span>
+                                </div>
+                                <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                                    <div
+                                        className="h-full bg-amber-500 rounded-full"
+                                        style={{ width: `${(gateAnalytics.totals.influenciador / gateAnalytics.totals.total) * 100}%` }}
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <div className="flex justify-between text-xs text-gray-600 mb-1">
+                                    <span>Pesquisador</span>
+                                    <span>{gateAnalytics.totals.pesquisador}</span>
+                                </div>
+                                <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                                    <div
+                                        className="h-full bg-blue-500 rounded-full"
+                                        style={{ width: `${(gateAnalytics.totals.pesquisador / gateAnalytics.totals.total) * 100}%` }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    ) : (
+                        <p className="text-sm text-gray-500">Sem eventos de gate no período selecionado.</p>
+                    )}
+                </div>
+            )}
 
             <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
                 <div className="flex items-center gap-2 mb-4">

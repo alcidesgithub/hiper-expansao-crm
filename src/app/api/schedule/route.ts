@@ -19,6 +19,37 @@ interface DateParts {
 }
 
 const MIN_SCHEDULING_ADVANCE_HOURS = 2;
+type IsTeamsConfiguredHandler = typeof isTeamsConfigured;
+type CreateTeamsMeetingHandler = typeof createTeamsMeeting;
+type CancelTeamsMeetingHandler = typeof cancelTeamsMeeting;
+
+let isTeamsConfiguredHandler: IsTeamsConfiguredHandler = isTeamsConfigured;
+let createTeamsMeetingHandler: CreateTeamsMeetingHandler = createTeamsMeeting;
+let cancelTeamsMeetingHandler: CancelTeamsMeetingHandler = cancelTeamsMeeting;
+
+function resolveAppUrl(request: Request): string {
+    const explicitAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim() || process.env.NEXTAUTH_URL?.trim();
+    if (explicitAppUrl) return explicitAppUrl.replace(/\/$/, '');
+
+    // Last-resort fallback to request origin to avoid localhost links in production.
+    return new URL(request.url).origin.replace(/\/$/, '');
+}
+
+export function __setTeamsHandlersForTests(handlers: {
+    isTeamsConfigured?: IsTeamsConfiguredHandler;
+    createTeamsMeeting?: CreateTeamsMeetingHandler;
+    cancelTeamsMeeting?: CancelTeamsMeetingHandler;
+}): void {
+    if (handlers.isTeamsConfigured) isTeamsConfiguredHandler = handlers.isTeamsConfigured;
+    if (handlers.createTeamsMeeting) createTeamsMeetingHandler = handlers.createTeamsMeeting;
+    if (handlers.cancelTeamsMeeting) cancelTeamsMeetingHandler = handlers.cancelTeamsMeeting;
+}
+
+export function __resetTeamsHandlersForTests(): void {
+    isTeamsConfiguredHandler = isTeamsConfigured;
+    createTeamsMeetingHandler = createTeamsMeeting;
+    cancelTeamsMeetingHandler = cancelTeamsMeeting;
+}
 
 function getQualificationData(data: unknown): Record<string, unknown> {
     if (!data || typeof data !== 'object' || Array.isArray(data)) return {};
@@ -225,29 +256,34 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: availabilityValidation.reason }, { status: 409 });
         }
 
+        if (!isTeamsConfiguredHandler()) {
+            return NextResponse.json({ error: 'Integracao com Teams nao configurada' }, { status: 503 });
+        }
+
         let teamsMeeting: TeamsMeetingPayload | null = null;
         const rollbackTeamsMeeting = () => {
             if (!teamsMeeting?.externalEventId) return;
-            cancelTeamsMeeting({
+            cancelTeamsMeetingHandler({
                 organizerEmail: consultor.email,
                 externalEventId: teamsMeeting.externalEventId,
             }).catch((error) => console.error('Failed to rollback Teams meeting:', error));
         };
-        if (isTeamsConfigured()) {
-            try {
-                teamsMeeting = await createTeamsMeeting({
-                    organizerEmail: consultor.email,
-                    leadEmail: lead.email,
-                    leadName: lead.name,
-                    subject: `Reuniao de Expansao - ${lead.name}`,
-                    description: notes || null,
-                    startTime,
-                    endTime,
-                });
-            } catch (error) {
-                console.error('Error creating Teams meeting:', error);
-                return NextResponse.json({ error: 'Nao foi possivel criar reuniao no Teams' }, { status: 502 });
-            }
+        try {
+            teamsMeeting = await createTeamsMeetingHandler({
+                organizerEmail: consultor.email,
+                leadEmail: lead.email,
+                leadName: lead.name,
+                subject: `Reuniao de Expansao - ${lead.name}`,
+                description: notes || null,
+                startTime,
+                endTime,
+            });
+        } catch (error) {
+            console.error('Error creating Teams meeting:', error);
+            return NextResponse.json({ error: 'Nao foi possivel criar reuniao no Teams' }, { status: 502 });
+        }
+        if (!teamsMeeting) {
+            return NextResponse.json({ error: 'Falha ao preparar reuniao no Teams' }, { status: 502 });
         }
 
         const booking = await prisma.$transaction(async (tx) => {
@@ -289,9 +325,9 @@ export async function POST(request: Request) {
                     endTime,
                     selfScheduled: true,
                     status: 'SCHEDULED',
-                    meetingLink: teamsMeeting?.meetingLink || null,
-                    externalEventId: teamsMeeting?.externalEventId || null,
-                    provider: teamsMeeting?.provider || null,
+                    meetingLink: teamsMeeting.meetingLink,
+                    externalEventId: teamsMeeting.externalEventId,
+                    provider: teamsMeeting.provider,
                 },
             });
 
@@ -341,7 +377,7 @@ export async function POST(request: Request) {
             meetingLink: meeting.meetingLink || undefined,
         }).catch((err) => console.error('[Schedule] Email to lead failed:', err));
 
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+        const appUrl = resolveAppUrl(request);
         sendMeetingNotificationToConsultor({
             consultorEmail: consultor.email,
             consultorName: consultor.name,

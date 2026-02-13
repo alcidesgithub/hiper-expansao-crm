@@ -10,11 +10,16 @@
     "db:seed": "prisma db seed",
     "db:setup": "npm run db:migrate && npm run db:seed",
     "lint": "eslint",
-    "test": "tsx --test src/lib/__tests__/availability.test.ts src/lib/__tests__/availability.integration.test.ts src/lib/__tests__/crm-availability.integration.test.ts",
+    "test": "tsx --test src/lib/__tests__/availability.test.ts src/lib/__tests__/availability.integration.test.ts src/lib/__tests__/crm-availability.integration.test.ts src/lib/__tests__/contact-validation.test.ts src/lib/__tests__/funnel-gate.integration.test.ts",
     "test:roles": "tsx --test src/lib/__tests__/lead-select.test.ts src/lib/__tests__/crm-leads-role.integration.test.ts src/lib/__tests__/crm-lead-nested-role.integration.test.ts src/lib/__tests__/crm-pipeline-role.integration.test.ts src/lib/__tests__/crm-meetings-role.integration.test.ts src/lib/__tests__/crm-upload-role.integration.test.ts",
-    "test:teams": "tsx --test src/lib/__tests__/teams.integration.test.ts",
-    "test:critical": "npm run test:roles && tsx --test src/lib/__tests__/availability.integration.test.ts src/lib/__tests__/crm-availability.integration.test.ts src/lib/__tests__/teams.integration.test.ts",
-    "release:check": "npm run lint && npx tsc --noEmit && npm run test:critical && npx prisma migrate status"
+    "test:teams": "tsx --test src/lib/__tests__/teams.integration.test.ts src/lib/__tests__/teams-webhook.integration.test.ts src/lib/__tests__/teams-subscriptions-route.integration.test.ts src/lib/__tests__/teams-subscriptions-sync-route.integration.test.ts",
+    "test:e2e:install": "playwright install chromium",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui",
+    "test:critical": "npm run test:roles && tsx --test src/lib/__tests__/availability.integration.test.ts src/lib/__tests__/crm-availability.integration.test.ts src/lib/__tests__/teams.integration.test.ts src/lib/__tests__/teams-webhook.integration.test.ts src/lib/__tests__/teams-subscriptions-route.integration.test.ts src/lib/__tests__/teams-subscriptions-sync-route.integration.test.ts src/lib/__tests__/contact-validation.test.ts src/lib/__tests__/funnel-gate.integration.test.ts",
+    "release:check": "npm run lint && npx tsc --noEmit && npm run test:critical && npx prisma migrate status",
+    "release:check:full": "npm run release:check && npm run test:e2e"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^18.0.1",
@@ -43,6 +48,7 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

@@ -3,11 +3,28 @@ import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
-async function main() {
-    console.log('🌱 Seeding database...');
+function resolveSeedPassword(): string {
+    const explicitPassword = process.env.SEED_DEFAULT_PASSWORD?.trim();
+    if (explicitPassword) {
+        if (explicitPassword.length < 12) {
+            throw new Error('SEED_DEFAULT_PASSWORD must have at least 12 characters.');
+        }
+        return explicitPassword;
+    }
 
-    // 1. Create Admin User
-    const hashedPassword = await bcrypt.hash('admin123', 10);
+    if (process.env.NODE_ENV === 'production') {
+        throw new Error('SEED_DEFAULT_PASSWORD is required in production.');
+    }
+
+    return 'admin123';
+}
+
+async function main() {
+    console.log('Seeding database...');
+
+    // 1. Create default users
+    const seedPassword = resolveSeedPassword();
+    const hashedPassword = await bcrypt.hash(seedPassword, 10);
 
     const admin = await prisma.user.upsert({
         where: { email: 'admin@hiperfarma.com.br' },
@@ -22,9 +39,8 @@ async function main() {
             department: 'TI',
         },
     });
-    console.log('  ✅ Admin user:', admin.email);
+    console.log('  ok Admin user:', admin.email);
 
-    // 2. Create SDR User
     const sdr = await prisma.user.upsert({
         where: { email: 'sdr@hiperfarma.com.br' },
         update: {},
@@ -35,12 +51,11 @@ async function main() {
             status: UserStatus.ACTIVE,
             password: hashedPassword,
             phone: '(41) 99999-0002',
-            department: 'Expansão',
+            department: 'Expansao',
         },
     });
-    console.log('  ✅ SDR user:', sdr.email);
+    console.log('  ok SDR user:', sdr.email);
 
-    // 3. Create Consultant User
     const consultant = await prisma.user.upsert({
         where: { email: 'consultor@hiperfarma.com.br' },
         update: {},
@@ -51,44 +66,45 @@ async function main() {
             status: UserStatus.ACTIVE,
             password: hashedPassword,
             phone: '(41) 99999-0003',
-            department: 'Expansão',
+            department: 'Expansao',
         },
     });
-    console.log('  ✅ Consultant user:', consultant.email);
+    console.log('  ok Consultant user:', consultant.email);
 
-    // 4. Create Association Pricing (Tabela 2026)
-    // Rede associativista: apenas taxas mensais (marketing + administrativa)
+    // 2. Create association pricing
     const pricing = await prisma.associationPricing.upsert({
         where: { id: 'pricing-2026' },
         update: {
             isActive: true,
-            marketingMonthly: 2500.00,
-            adminMonthly: 1800.00,
-            totalMonthly: 4300.00,
+            marketingMonthly: 2500.0,
+            adminMonthly: 1800.0,
+            totalMonthly: 4300.0,
         },
         create: {
             id: 'pricing-2026',
             name: 'Tabela 2026',
             effectiveDate: new Date('2026-01-01'),
             isActive: true,
-            marketingMonthly: 2500.00,
-            marketingDescription: '• Campanhas institucionais\n• Materiais de divulgação\n• Ações de relacionamento\n• Publicidade compartilhada',
-            adminMonthly: 1800.00,
-            adminDescription: '• Gestão e governança\n• Suporte técnico\n• Sistemas e ferramentas\n• Consultorias especializadas',
-            totalMonthly: 4300.00,
+            marketingMonthly: 2500.0,
+            marketingDescription:
+                '- Campanhas institucionais\n- Materiais de divulgacao\n- Acoes de relacionamento\n- Publicidade compartilhada',
+            adminMonthly: 1800.0,
+            adminDescription:
+                '- Gestao e governanca\n- Suporte tecnico\n- Sistemas e ferramentas\n- Consultorias especializadas',
+            totalMonthly: 4300.0,
             createdBy: admin.id,
         },
     });
-    console.log('  ✅ Pricing:', pricing.name, '- R$', pricing.totalMonthly.toString(), '/mês');
+    console.log('  ok Pricing:', pricing.name, '- R$', pricing.totalMonthly.toString(), '/mes');
 
-    // 5. Create Default Pipeline
+    // 3. Create default pipeline
     const pipeline = await prisma.pipeline.upsert({
         where: { id: 'pipeline-default' },
         update: {},
         create: {
             id: 'pipeline-default',
-            name: 'Funil de Expansão',
-            description: 'Pipeline padrão para novos associados',
+            name: 'Funil de Expansao',
+            description: 'Pipeline padrao para novos associados',
             isDefault: true,
             isActive: true,
         },
@@ -100,7 +116,7 @@ async function main() {
         { id: 'stage-3', name: 'Aguardando Call', color: '#6366F1', order: 3 },
         { id: 'stage-4', name: 'Call Realizada', color: '#F59E0B', order: 4 },
         { id: 'stage-5', name: 'Proposta Enviada', color: '#F97316', order: 5 },
-        { id: 'stage-6', name: 'Em Decisão', color: '#8B5CF6', order: 6 },
+        { id: 'stage-6', name: 'Em Decisao', color: '#8B5CF6', order: 6 },
         { id: 'stage-7', name: 'Fechado', color: '#22C55E', order: 7, isWon: true },
         { id: 'stage-8', name: 'Sem Fit', color: '#6B7280', order: 8, isLost: true },
     ];
@@ -120,19 +136,19 @@ async function main() {
             },
         });
     }
-    console.log('  ✅ Pipeline com', stages.length, 'etapas');
+    console.log('  ok Pipeline com', stages.length, 'etapas');
 
     console.log('');
-    console.log('🎉 Seed completed!');
+    console.log('Seed completed.');
     console.log('');
-    console.log('📋 Login credentials:');
-    console.log('   Admin: admin@hiperfarma.com.br / admin123');
-    console.log('   SDR:   sdr@hiperfarma.com.br / admin123');
+    console.log('Login credentials:');
+    console.log('   Admin: admin@hiperfarma.com.br / <SEED_DEFAULT_PASSWORD>');
+    console.log('   SDR:   sdr@hiperfarma.com.br / <SEED_DEFAULT_PASSWORD>');
 }
 
 main()
     .catch((e) => {
-        console.error('❌ Seed error:', e);
+        console.error('Seed error:', e);
         process.exit(1);
     })
     .finally(async () => {

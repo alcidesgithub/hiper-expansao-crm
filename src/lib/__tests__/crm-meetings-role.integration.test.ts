@@ -7,6 +7,8 @@ import {
     POST as postMeetingsRoute,
     __setAuthHandlerForTests as setMeetingsAuth,
     __resetAuthHandlerForTests as resetMeetingsAuth,
+    __setTeamsHandlersForTests as setMeetingsTeamsHandlers,
+    __resetTeamsHandlersForTests as resetMeetingsTeamsHandlers,
 } from '@/app/api/meetings/route';
 import {
     GET as getMeetingByIdRoute,
@@ -128,6 +130,14 @@ test('POST /api/meetings should return 404 when lead is outside scope', async ()
 
 test('POST /api/meetings should create meeting for in-scope lead with safe lead select', async () => {
     const restoreAuth = withAuthSession(setMeetingsAuth, resetMeetingsAuth, sessionForRole('SDR'));
+    setMeetingsTeamsHandlers({
+        isTeamsConfigured: () => true,
+        createTeamsMeeting: async () => ({
+            provider: 'teams',
+            meetingLink: 'https://teams.example/meeting-1',
+            externalEventId: 'event-1',
+        }),
+    });
     const restores: RestoreFn[] = [];
     let capturedLeadSelect: Record<string, unknown> | undefined;
 
@@ -136,6 +146,13 @@ test('POST /api/meetings should create meeting for in-scope lead with safe lead 
             prisma.lead,
             'findFirst',
             (async () => ({ id: 'lead-1', name: 'Lead 1', email: 'lead@empresa.com' })) as unknown as typeof prisma.lead.findFirst
+        )
+    );
+    restores.push(
+        mockMethod(
+            prisma.user,
+            'findUnique',
+            (async () => ({ email: 'sdr@empresa.com' })) as unknown as typeof prisma.user.findUnique
         )
     );
     restores.push(
@@ -207,6 +224,7 @@ test('POST /api/meetings should create meeting for in-scope lead with safe lead 
         assert.equal(capturedLeadSelect?.roiData, undefined);
     } finally {
         for (const restore of restores.reverse()) restore();
+        resetMeetingsTeamsHandlers();
         restoreAuth();
     }
 });

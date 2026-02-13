@@ -5,7 +5,7 @@ import { auth } from '@/auth';
 
 import { Prisma, LeadSource, UserRole } from '@prisma/client';
 import { buildLeadScope, mergeLeadWhere } from '@/lib/lead-scope';
-import { can } from '@/lib/permissions';
+import { can, canAny } from '@/lib/permissions';
 import { cancelTeamsMeeting, createTeamsMeeting, isTeamsConfigured, type TeamsMeetingPayload } from '@/lib/teams';
 
 interface CreateLeadInput {
@@ -276,6 +276,107 @@ function getDateFilter(period?: string) {
     const days = period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 90 : 0;
     if (days === 0) return undefined;
     return { gte: new Date(now.getTime() - days * 24 * 60 * 60 * 1000) };
+}
+
+type GateChoice = 'DECISOR' | 'INFLUENCIADOR' | 'PESQUISADOR';
+
+interface FunnelGateAnalytics {
+    totals: {
+        total: number;
+        decisor: number;
+        influenciador: number;
+        pesquisador: number;
+        decisorRate: number;
+    };
+    byDay: Array<{
+        date: string;
+        decisor: number;
+        influenciador: number;
+        pesquisador: number;
+        total: number;
+    }>;
+}
+
+function normalizeGateChoice(value: unknown): GateChoice | null {
+    if (typeof value !== 'string') return null;
+    const normalized = value.trim().toUpperCase();
+    if (normalized === 'DECISOR' || normalized === 'INFLUENCIADOR' || normalized === 'PESQUISADOR') {
+        return normalized;
+    }
+    return null;
+}
+
+function extractGateChoiceFromChanges(changes: unknown): GateChoice | null {
+    if (!changes || typeof changes !== 'object' || Array.isArray(changes)) return null;
+    return normalizeGateChoice((changes as { choice?: unknown }).choice);
+}
+
+export async function getFunnelGateAnalytics(period?: string): Promise<FunnelGateAnalytics | null> {
+    const context = await getLeadContext();
+    if (!context) return null;
+    if (!canAny(context.user.role, ['dashboard:executive', 'dashboard:operational'])) {
+        return null;
+    }
+
+    const dateFilter = getDateFilter(period);
+    const where: Prisma.AuditLogWhereInput = {
+        entity: 'FunnelGate',
+        action: 'GATE_SELECT',
+    };
+    if (dateFilter) where.createdAt = dateFilter;
+
+    const events = await prisma.auditLog.findMany({
+        where,
+        select: {
+            createdAt: true,
+            changes: true,
+        },
+        orderBy: { createdAt: 'asc' },
+        take: 5000,
+    });
+
+    const totals: Record<GateChoice, number> = {
+        DECISOR: 0,
+        INFLUENCIADOR: 0,
+        PESQUISADOR: 0,
+    };
+    const byDayMap = new Map<string, Record<GateChoice, number>>();
+
+    for (const event of events) {
+        const choice = extractGateChoiceFromChanges(event.changes);
+        if (!choice) continue;
+
+        totals[choice] += 1;
+
+        const dateKey = event.createdAt.toISOString().slice(0, 10);
+        const day = byDayMap.get(dateKey) || {
+            DECISOR: 0,
+            INFLUENCIADOR: 0,
+            PESQUISADOR: 0,
+        };
+        day[choice] += 1;
+        byDayMap.set(dateKey, day);
+    }
+
+    const total = totals.DECISOR + totals.INFLUENCIADOR + totals.PESQUISADOR;
+    const decisorRate = total > 0 ? Number(((totals.DECISOR / total) * 100).toFixed(2)) : 0;
+
+    return {
+        totals: {
+            total,
+            decisor: totals.DECISOR,
+            influenciador: totals.INFLUENCIADOR,
+            pesquisador: totals.PESQUISADOR,
+            decisorRate,
+        },
+        byDay: Array.from(byDayMap.entries()).map(([date, counts]) => ({
+            date,
+            decisor: counts.DECISOR,
+            influenciador: counts.INFLUENCIADOR,
+            pesquisador: counts.PESQUISADOR,
+            total: counts.DECISOR + counts.INFLUENCIADOR + counts.PESQUISADOR,
+        })),
+    };
 }
 
 function formatSourceLabel(source: string): string {
@@ -654,34 +755,32 @@ export async function createMeeting(data: CreateMeetingInput) {
                         ? 'Reunião de Fechamento'
                         : 'Follow-up';
 
-        let teamsMeeting: TeamsMeetingPayload | null = null;
-        if (data.autoLink) {
-            if (!isTeamsConfigured()) {
-                return { success: false, error: 'Integração com Teams não configurada' };
-            }
+        if (!isTeamsConfigured()) {
+            return { success: false, error: 'Integracao com Teams nao configurada' };
+        }
 
-            const actor = await prisma.user.findUnique({
-                where: { id: context.user.id },
-                select: { email: true },
+        const actor = await prisma.user.findUnique({
+            where: { id: context.user.id },
+            select: { email: true },
+        });
+        if (!actor?.email || !scopedLead.email) {
+            return { success: false, error: 'Email do consultor ou lead invalido para Teams' };
+        }
+
+        let teamsMeeting: TeamsMeetingPayload;
+        try {
+            teamsMeeting = await createTeamsMeeting({
+                organizerEmail: actor.email,
+                leadEmail: scopedLead.email,
+                leadName: scopedLead.name,
+                subject: meetingTitle,
+                description: data.notes || null,
+                startTime,
+                endTime,
             });
-            if (!actor?.email || !scopedLead.email) {
-                return { success: false, error: 'Email do consultor ou lead inválido para Teams' };
-            }
-
-            try {
-                teamsMeeting = await createTeamsMeeting({
-                    organizerEmail: actor.email,
-                    leadEmail: scopedLead.email,
-                    leadName: scopedLead.name,
-                    subject: meetingTitle,
-                    description: data.notes || null,
-                    startTime,
-                    endTime,
-                });
-            } catch (error) {
-                console.error('Error creating Teams meeting:', error);
-                return { success: false, error: 'Falha ao criar reunião no Teams' };
-            }
+        } catch (error) {
+            console.error('Error creating Teams meeting:', error);
+            return { success: false, error: 'Falha ao criar reuniao no Teams' };
         }
 
         const meeting = await prisma.meeting.create({
@@ -693,9 +792,9 @@ export async function createMeeting(data: CreateMeetingInput) {
                 lead: { connect: { id: data.leadId } },
                 user: { connect: { id: context.user.id } },
                 status: 'SCHEDULED',
-                meetingLink: teamsMeeting?.meetingLink || null,
-                provider: teamsMeeting?.provider || null,
-                externalEventId: teamsMeeting?.externalEventId || null,
+                meetingLink: teamsMeeting.meetingLink,
+                provider: teamsMeeting.provider,
+                externalEventId: teamsMeeting.externalEventId,
             }
         });
 

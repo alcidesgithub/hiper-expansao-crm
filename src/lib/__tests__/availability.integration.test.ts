@@ -3,7 +3,12 @@ import assert from 'node:assert/strict';
 import { prisma } from '@/lib/prisma';
 import { getPublicAvailabilitySlotsForDate, validateConsultorAvailabilityWindow } from '@/lib/availability';
 import { GET as getAvailabilitySlotsRoute } from '@/app/api/availability/slots/route';
-import { GET as getScheduleRoute, POST as postScheduleRoute } from '@/app/api/schedule/route';
+import {
+    GET as getScheduleRoute,
+    POST as postScheduleRoute,
+    __setTeamsHandlersForTests as setScheduleTeamsHandlers,
+    __resetTeamsHandlersForTests as resetScheduleTeamsHandlers,
+} from '@/app/api/schedule/route';
 
 type RestoreFn = () => void;
 
@@ -78,6 +83,15 @@ function buildScheduleRequest(body: Record<string, unknown>, ip = '10.0.0.50') {
 
 function setupScheduleBaseMocks(token: string): RestoreFn {
     const restores: RestoreFn[] = [];
+    setScheduleTeamsHandlers({
+        isTeamsConfigured: () => true,
+        createTeamsMeeting: async () => ({
+            provider: 'teams',
+            meetingLink: 'https://teams.example/schedule-1',
+            externalEventId: 'event-schedule-1',
+        }),
+        cancelTeamsMeeting: async () => undefined,
+    });
 
     restores.push(
         mockMethod(prisma.lead, 'findUnique', (async () => ({
@@ -116,6 +130,7 @@ function setupScheduleBaseMocks(token: string): RestoreFn {
     );
 
     return () => {
+        resetScheduleTeamsHandlers();
         for (const restore of restores.reverse()) restore();
     };
 }

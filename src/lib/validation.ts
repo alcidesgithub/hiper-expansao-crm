@@ -44,7 +44,7 @@ export const meetingCreateSchema = z.object({
     startTime: z.string().datetime({ message: 'Data/hora de inÃ­cio invÃ¡lida' }),
     endTime: z.string().datetime({ message: 'Data/hora de fim invÃ¡lida' }),
     location: z.string().optional().nullable(),
-    provider: z.enum(['teams', 'zoom']).optional().nullable(),
+    provider: z.enum(['teams']).optional().default('teams'),
     selfScheduled: z.boolean().optional().default(false),
 });
 

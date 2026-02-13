@@ -5,6 +5,21 @@ interface TeamsConfig {
     scope: string;
 }
 
+interface GraphDateTime {
+    dateTime?: string;
+    timeZone?: string;
+}
+
+interface GraphEventPayload {
+    id?: string;
+    isCancelled?: boolean;
+    webLink?: string;
+    onlineMeeting?: { joinUrl?: string };
+    start?: GraphDateTime;
+    end?: GraphDateTime;
+    lastModifiedDateTime?: string;
+}
+
 export interface CreateTeamsMeetingParams {
     organizerEmail: string;
     leadEmail: string;
@@ -19,6 +34,30 @@ export interface TeamsMeetingPayload {
     externalEventId: string;
     meetingLink: string;
     provider: 'teams';
+}
+
+export interface TeamsEventPayload {
+    externalEventId: string;
+    isCancelled: boolean;
+    startTime: Date | null;
+    endTime: Date | null;
+    meetingLink: string | null;
+    lastModifiedAt: Date | null;
+}
+
+export interface CreateTeamsSubscriptionParams {
+    organizerEmail: string;
+    notificationUrl: string;
+    clientState: string;
+    expirationDateTime: string;
+    lifecycleNotificationUrl?: string;
+}
+
+export interface TeamsSubscriptionPayload {
+    id: string;
+    resource: string;
+    expirationDateTime: string;
+    clientState?: string;
 }
 
 function getTeamsConfig(): TeamsConfig | null {
@@ -57,24 +96,73 @@ async function getGraphToken(config: TeamsConfig): Promise<string> {
 
     const payload = await response.json() as { access_token?: string };
     if (!payload.access_token) {
-        throw new Error('Graph não retornou access token');
+        throw new Error('Graph nao retornou access token');
     }
 
     return payload.access_token;
 }
 
-export async function createTeamsMeeting(params: CreateTeamsMeetingParams): Promise<TeamsMeetingPayload> {
+async function fetchGraph(
+    path: string,
+    init: RequestInit = {}
+): Promise<Response> {
     const config = getTeamsConfig();
     if (!config) {
-        throw new Error('Integração com Teams não configurada');
+        throw new Error('Integracao com Teams nao configurada');
     }
 
     const token = await getGraphToken(config);
+    const headers = new Headers(init.headers || {});
+    headers.set('authorization', `Bearer ${token}`);
+
+    return fetch(`https://graph.microsoft.com/v1.0${path}`, {
+        ...init,
+        headers,
+    });
+}
+
+function toUtcDate(value?: GraphDateTime): Date | null {
+    if (!value?.dateTime) return null;
+
+    const raw = value.dateTime.trim();
+    if (!raw) return null;
+
+    const hasOffset = /(?:Z|[+-]\d{2}:\d{2})$/i.test(raw);
+    const normalized = hasOffset ? raw : `${raw}Z`;
+    const parsed = new Date(normalized);
+    if (Number.isNaN(parsed.getTime())) return null;
+
+    return parsed;
+}
+
+function parseGraphEvent(payload: GraphEventPayload): TeamsEventPayload | null {
+    if (!payload.id) return null;
+    const meetingLink = payload.onlineMeeting?.joinUrl || payload.webLink || null;
+
+    let lastModifiedAt: Date | null = null;
+    if (payload.lastModifiedDateTime) {
+        const parsed = new Date(payload.lastModifiedDateTime);
+        if (!Number.isNaN(parsed.getTime())) {
+            lastModifiedAt = parsed;
+        }
+    }
+
+    return {
+        externalEventId: payload.id,
+        isCancelled: payload.isCancelled === true,
+        startTime: toUtcDate(payload.start),
+        endTime: toUtcDate(payload.end),
+        meetingLink,
+        lastModifiedAt,
+    };
+}
+
+export async function createTeamsMeeting(params: CreateTeamsMeetingParams): Promise<TeamsMeetingPayload> {
     const payload = {
         subject: params.subject,
         body: {
             contentType: 'HTML',
-            content: params.description || 'Reunião agendada pelo CRM Hiperfarma.',
+            content: params.description || 'Reuniao agendada pelo CRM Hiperfarma.',
         },
         start: {
             dateTime: params.startTime.toISOString(),
@@ -97,14 +185,11 @@ export async function createTeamsMeeting(params: CreateTeamsMeetingParams): Prom
         ],
     };
 
-    const response = await fetch(
-        `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(params.organizerEmail)}/events`,
+    const response = await fetchGraph(
+        `/users/${encodeURIComponent(params.organizerEmail)}/events`,
         {
             method: 'POST',
-            headers: {
-                authorization: `Bearer ${token}`,
-                'content-type': 'application/json',
-            },
+            headers: { 'content-type': 'application/json' },
             body: JSON.stringify(payload),
         }
     );
@@ -114,16 +199,11 @@ export async function createTeamsMeeting(params: CreateTeamsMeetingParams): Prom
         throw new Error(`Falha ao criar evento Teams: ${response.status} ${detail}`);
     }
 
-    const event = await response.json() as {
-        id?: string;
-        webLink?: string;
-        onlineMeeting?: { joinUrl?: string };
-    };
-
+    const event = await response.json() as GraphEventPayload;
     const externalEventId = event.id;
     const meetingLink = event.onlineMeeting?.joinUrl || event.webLink;
     if (!externalEventId || !meetingLink) {
-        throw new Error('Evento Teams criado sem id/link de reunião');
+        throw new Error('Evento Teams criado sem id/link de reuniao');
     }
 
     return {
@@ -133,6 +213,30 @@ export async function createTeamsMeeting(params: CreateTeamsMeetingParams): Prom
     };
 }
 
+export async function getTeamsEvent(params: {
+    organizerEmail: string;
+    externalEventId: string;
+}): Promise<TeamsEventPayload | null> {
+    const response = await fetchGraph(
+        `/users/${encodeURIComponent(params.organizerEmail)}/events/${encodeURIComponent(params.externalEventId)}?$select=id,isCancelled,start,end,webLink,onlineMeeting,lastModifiedDateTime`,
+        {
+            method: 'GET',
+            headers: {
+                Prefer: 'outlook.timezone="UTC"',
+            },
+        }
+    );
+
+    if (response.status === 404) return null;
+    if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(`Falha ao consultar evento Teams: ${response.status} ${detail}`);
+    }
+
+    const payload = await response.json() as GraphEventPayload;
+    return parseGraphEvent(payload);
+}
+
 export async function cancelTeamsMeeting(params: {
     organizerEmail: string;
     externalEventId: string;
@@ -140,14 +244,10 @@ export async function cancelTeamsMeeting(params: {
     const config = getTeamsConfig();
     if (!config) return;
 
-    const token = await getGraphToken(config);
-    const response = await fetch(
-        `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(params.organizerEmail)}/events/${encodeURIComponent(params.externalEventId)}`,
+    const response = await fetchGraph(
+        `/users/${encodeURIComponent(params.organizerEmail)}/events/${encodeURIComponent(params.externalEventId)}`,
         {
             method: 'DELETE',
-            headers: {
-                authorization: `Bearer ${token}`,
-            },
         }
     );
 
@@ -157,3 +257,74 @@ export async function cancelTeamsMeeting(params: {
         throw new Error(`Falha ao cancelar evento Teams: ${response.status} ${detail}`);
     }
 }
+
+export async function createTeamsEventSubscription(
+    params: CreateTeamsSubscriptionParams
+): Promise<TeamsSubscriptionPayload> {
+    const body = {
+        changeType: 'created,updated,deleted',
+        notificationUrl: params.notificationUrl,
+        lifecycleNotificationUrl: params.lifecycleNotificationUrl || params.notificationUrl,
+        resource: `/users/${params.organizerEmail}/events`,
+        expirationDateTime: params.expirationDateTime,
+        clientState: params.clientState,
+    };
+
+    const response = await fetchGraph('/subscriptions', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(`Falha ao criar subscription Teams: ${response.status} ${detail}`);
+    }
+
+    const payload = await response.json() as TeamsSubscriptionPayload;
+    if (!payload.id || !payload.resource || !payload.expirationDateTime) {
+        throw new Error('Subscription Teams criada sem campos obrigatorios');
+    }
+
+    return payload;
+}
+
+export async function renewTeamsEventSubscription(params: {
+    subscriptionId: string;
+    expirationDateTime: string;
+}): Promise<TeamsSubscriptionPayload | null> {
+    const response = await fetchGraph(`/subscriptions/${encodeURIComponent(params.subscriptionId)}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ expirationDateTime: params.expirationDateTime }),
+    });
+
+    if (response.status === 404) return null;
+    if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(`Falha ao renovar subscription Teams: ${response.status} ${detail}`);
+    }
+
+    const payload = await response.json() as TeamsSubscriptionPayload;
+    if (!payload.id || !payload.resource || !payload.expirationDateTime) {
+        throw new Error('Subscription Teams renovada sem campos obrigatorios');
+    }
+
+    return payload;
+}
+
+export async function deleteTeamsSubscription(subscriptionId: string): Promise<void> {
+    const config = getTeamsConfig();
+    if (!config) return;
+
+    const response = await fetchGraph(`/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+        method: 'DELETE',
+    });
+
+    if (response.status === 404) return;
+    if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(`Falha ao remover subscription Teams: ${response.status} ${detail}`);
+    }
+}
+

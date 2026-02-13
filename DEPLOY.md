@@ -1,82 +1,172 @@
-﻿# Deployment Guide - HiperFarma CRM (Coolify + Docker Compose)
+# Deploy Guide - HiperFarma CRM (Coolify + Docker Compose)
 
-Este projeto esta preparado para deploy em producao no Coolify com PostgreSQL + Redis + job automatico de migration/seed.
+Este guia descreve o deploy do projeto no Coolify usando o `coolify.yaml` da raiz.
 
-## Arquitetura
+## 1. Pre-requisitos
 
-O arquivo `coolify.yaml` sobe os servicos abaixo:
+- Coolify instalado e acessivel.
+- Repositorio GitHub conectado ao Coolify (GitHub App ou token).
+- Dominio apontando para o servidor do Coolify.
+- Acesso ao painel do Coolify e ao repositorio.
+
+## 2. Arquitetura de Deploy
+
+O `coolify.yaml` sobe os servicos:
 
 - `postgres`: banco PostgreSQL com volume persistente.
-- `redis`: cache com volume persistente.
-- `migrate`: job one-shot que executa `prisma migrate deploy` e `prisma db seed`.
-- `app`: Next.js (inicia somente depois do `migrate` finalizar com sucesso).
+- `redis`: cache Redis com volume persistente.
+- `migrate`: job one-shot que executa migration + seed.
+- `app`: Next.js (sobe apenas depois do `migrate` concluir com sucesso).
 
-## Fluxo de deploy
+Ordem esperada:
 
-1. Coolify faz clone e build das imagens.
-2. `postgres` e `redis` sobem e passam nos healthchecks.
-3. `migrate` roda migrations e seed.
-4. `app` sobe apenas apos `migrate` concluir com sucesso.
+1. `postgres` e `redis` sobem e ficam healthy.
+2. `migrate` roda `prisma migrate deploy` e `prisma db seed`.
+3. `app` inicia com `depends_on` do `migrate`.
 
-Esse fluxo e idempotente desde que o seed continue usando `upsert` (como ja esta no projeto).
+## 3. Configuracao no Coolify
 
-## Coolify (passo a passo)
+1. Crie um novo `Project` (environment: `production`).
+2. Adicione uma `Application` apontando para este repositorio/branch.
+3. Em `Build Pack`, selecione `Docker Compose`.
+4. Defina `Compose File Path` como `/coolify.yaml`.
+5. Defina `Base Directory` como `/` (raiz do repo).
+6. Em `Build Arguments`, configure:
+   - `NEXT_PUBLIC_APP_URL=https://crm.seudominio.com`
+7. Em `Domains`, adicione `crm.seudominio.com` e habilite SSL.
 
-1. Crie um recurso apontando para este repositorio.
-2. Selecione **Build Pack: Docker Compose**.
-3. Defina **Compose file path** como `/coolify.yaml`.
-4. Configure os secrets/variaveis no painel.
-5. Execute o deploy.
+## 4. Variaveis de Ambiente (Production)
 
-## Variaveis recomendadas (production)
+Configure no painel do Coolify:
 
 ```env
+# Database
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=<senha-forte>
 POSTGRES_DB=hiperfarma_crm
 DATABASE_URL=postgresql://postgres:<senha-forte>@postgres:5432/hiperfarma_crm?schema=public
+
+# Cache
 REDIS_URL=redis://redis:6379
 
+# Auth
 AUTH_SECRET=<segredo-forte>
-NEXTAUTH_SECRET=<segredo-forte>
+NEXTAUTH_SECRET=<mesmo-valor-do-AUTH_SECRET>
 NEXTAUTH_URL=https://crm.seudominio.com
 NEXT_PUBLIC_APP_URL=https://crm.seudominio.com
 AUTH_TRUST_HOST=true
 
+# Email
 RESEND_API_KEY=<chave-resend>
 RESEND_FROM_EMAIL=naoresponda@seudominio.com
 
+# Microsoft Teams (opcional)
 MS_TEAMS_CLIENT_ID=
 MS_TEAMS_CLIENT_SECRET=
 MS_TEAMS_TENANT_ID=
 MS_TEAMS_GRAPH_SCOPE=https://graph.microsoft.com/.default
+MS_TEAMS_WEBHOOK_URL=https://crm.seudominio.com/api/integrations/teams/webhook
+MS_TEAMS_WEBHOOK_CLIENT_STATE=<segredo-forte-unico>
+TEAMS_SYNC_CRON_TOKEN=<token-forte>
+
+# Seed (obrigatoria no migrate em producao)
+SEED_DEFAULT_PASSWORD=<senha-forte-12+-chars>
 ```
 
-Notas:
-- Em deploy com o `coolify.yaml`, o host do banco e `postgres` (nao use `localhost` em `DATABASE_URL`).
-- `NODE_ENV` e `UPLOAD_DIR` ja sao definidos pelo compose para o servico `app`.
-- Guarde secrets apenas no painel do Coolify (nao versione `.env` real no git).
+Notas importantes:
 
-## Execucao local com Compose
+- Em `DATABASE_URL`, use host `postgres` (nao `localhost`).
+- `NEXT_PUBLIC_APP_URL` precisa existir tanto no runtime quanto em Build Argument.
+- `SEED_DEFAULT_PASSWORD` e obrigatoria em producao e deve ter no minimo 12 caracteres.
+- Nao versione `.env` real no Git.
+
+## 5. Fluxo de Deploy
+
+1. Clique em `Deploy`.
+2. Acompanhe os logs do deployment.
+3. Status esperado:
+   - `postgres`: healthy
+   - `redis`: healthy
+   - `migrate`: exited (0) - normal para one-shot
+   - `app`: running/healthy
+
+## 6. Validacao Pos-Deploy
+
+1. Health check:
+   - `GET https://crm.seudominio.com/api/health`
+2. Login:
+   - acessar `/login` e validar autenticacao.
+3. Banco e seed:
+   - confirmar no log do `migrate` que migration e seed finalizaram.
+4. Email:
+   - validar envio (se `RESEND_API_KEY` estiver configurada).
+5. Agendamento:
+   - validar criacao de reuniao e link de lead no CRM.
+
+Sobre o `/api/health`:
+
+- `status: "ok"` quando DB/Redis estao saudaveis.
+- `status: "degraded"` quando algum servico opcional esta degradado.
+- `status: "down"` retorna HTTP `503`.
+
+## 7. Auto-Deploy
+
+Para deploy automatico a cada push na branch:
+
+1. Abra a aplicacao no Coolify.
+2. Habilite `Auto Deploy`.
+3. Salve.
+
+## 8. Job Agendado (Teams Subscriptions)
+
+Se usar integracao Teams, crie Scheduled Job no Coolify (ex.: a cada 6 horas):
 
 ```bash
-docker compose -f coolify.yaml up --build
+curl -fsS -X POST \
+  -H "Authorization: Bearer $TEAMS_SYNC_CRON_TOKEN" \
+  https://crm.seudominio.com/api/integrations/teams/subscriptions/sync
 ```
 
-Para rerodar somente migration/seed localmente:
+Respostas esperadas:
 
-```bash
-docker compose -f coolify.yaml run --rm migrate
-```
+- `401`: token invalido.
+- `503`: token nao configurado.
 
-## Validacao pos-deploy
+## 9. Troubleshooting Rapido
 
-1. Verifique os logs do servico `migrate` (deve finalizar com sucesso).
-2. Verifique os logs do servico `app` (startup sem erros).
-3. Acesse `/login` e valide autenticacao.
-4. Teste envio de email transacional (Resend), se habilitado.
+### Build sem `NEXT_PUBLIC_*`
 
-## Comandos uteis
+- Garanta `NEXT_PUBLIC_APP_URL` em `Build Arguments`.
+- Redeploy apos ajustar.
+
+### App nao conecta no banco
+
+- Verifique `DATABASE_URL`.
+- Host deve ser `postgres`.
+- Usuario/senha devem bater com `POSTGRES_USER` e `POSTGRES_PASSWORD`.
+
+### Migrate falha
+
+- Verifique se `DATABASE_URL` esta correta.
+- Verifique se `SEED_DEFAULT_PASSWORD` existe e possui 12+ chars.
+- Consulte logs do servico `migrate`.
+
+### SSL nao provisiona
+
+- Verifique DNS do dominio.
+- Verifique portas 80/443 no servidor.
+
+## 10. Checklist Final
+
+- Health endpoint responde.
+- Login funcionando.
+- `migrate` terminou com sucesso.
+- App rodando sem erro de conexao com DB/Redis.
+- SSL ativo no dominio.
+- Auto-deploy configurado.
+- Secrets apenas no painel do Coolify.
+
+## 11. Comandos Uteis (local)
 
 - `npm run db:migrate`
 - `npm run db:seed`

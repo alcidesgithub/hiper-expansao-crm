@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cancelTeamsMeeting, createTeamsMeeting, isTeamsConfigured } from '@/lib/teams';
+import {
+    cancelTeamsMeeting,
+    createTeamsEventSubscription,
+    createTeamsMeeting,
+    getTeamsEvent,
+    isTeamsConfigured,
+    renewTeamsEventSubscription,
+} from '@/lib/teams';
 
 type RestoreFn = () => void;
 
@@ -125,7 +132,7 @@ test('createTeamsMeeting should throw when Teams env is missing', { concurrency:
                 startTime: new Date('2026-03-10T13:00:00.000Z'),
                 endTime: new Date('2026-03-10T14:00:00.000Z'),
             }),
-            /Integração com Teams não configurada/
+            /Integracao com Teams nao configurada/
         );
     } finally {
         restoreEnv();
@@ -184,3 +191,94 @@ test('cancelTeamsMeeting should accept 404 from Graph', { concurrency: false }, 
         restoreEnv();
     }
 });
+
+test('getTeamsEvent should return event payload and parse UTC dates', { concurrency: false }, async () => {
+    const restoreEnv = setEnv({
+        MS_TEAMS_CLIENT_ID: 'client-id',
+        MS_TEAMS_CLIENT_SECRET: 'client-secret',
+        MS_TEAMS_TENANT_ID: 'tenant-id',
+    });
+
+    const restoreFetch = mockFetch(async (url) => {
+        if (url.includes('/oauth2/v2.0/token')) {
+            return new Response(JSON.stringify({ access_token: 'token-123' }), { status: 200 });
+        }
+        return new Response(JSON.stringify({
+            id: 'event-1',
+            isCancelled: false,
+            webLink: 'https://teams.microsoft.com/l/meetup-join/event-1',
+            start: { dateTime: '2026-03-10T13:00:00.0000000', timeZone: 'UTC' },
+            end: { dateTime: '2026-03-10T14:00:00.0000000', timeZone: 'UTC' },
+            lastModifiedDateTime: '2026-03-09T12:00:00.000Z',
+        }), { status: 200 });
+    });
+
+    try {
+        const event = await getTeamsEvent({
+            organizerEmail: 'consultor@empresa.com',
+            externalEventId: 'event-1',
+        });
+
+        assert.ok(event);
+        assert.equal(event?.externalEventId, 'event-1');
+        assert.equal(event?.meetingLink, 'https://teams.microsoft.com/l/meetup-join/event-1');
+        assert.equal(event?.startTime?.toISOString(), '2026-03-10T13:00:00.000Z');
+        assert.equal(event?.endTime?.toISOString(), '2026-03-10T14:00:00.000Z');
+    } finally {
+        restoreFetch();
+        restoreEnv();
+    }
+});
+
+test('createTeamsEventSubscription and renewTeamsEventSubscription should work', { concurrency: false }, async () => {
+    const restoreEnv = setEnv({
+        MS_TEAMS_CLIENT_ID: 'client-id',
+        MS_TEAMS_CLIENT_SECRET: 'client-secret',
+        MS_TEAMS_TENANT_ID: 'tenant-id',
+    });
+
+    const calls: Array<{ url: string; method: string | undefined }> = [];
+    const restoreFetch = mockFetch(async (url, init) => {
+        calls.push({ url, method: init?.method });
+
+        if (url.includes('/oauth2/v2.0/token')) {
+            return new Response(JSON.stringify({ access_token: 'token-123' }), { status: 200 });
+        }
+        if (url.endsWith('/v1.0/subscriptions') && init?.method === 'POST') {
+            return new Response(JSON.stringify({
+                id: 'sub-1',
+                resource: '/users/consultor@empresa.com/events',
+                expirationDateTime: '2026-03-12T13:00:00.000Z',
+            }), { status: 201 });
+        }
+        if (url.endsWith('/v1.0/subscriptions/sub-1') && init?.method === 'PATCH') {
+            return new Response(JSON.stringify({
+                id: 'sub-1',
+                resource: '/users/consultor@empresa.com/events',
+                expirationDateTime: '2026-03-13T13:00:00.000Z',
+            }), { status: 200 });
+        }
+        return new Response('not-found', { status: 404 });
+    });
+
+    try {
+        const created = await createTeamsEventSubscription({
+            organizerEmail: 'consultor@empresa.com',
+            notificationUrl: 'https://crm.exemplo.com/api/integrations/teams/webhook',
+            clientState: 'state-123',
+            expirationDateTime: '2026-03-12T13:00:00.000Z',
+        });
+        const renewed = await renewTeamsEventSubscription({
+            subscriptionId: created.id,
+            expirationDateTime: '2026-03-13T13:00:00.000Z',
+        });
+
+        assert.equal(created.id, 'sub-1');
+        assert.equal(renewed?.expirationDateTime, '2026-03-13T13:00:00.000Z');
+        assert.equal(calls.filter((call) => call.url.includes('/oauth2/v2.0/token')).length, 2);
+    } finally {
+        restoreFetch();
+        restoreEnv();
+    }
+});
+

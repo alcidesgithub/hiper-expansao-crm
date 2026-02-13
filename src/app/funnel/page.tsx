@@ -11,6 +11,8 @@ import { loadDraft, saveDraft } from './_utils/draft';
 
 const STEP_ONE_DRAFT_KEY = 'funnel:step1';
 const GATE_APPROVED_KEY = 'funnel:gate:approved';
+const GATE_PROFILE_KEY = 'funnel:gate:profile';
+const GATE_SESSION_KEY = 'funnel:gate:sessionId';
 
 const stepOneSchema = z.object({
     fullName: z.string().trim().min(3, 'Nome completo é obrigatório'),
@@ -52,6 +54,7 @@ function FunnelStepOneContent() {
     useEffect(() => {
         if (gateParam === 'decisor') {
             window.localStorage.setItem(GATE_APPROVED_KEY, 'true');
+            window.localStorage.setItem(GATE_PROFILE_KEY, 'DECISOR');
             setIsGateVerified(true);
             return;
         }
@@ -60,6 +63,10 @@ function FunnelStepOneContent() {
         if (!hasApprovedGate) {
             router.replace('/funnel/gate');
             return;
+        }
+
+        if (!window.localStorage.getItem(GATE_PROFILE_KEY)) {
+            window.localStorage.setItem(GATE_PROFILE_KEY, 'DECISOR');
         }
 
         setIsGateVerified(true);
@@ -99,9 +106,17 @@ function FunnelStepOneContent() {
         setFormError('');
 
         try {
+            const gateProfileRaw = window.localStorage.getItem(GATE_PROFILE_KEY);
+            const gateProfile = gateProfileRaw === 'INFLUENCIADOR' || gateProfileRaw === 'PESQUISADOR'
+                ? gateProfileRaw
+                : 'DECISOR';
+            const gateSessionId = window.localStorage.getItem(GATE_SESSION_KEY) || undefined;
+
             const result = await submitStepOne({
                 ...data,
                 isDecisionMaker: 'yes',
+                gateProfile,
+                gateSessionId,
             });
             if (result?.error) {
                 setFormError(result.error);

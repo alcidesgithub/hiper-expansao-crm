@@ -5,8 +5,10 @@ import { prisma } from '@/lib/prisma';
 import { redirect } from 'next/navigation';
 import { LeadSource, LeadStatus } from '@prisma/client';
 import { calcularScore, type QualificationData } from '@/lib/scoring';
+import { validateLeadContactPayload } from '@/lib/contact-validation';
 
 const FUNNEL_TOKEN_KEY = 'funnelToken';
+type GateProfile = 'DECISOR' | 'INFLUENCIADOR' | 'PESQUISADOR';
 
 function isRedirectError(error: unknown): error is { digest: string } {
     if (!error || typeof error !== 'object' || !('digest' in error)) return false;
@@ -58,33 +60,55 @@ export async function submitStepOne(formData: {
     phone: string;
     companyName: string;
     isDecisionMaker?: string;
+    gateProfile?: GateProfile;
+    gateSessionId?: string;
 }) {
     if (!formData.email || !formData.fullName) {
         return { error: 'Dados incompletos.' };
     }
 
-    const isDecisionMaker = formData.isDecisionMaker ?? 'yes';
+    const gateProfile: GateProfile = formData.gateProfile === 'INFLUENCIADOR' || formData.gateProfile === 'PESQUISADOR'
+        ? formData.gateProfile
+        : 'DECISOR';
+    const isDecisionMaker = formData.isDecisionMaker ?? (gateProfile === 'DECISOR' ? 'yes' : 'no');
 
     if (isDecisionMaker === 'no') {
-        redirect('/funnel/educacao?perfil=influenciador');
+        const perfil = gateProfile === 'PESQUISADOR' ? 'pesquisador' : 'influenciador';
+        redirect(`/funnel/educacao?perfil=${perfil}`);
     }
 
     try {
+        const validatedContact = await validateLeadContactPayload({
+            fullName: formData.fullName,
+            email: formData.email,
+            phone: formData.phone,
+        });
+        if (!validatedContact.ok) {
+            return { error: validatedContact.error || 'Dados de contato invalidos.' };
+        }
+
         const { defaultStageId } = await resolvePipelineTargets();
         const funnelToken = randomUUID();
 
         const lead = await prisma.lead.create({
             data: {
-                name: formData.fullName,
-                email: formData.email,
-                phone: formData.phone,
-                company: formData.companyName,
+                name: validatedContact.normalized.fullName,
+                email: validatedContact.normalized.email,
+                phone: validatedContact.normalized.phone,
+                company: formData.companyName.trim(),
                 source: LeadSource.WEBSITE,
                 status: LeadStatus.NEW,
                 pipelineStageId: defaultStageId,
                 qualificationData: {
                     isDecisionMaker: true,
+                    gateProfile,
+                    gateSessionId: formData.gateSessionId || null,
                     step1CompletedAt: new Date().toISOString(),
+                    contactValidation: {
+                        emailDomain: validatedContact.meta.emailDomain,
+                        mxChecked: validatedContact.meta.mxChecked,
+                        mxFound: validatedContact.meta.mxFound,
+                    },
                     [FUNNEL_TOKEN_KEY]: funnelToken,
                 },
             },

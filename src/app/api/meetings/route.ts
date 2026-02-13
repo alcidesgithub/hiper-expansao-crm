@@ -22,6 +22,10 @@ function getSessionUser(session: unknown): SessionUser | null {
 
 type AuthHandler = typeof auth;
 let authHandler: AuthHandler = auth;
+type IsTeamsConfiguredHandler = typeof isTeamsConfigured;
+type CreateTeamsMeetingHandler = typeof createTeamsMeeting;
+let isTeamsConfiguredHandler: IsTeamsConfiguredHandler = isTeamsConfigured;
+let createTeamsMeetingHandler: CreateTeamsMeetingHandler = createTeamsMeeting;
 
 export function __setAuthHandlerForTests(handler: AuthHandler): void {
     authHandler = handler;
@@ -29,6 +33,19 @@ export function __setAuthHandlerForTests(handler: AuthHandler): void {
 
 export function __resetAuthHandlerForTests(): void {
     authHandler = auth;
+}
+
+export function __setTeamsHandlersForTests(handlers: {
+    isTeamsConfigured?: IsTeamsConfiguredHandler;
+    createTeamsMeeting?: CreateTeamsMeetingHandler;
+}): void {
+    if (handlers.isTeamsConfigured) isTeamsConfiguredHandler = handlers.isTeamsConfigured;
+    if (handlers.createTeamsMeeting) createTeamsMeetingHandler = handlers.createTeamsMeeting;
+}
+
+export function __resetTeamsHandlersForTests(): void {
+    isTeamsConfiguredHandler = isTeamsConfigured;
+    createTeamsMeetingHandler = createTeamsMeeting;
 }
 
 function isPrivileged(role?: UserRole): boolean {
@@ -159,34 +176,36 @@ export async function POST(request: Request) {
             ? parsed.data.userId
             : sessionUserId;
 
-        let teamsMeeting: TeamsMeetingPayload | null = null;
-        if (parsed.data.provider === 'teams') {
-            if (!isTeamsConfigured()) {
-                return NextResponse.json({ error: 'Integração com Teams não configurada' }, { status: 503 });
-            }
+        const provider = parsed.data.provider ?? 'teams';
+        if (provider !== 'teams') {
+            return NextResponse.json({ error: 'Provider de reunião inválido' }, { status: 400 });
+        }
+        if (!isTeamsConfiguredHandler()) {
+            return NextResponse.json({ error: 'Integração com Teams não configurada' }, { status: 503 });
+        }
 
-            const organizer = await prisma.user.findUnique({
-                where: { id: assignedUserId },
-                select: { email: true },
+        const organizer = await prisma.user.findUnique({
+            where: { id: assignedUserId },
+            select: { email: true },
+        });
+        if (!organizer?.email || !scopedLead.email) {
+            return NextResponse.json({ error: 'Email do consultor ou lead inválido para Teams' }, { status: 400 });
+        }
+
+        let teamsMeeting: TeamsMeetingPayload;
+        try {
+            teamsMeeting = await createTeamsMeetingHandler({
+                organizerEmail: organizer.email,
+                leadEmail: scopedLead.email,
+                leadName: scopedLead.name,
+                subject: parsed.data.title,
+                description: parsed.data.description || null,
+                startTime: new Date(parsed.data.startTime),
+                endTime: new Date(parsed.data.endTime),
             });
-            if (!organizer?.email || !scopedLead.email) {
-                return NextResponse.json({ error: 'Email do consultor ou lead inválido para Teams' }, { status: 400 });
-            }
-
-            try {
-                teamsMeeting = await createTeamsMeeting({
-                    organizerEmail: organizer.email,
-                    leadEmail: scopedLead.email,
-                    leadName: scopedLead.name,
-                    subject: parsed.data.title,
-                    description: parsed.data.description || null,
-                    startTime: new Date(parsed.data.startTime),
-                    endTime: new Date(parsed.data.endTime),
-                });
-            } catch (error) {
-                console.error('Error creating Teams meeting:', error);
-                return NextResponse.json({ error: 'Falha ao criar reunião no Teams' }, { status: 502 });
-            }
+        } catch (error) {
+            console.error('Error creating Teams meeting:', error);
+            return NextResponse.json({ error: 'Falha ao criar reunião no Teams' }, { status: 502 });
         }
 
         const meeting = await prisma.meeting.create({
@@ -198,9 +217,9 @@ export async function POST(request: Request) {
                 startTime: new Date(parsed.data.startTime),
                 endTime: new Date(parsed.data.endTime),
                 location: parsed.data.location || null,
-                provider: teamsMeeting?.provider || parsed.data.provider || null,
-                meetingLink: teamsMeeting?.meetingLink || null,
-                externalEventId: teamsMeeting?.externalEventId || null,
+                provider: teamsMeeting.provider,
+                meetingLink: teamsMeeting.meetingLink,
+                externalEventId: teamsMeeting.externalEventId,
                 selfScheduled: parsed.data.selfScheduled,
                 status: 'SCHEDULED',
             },
@@ -240,3 +259,4 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Erro ao criar reunião' }, { status: 500 });
     }
 }
+

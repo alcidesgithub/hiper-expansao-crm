@@ -187,6 +187,7 @@ function CalendarContent() {
                             {dates.map((date) => (
                                 <button
                                     key={date.value}
+                                    data-testid={`date-${date.value}`}
                                     onClick={() => setSelectedDate(date.value)}
                                     className={`px-2 py-3 rounded-lg text-sm font-medium transition-all text-center ${selectedDate === date.value
                                         ? 'bg-red-600 text-white shadow-md scale-105'
@@ -214,6 +215,7 @@ function CalendarContent() {
                                     {slots.map((slot) => (
                                         <button
                                             key={slot.time}
+                                            data-testid={`slot-${slot.time.replace(':', '-')}`}
                                             onClick={() => slot.available && setSelectedSlot(slot)}
                                             disabled={!slot.available}
                                             className={`py-3 rounded-lg text-sm font-medium transition-all ${!slot.available
@@ -277,6 +279,7 @@ function CalendarContent() {
                             )}
 
                             <button
+                                data-testid="confirm-booking"
                                 onClick={handleBook}
                                 disabled={booking}
                                 className="w-full py-4 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-lg shadow-lg hover:shadow-xl"
