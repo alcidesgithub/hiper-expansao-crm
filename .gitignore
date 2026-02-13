@@ -14,20 +14,12 @@
 /test-results
 /blob-report
 
-# build outputs
+# next.js
 /.next/
 /out/
 /build
 /dist
-
-# caches
-.eslintcache
-/.turbo
-
-# misc
-.DS_Store
-Thumbs.db
-*.pem
+.vercel
 
 # debug
 npm-debug.log*
@@ -36,17 +28,26 @@ yarn-error.log*
 .pnpm-debug.log*
 *.log
 
-# env files (can opt-in for committing if needed)
+# env files
 .env*
 !.env.example
 !.env.*.example
 
-# docker
-docker-compose.override.yml
+# prisma
+/src/generated/prisma
+*.sqlite
+*.sqlite-journal
 
 # editors
 /.idea
 /.vscode
+*.swp
+*.swo
+
+# os
+.DS_Store
+Thumbs.db
+Desktop.ini
 
 # typescript
 *.tsbuildinfo
@@ -55,6 +56,7 @@ next-env.d.ts
 # playwright
 /playwright/.auth/
 
-# project-specific
-/src/generated/prisma
+# misc
+.eslintcache
+/.turbo
 /_prototype_backup/
