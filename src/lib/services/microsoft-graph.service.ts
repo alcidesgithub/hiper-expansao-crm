@@ -5,29 +5,32 @@ import { OnlineMeeting, Event } from '@microsoft/microsoft-graph-types';
 import 'isomorphic-fetch';
 
 export class MicrosoftGraphService {
-    private client: Client;
+    private _client: Client | null = null;
 
-    constructor() {
+    private getClient(): Client {
+        if (this._client) return this._client;
+
         const tenantId = process.env.MS_TEAMS_TENANT_ID || process.env.MICROSOFT_TENANT_ID;
         const clientId = process.env.MS_TEAMS_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID;
         const clientSecret = process.env.MS_TEAMS_CLIENT_SECRET || process.env.MICROSOFT_CLIENT_SECRET;
         const scope = process.env.MS_TEAMS_GRAPH_SCOPE || process.env.MICROSOFT_GRAPH_SCOPE || 'https://graph.microsoft.com/.default';
 
         if (!tenantId || !clientId || !clientSecret) {
-            console.warn('Microsoft Graph credentials missing');
+            throw new Error('Microsoft Graph credentials missing');
         }
 
         const credential = new ClientSecretCredential(
-            tenantId!,
-            clientId!,
-            clientSecret!
+            tenantId,
+            clientId,
+            clientSecret
         );
 
         const authProvider = new TokenCredentialAuthenticationProvider(credential, {
             scopes: [scope],
         });
 
-        this.client = Client.initWithMiddleware({ authProvider });
+        this._client = Client.initWithMiddleware({ authProvider });
+        return this._client;
     }
 
     /**
@@ -40,13 +43,14 @@ export class MicrosoftGraphService {
         organizerEmail: string;
     }): Promise<OnlineMeeting> {
         try {
+            const client = this.getClient();
             const meetingBody = {
                 startDateTime: params.startDateTime.toISOString(),
                 endDateTime: params.endDateTime.toISOString(),
                 subject: params.subject,
             };
 
-            const meeting = await this.client
+            const meeting = await client
                 .api(`/users/${encodeURIComponent(params.organizerEmail)}/onlineMeetings`)
                 .post(meetingBody);
 
@@ -71,6 +75,7 @@ export class MicrosoftGraphService {
         leadPhone?: string;
     }): Promise<Event> {
         try {
+            const client = this.getClient();
             const event = {
                 subject: params.subject,
                 start: {
@@ -99,7 +104,7 @@ export class MicrosoftGraphService {
                 onlineMeetingProvider: 'teamsForBusiness' as const,
             };
 
-            const createdEvent = await this.client
+            const createdEvent = await client
                 .api(`/users/${encodeURIComponent(params.consultantEmail)}/calendar/events`)
                 .post(event);
 
@@ -118,7 +123,8 @@ export class MicrosoftGraphService {
         meetingId: string
     ): Promise<void> {
         try {
-            await this.client
+            const client = this.getClient();
+            await client
                 .api(`/users/${encodeURIComponent(consultantEmail)}/onlineMeetings/${encodeURIComponent(meetingId)}`)
                 .delete();
         } catch (error) {
@@ -135,7 +141,8 @@ export class MicrosoftGraphService {
         eventId: string
     ): Promise<void> {
         try {
-            await this.client
+            const client = this.getClient();
+            await client
                 .api(`/users/${encodeURIComponent(consultantEmail)}/calendar/events/${encodeURIComponent(eventId)}`)
                 .delete();
         } catch (error) {
@@ -174,6 +181,7 @@ export class MicrosoftGraphService {
             text-decoration: none;
             border-radius: 4px;
             font-weight: bold;
+            text-align: center;
           ">Participar da Reunião Teams</a>
         </p>
 
