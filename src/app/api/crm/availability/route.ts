@@ -8,7 +8,7 @@ import { can } from '@/lib/permissions';
 
 interface SessionUser {
     id?: string;
-    role?: string;
+    role?: UserRole;
     permissions?: string[];
 }
 
@@ -48,7 +48,7 @@ function getSessionUser(session: unknown): SessionUser | null {
     if (!user) return null;
     return {
         id: user.id,
-        role: user.role,
+        role: user.role as UserRole,
         permissions: user.permissions
     };
 }

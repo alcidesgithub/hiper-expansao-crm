@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/providers/AuthProvider";
+import { Toaster } from 'sonner';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,8 +18,6 @@ export const metadata: Metadata = {
   title: "HiperFarma - Seja um Associado | Rede de Farmácias",
   description: "Leve sua farmácia para o próximo nível com a Hiperfarma. Aqui, quem caminha junto, vai mais longe. Associe-se hoje mesmo!",
 };
-
-import { Toaster } from 'sonner';
 
 export default function RootLayout({
   children,

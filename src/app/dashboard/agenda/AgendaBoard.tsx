@@ -156,7 +156,7 @@ export default function AgendaBoard({ initialMeetings, leads }: AgendaBoardProps
         if (currentView === 'day') return format(currentDate, "d 'de' MMMM, yyyy", { locale: ptBR });
         const start = startOfWeek(currentDate, { weekStartsOn: 0 });
         const end = addDays(start, 6);
-        return `${format(start, 'MMM d', { locale: ptBR })} â€“ ${format(end, 'd', { locale: ptBR })}`;
+        return `${format(start, 'MMM d', { locale: ptBR })} - ${format(end, 'd', { locale: ptBR })}`;
     };
 
     const handleSaveEvent = async (e: React.FormEvent) => {
@@ -236,7 +236,7 @@ export default function AgendaBoard({ initialMeetings, leads }: AgendaBoardProps
     const handleMeetingClick = (meeting: Meeting) => {
         setSelectedMeeting(meeting);
         setIsDetailsOpen(true);
-    };    // Filter Logic
+    };    // Filter Logic
     const filteredMeetings = useMemo(() => {
         const search = searchTerm.trim().toLowerCase();
 
@@ -883,5 +883,3 @@ const DayGrid = ({ currentDate, meetings, onMeetingClick }: { currentDate: Date,
         </div>
     );
 }
-
-

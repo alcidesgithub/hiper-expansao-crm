@@ -199,6 +199,55 @@ export async function getRecentLeads() {
     });
 }
 
+export async function getLeadById(id: string) {
+    const session = await auth();
+    if (!session?.user) return null;
+
+    return prisma.lead.findUnique({
+        where: { id },
+        include: {
+            pipelineStage: true,
+            assignedUser: {
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                },
+            },
+            meetings: {
+                orderBy: { startTime: 'desc' },
+                take: 5,
+            },
+            notes: {
+                orderBy: { createdAt: 'desc' },
+                take: 10,
+                include: {
+                    user: {
+                        select: {
+                            name: true,
+                        },
+                    },
+                },
+            },
+            activities: {
+                orderBy: { createdAt: 'desc' },
+                take: 20,
+                include: {
+                    user: {
+                        select: {
+                            name: true,
+                        },
+                    },
+                },
+            },
+            tasks: {
+                orderBy: { dueDate: 'asc' },
+                take: 10,
+            },
+        },
+    });
+}
+
 export async function getFunnelMetrics(period: string = '30d') {
     const startDate = getStartDate(period);
 

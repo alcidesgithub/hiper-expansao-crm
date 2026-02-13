@@ -51,6 +51,17 @@ function serializePricing(table: AssociationPricing) {
     };
 }
 
+const pricingCreateSchema = z.object({
+    name: z.string().min(1, 'Nome é obrigatório'),
+    effectiveDate: z.string(),
+    expiryDate: z.string().optional().nullable(),
+    isActive: z.boolean().default(false),
+    marketingMonthly: z.coerce.number().min(0, 'Valor deve ser positivo'),
+    marketingDescription: z.string().min(1, 'Descrição é obrigatória'),
+    adminMonthly: z.coerce.number().min(0, 'Valor deve ser positivo'),
+    adminDescription: z.string().min(1, 'Descrição é obrigatória'),
+});
+
 // GET /api/pricing
 export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
