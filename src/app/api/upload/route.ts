@@ -24,12 +24,19 @@ const ALLOWED_TYPES = [
 
 interface SessionUser {
     id?: string;
-    role?: UserRole;
+    role?: string;
+    permissions?: string[];
 }
 
 function getSessionUser(session: unknown): SessionUser | null {
     if (!session || typeof session !== 'object') return null;
-    return (session as { user?: SessionUser }).user || null;
+    const user = (session as { user?: SessionUser }).user;
+    if (!user) return null;
+    return {
+        id: user.id,
+        role: user.role,
+        permissions: user.permissions
+    };
 }
 
 type AuthHandler = typeof auth;
@@ -63,9 +70,9 @@ export function __resetUploadFsHandlersForTests(): void {
 // POST /api/upload - Upload a file
 export async function POST(request: Request) {
     const session = await authHandler();
-    const user = getSessionUser(session);
-    if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    if (!can(user.role, 'leads:write:own')) {
+    const user = session?.user;
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!can(user, 'leads:write:own')) {
         return NextResponse.json({ error: 'Sem permissão para enviar arquivos' }, { status: 403 });
     }
 

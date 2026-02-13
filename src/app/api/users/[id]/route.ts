@@ -9,19 +9,23 @@ import { can } from '@/lib/permissions';
 
 interface SessionUser {
     id?: string;
-    role?: UserRole;
+    role?: string;
+    permissions?: string[];
 }
 
-function getSessionUserRole(session: { user?: SessionUser } | null): UserRole | null {
-    return session?.user?.role ?? null;
+function getSessionUser(session: unknown): SessionUser | null {
+    if (!session || typeof session !== 'object') return null;
+    const user = (session as { user?: SessionUser }).user;
+    if (!user) return null;
+    return {
+        id: user.id,
+        role: user.role,
+        permissions: user.permissions
+    };
 }
 
-function getSessionUserId(session: { user?: SessionUser } | null): string | null {
-    return session?.user?.id ?? null;
-}
-
-function canManageUsers(role: UserRole | null): boolean {
-    return can(role, 'users:manage');
+function canManageUsers(user?: SessionUser | null): boolean {
+    return can(user, 'users:manage');
 }
 
 async function hasAnotherActiveAdmin(excludedUserId: string): Promise<boolean> {
@@ -41,12 +45,10 @@ export async function PATCH(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const rawSession = await auth();
-    const session = rawSession as { user?: SessionUser } | null;
-    if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    const user = getSessionUser(rawSession);
+    if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
-    const currentRole = getSessionUserRole(session);
-    const currentUserId = getSessionUserId(session);
-    if (!canManageUsers(currentRole)) {
+    if (!canManageUsers(user)) {
         return NextResponse.json({ error: 'Sem permissão para editar usuários' }, { status: 403 });
     }
 
@@ -106,7 +108,7 @@ export async function PATCH(
             }
         }
 
-        if (currentUserId && currentUserId === id && updateData.status && updateData.status !== 'ACTIVE') {
+        if (user.id && user.id === id && updateData.status && updateData.status !== 'ACTIVE') {
             return NextResponse.json(
                 { error: 'Você não pode desativar o próprio usuário' },
                 { status: 400 }
@@ -158,12 +160,10 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> }
 ) {
     const rawSession = await auth();
-    const session = rawSession as { user?: SessionUser } | null;
-    if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    const user = getSessionUser(rawSession);
+    if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
-    const currentRole = getSessionUserRole(session);
-    const currentUserId = getSessionUserId(session);
-    if (!canManageUsers(currentRole)) {
+    if (!canManageUsers(user)) {
         return NextResponse.json({ error: 'Sem permissão para suspender usuários' }, { status: 403 });
     }
 
@@ -179,7 +179,7 @@ export async function DELETE(
             return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
         }
 
-        if (currentUserId && currentUserId === id) {
+        if (user.id && user.id === id) {
             return NextResponse.json(
                 { error: 'Você não pode suspender o próprio usuário' },
                 { status: 400 }

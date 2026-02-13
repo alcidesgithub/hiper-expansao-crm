@@ -12,12 +12,19 @@ const MEETING_STATUSES = ['SCHEDULED', 'COMPLETED', 'CANCELLED', 'NO_SHOW', 'RES
 
 interface SessionUser {
     id?: string;
-    role?: UserRole;
+    role?: string;
+    permissions?: string[];
 }
 
 function getSessionUser(session: unknown): SessionUser | null {
     if (!session || typeof session !== 'object') return null;
-    return (session as { user?: SessionUser }).user || null;
+    const user = (session as { user?: SessionUser }).user;
+    if (!user) return null;
+    return {
+        id: user.id,
+        role: user.role,
+        permissions: user.permissions
+    };
 }
 
 type AuthHandler = typeof auth;
@@ -48,7 +55,7 @@ export function __resetTeamsHandlersForTests(): void {
     createTeamsMeetingHandler = createTeamsMeeting;
 }
 
-function isPrivileged(role?: UserRole): boolean {
+function isPrivileged(role?: string): boolean {
     return role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER';
 }
 
@@ -127,7 +134,7 @@ export async function GET(request: Request) {
         const meetings = await prisma.meeting.findMany({
             where,
             include: {
-                lead: { select: buildLeadSelect({ role: user.role, includeSensitive: true }) },
+                lead: { select: buildLeadSelect({ user, includeSensitive: true }) },
                 user: { select: { id: true, name: true, email: true } },
             },
             orderBy: { startTime: 'asc' },
@@ -149,7 +156,7 @@ export async function POST(request: Request) {
     const sessionUserId = user.id;
     const sessionRole = user.role;
     if (!sessionUserId || !sessionRole) return NextResponse.json({ error: 'Usuário inválido' }, { status: 401 });
-    if (!can(sessionRole, 'pipeline:advance')) {
+    if (!can(user, 'pipeline:advance')) {
         return NextResponse.json({ error: 'Sem permissão para agendar reuniões' }, { status: 403 });
     }
 
@@ -224,7 +231,7 @@ export async function POST(request: Request) {
                 status: 'SCHEDULED',
             },
             include: {
-                lead: { select: buildLeadSelect({ role: user.role, includeSensitive: true }) },
+                lead: { select: buildLeadSelect({ user, includeSensitive: true }) },
                 user: { select: { id: true, name: true } },
             },
         });

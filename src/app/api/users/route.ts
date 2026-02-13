@@ -6,30 +6,32 @@ import { auth } from '@/auth';
 import { userCreateSchema } from '@/lib/validation';
 import { logAudit } from '@/lib/audit';
 import { can } from '@/lib/permissions';
-const ALLOWED_ROLES: readonly UserRole[] = ['ADMIN', 'DIRECTOR', 'MANAGER', 'SDR', 'CONSULTANT'];
+const ALLOWED_ROLES: readonly UserRole[] = ['ADMIN', 'DIRECTOR', 'MANAGER', 'CONSULTANT'];
 const ALLOWED_STATUS: readonly UserStatus[] = ['ACTIVE', 'INACTIVE', 'SUSPENDED'];
 
 interface SessionUser {
     id?: string;
-    role?: UserRole;
+    role?: string;
+    permissions?: string[];
 }
 
-function getSessionUserRole(session: { user?: SessionUser } | null): UserRole | null {
-    const role = session?.user?.role;
-    return role ?? null;
+function getSessionUser(session: unknown): SessionUser | null {
+    if (!session || typeof session !== 'object') return null;
+    const user = (session as { user?: SessionUser }).user;
+    if (!user) return null;
+    return {
+        id: user.id,
+        role: user.role,
+        permissions: user.permissions
+    };
 }
 
-function getSessionUserId(session: { user?: SessionUser } | null): string | null {
-    const userId = session?.user?.id;
-    return userId ?? null;
+function canViewUsers(user?: SessionUser | null): boolean {
+    return can(user, 'users:manage');
 }
 
-function canViewUsers(role: UserRole | null): boolean {
-    return can(role, 'users:manage');
-}
-
-function canManageUsers(role: UserRole | null): boolean {
-    return can(role, 'users:manage');
+function canManageUsers(user?: SessionUser | null): boolean {
+    return can(user, 'users:manage');
 }
 
 function parseStatus(value: string | null): UserStatus | null {
@@ -43,12 +45,11 @@ function parseRole(value: string | null): UserRole | null {
 // GET /api/users - List users for dropdowns or management screen
 export async function GET(request: Request) {
     const rawSession = await auth();
-    const session = rawSession as { user?: SessionUser } | null;
-    if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    const user = getSessionUser(rawSession);
+    if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
     const { searchParams } = new URL(request.url);
     const context = searchParams.get('context');
-    const currentRole = getSessionUserRole(session);
 
     if (context !== 'management') {
         const users = await prisma.user.findMany({
@@ -66,7 +67,7 @@ export async function GET(request: Request) {
         return NextResponse.json(users);
     }
 
-    if (!canViewUsers(currentRole)) {
+    if (!canViewUsers(user)) {
         return NextResponse.json({ error: 'Sem permissão para visualizar usuários' }, { status: 403 });
     }
 
@@ -117,12 +118,12 @@ export async function GET(request: Request) {
             totalPages: Math.max(Math.ceil(total / limit), 1),
         },
         permissions: {
-            canManage: canManageUsers(currentRole),
-            canCreate: canManageUsers(currentRole),
+            canManage: canManageUsers(user),
+            canCreate: canManageUsers(user),
         },
         currentUser: {
-            id: getSessionUserId(session),
-            role: currentRole,
+            id: user.id || null,
+            role: user.role || null,
         },
     });
 }
@@ -130,11 +131,10 @@ export async function GET(request: Request) {
 // POST /api/users - Create user
 export async function POST(request: Request) {
     const rawSession = await auth();
-    const session = rawSession as { user?: SessionUser } | null;
-    if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    const user = getSessionUser(rawSession);
+    if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
-    const currentRole = getSessionUserRole(session);
-    if (!canManageUsers(currentRole)) {
+    if (!canManageUsers(user)) {
         return NextResponse.json({ error: 'Sem permissão para criar usuários' }, { status: 403 });
     }
 
@@ -180,7 +180,7 @@ export async function POST(request: Request) {
         });
 
         await logAudit({
-            userId: getSessionUserId(session) || undefined,
+            userId: user.id || undefined,
             action: 'CREATE',
             entity: 'User',
             entityId: created.id,

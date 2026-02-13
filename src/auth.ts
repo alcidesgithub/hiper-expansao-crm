@@ -5,6 +5,8 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { User } from '@prisma/client';
+import { getRolePermissions } from '@/services/permissions-service';
+import { AppRole, Permission } from '@/lib/permissions';
 
 async function getUser(email: string): Promise<User | null> {
     try {
@@ -43,4 +45,38 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
             },
         }),
     ],
+    callbacks: {
+        ...authConfig.callbacks,
+        async jwt({ token, user, trigger, session }) {
+            // Initial sign in
+            if (user) {
+                token.id = user.id;
+                token.role = (user as any).role;
+
+                // Fetch permissions
+                if (token.role) {
+                    const allPermissions = await getRolePermissions();
+                    const role = token.role as AppRole;
+                    // Safely get permissions for the role
+                    // Type assertion because we know the service returns Permission[]
+                    token.permissions = (allPermissions[role] || []) as string[];
+                }
+            }
+
+            // Update session trigger
+            if (trigger === "update" && session?.permissions) {
+                token.permissions = session.permissions;
+            }
+
+            return token;
+        },
+        async session({ session, token }) {
+            if (session.user && token.id) {
+                session.user.id = token.id as string;
+                session.user.role = token.role as string;
+                session.user.permissions = (token.permissions as string[]) || [];
+            }
+            return session;
+        },
+    },
 });

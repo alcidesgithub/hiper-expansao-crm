@@ -8,6 +8,7 @@ import { buildLeadSelect } from '@/lib/lead-select';
 interface SessionUser {
     id?: string;
     role?: UserRole;
+    permissions?: string[];
 }
 
 function getSessionUser(session: unknown): SessionUser | null {
@@ -51,7 +52,7 @@ export async function GET() {
             include: {
                 leads: {
                     where: leadScope,
-                    select: buildLeadSelect({ role: user.role, includeSensitive: true }),
+                    select: buildLeadSelect({ user, includeSensitive: true }),
                     orderBy: { updatedAt: 'desc' },
                 },
             },

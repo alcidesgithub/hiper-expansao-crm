@@ -8,12 +8,19 @@ import { can } from '@/lib/permissions';
 
 interface SessionUser {
     id?: string;
-    role?: UserRole;
+    role?: string;
+    permissions?: string[];
 }
 
 function getSessionUser(session: unknown): SessionUser | null {
     if (!session || typeof session !== 'object') return null;
-    return (session as { user?: SessionUser }).user || null;
+    const user = (session as { user?: SessionUser }).user;
+    if (!user) return null;
+    return {
+        id: user.id,
+        role: user.role,
+        permissions: user.permissions
+    };
 }
 
 type AuthHandler = typeof auth;
@@ -60,7 +67,7 @@ export async function POST(
     const user = getSessionUser(session);
     const userId = user?.id || null;
     if (!user || !userId) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    if (!can(user.role, 'leads:write:own')) return NextResponse.json({ error: 'Sem permissão para editar lead' }, { status: 403 });
+    if (!can(user, 'leads:write:own')) return NextResponse.json({ error: 'Sem permissão para editar lead' }, { status: 403 });
 
     const { id } = await params;
     const canAccess = await hasLeadAccess(id, user);
@@ -113,7 +120,7 @@ export async function PATCH(
     const user = getSessionUser(session);
     const userId = user?.id || null;
     if (!user || !userId) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    if (!can(user.role, 'leads:write:own')) return NextResponse.json({ error: 'Sem permissão para editar lead' }, { status: 403 });
+    if (!can(user, 'leads:write:own')) return NextResponse.json({ error: 'Sem permissão para editar lead' }, { status: 403 });
 
     const { id } = await params;
     const canAccess = await hasLeadAccess(id, user);
@@ -181,7 +188,7 @@ export async function DELETE(
     const user = getSessionUser(session);
     const userId = user?.id || null;
     if (!user || !userId) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    if (!can(user.role, 'leads:write:own')) return NextResponse.json({ error: 'Sem permissão para editar lead' }, { status: 403 });
+    if (!can(user, 'leads:write:own')) return NextResponse.json({ error: 'Sem permissão para editar lead' }, { status: 403 });
 
     const { id } = await params;
     const canAccess = await hasLeadAccess(id, user);

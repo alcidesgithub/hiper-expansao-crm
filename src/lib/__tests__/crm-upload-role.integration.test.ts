@@ -52,7 +52,7 @@ test('POST /api/upload should return 403 for DIRECTOR', async () => {
 });
 
 test('POST /api/upload should return 404 when lead is outside role scope', async () => {
-    const restoreAuth = withAuthSession(setUploadAuth, resetUploadAuth, sessionForRole('SDR'));
+    const restoreAuth = withAuthSession(setUploadAuth, resetUploadAuth, sessionForRole('CONSULTANT'));
     const restores: RestoreFn[] = [];
 
     restores.push(

@@ -821,7 +821,7 @@ const redFlags = {
 ### Fase 11: Controle de Acesso
 - [ ] `lib/permissions.ts` com ROLE_PERMISSIONS completo
 - [ ] `lib/lead-scope.ts` — escopo por role
-- [ ] `middleware.ts` — proteger rotas internas
+- [ ] `proxy.ts` — proteger rotas internas
 - [ ] Guards nas API routes CRM
 - [ ] Testes: SDR não vê leads de outros | DIRECTOR não edita | CONSULTANT não avança pipeline
 

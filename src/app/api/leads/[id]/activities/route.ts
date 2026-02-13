@@ -6,12 +6,19 @@ import { hasLeadAccess } from '@/lib/lead-scope';
 
 interface SessionUser {
     id?: string;
-    role?: UserRole;
+    role?: string;
+    permissions?: string[];
 }
 
 function getSessionUser(session: unknown): SessionUser | null {
     if (!session || typeof session !== 'object') return null;
-    return (session as { user?: SessionUser }).user || null;
+    const user = (session as { user?: SessionUser }).user;
+    if (!user) return null;
+    return {
+        id: user.id,
+        role: user.role,
+        permissions: user.permissions
+    };
 }
 
 type AuthHandler = typeof auth;

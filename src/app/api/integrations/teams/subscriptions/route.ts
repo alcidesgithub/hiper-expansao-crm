@@ -13,12 +13,19 @@ import {
 
 interface SessionUser {
     id?: string;
-    role?: UserRole;
+    role?: string;
+    permissions?: string[];
 }
 
 function getSessionUser(session: unknown): SessionUser | null {
     if (!session || typeof session !== 'object') return null;
-    return (session as { user?: SessionUser }).user || null;
+    const user = (session as { user?: SessionUser }).user;
+    if (!user) return null;
+    return {
+        id: user.id,
+        role: user.role,
+        permissions: user.permissions
+    };
 }
 
 type AuthHandler = typeof auth;
@@ -55,8 +62,8 @@ export function __resetTeamsSubscriptionHandlersForTests(): void {
     syncSubscriptionsHandler = syncTeamsEventSubscriptions;
 }
 
-function canManageIntegrations(role?: UserRole): boolean {
-    return can(role, 'integrations:manage');
+function canManageIntegrations(user?: SessionUser | null): boolean {
+    return can(user, 'integrations:manage');
 }
 
 // GET /api/integrations/teams/subscriptions
@@ -64,7 +71,7 @@ export async function GET() {
     const session = await authHandler();
     const user = getSessionUser(session);
     if (!user) return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 });
-    if (!canManageIntegrations(user.role)) {
+    if (!canManageIntegrations(user)) {
         return NextResponse.json({ error: 'Sem permissao' }, { status: 403 });
     }
 
@@ -89,7 +96,7 @@ export async function POST() {
     const session = await authHandler();
     const user = getSessionUser(session);
     if (!user) return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 });
-    if (!canManageIntegrations(user.role)) {
+    if (!canManageIntegrations(user)) {
         return NextResponse.json({ error: 'Sem permissao' }, { status: 403 });
     }
 

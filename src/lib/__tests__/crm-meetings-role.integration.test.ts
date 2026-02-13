@@ -36,8 +36,8 @@ test('GET /api/meetings should return 401 when unauthenticated', async () => {
     }
 });
 
-test('GET /api/meetings should enforce own scope for SDR and keep lead payload safe', async () => {
-    const restoreAuth = withAuthSession(setMeetingsAuth, resetMeetingsAuth, sessionForRole('SDR'));
+test('GET /api/meetings should enforce own scope for CONSULTANT and keep lead payload safe', async () => {
+    const restoreAuth = withAuthSession(setMeetingsAuth, resetMeetingsAuth, sessionForRole('CONSULTANT'));
     const restores: RestoreFn[] = [];
     let capturedWhere: Prisma.MeetingWhereInput | undefined;
     let capturedLeadSelect: Record<string, unknown> | undefined;
@@ -61,9 +61,9 @@ test('GET /api/meetings should enforce own scope for SDR and keep lead payload s
         assert.equal(response.status, 200);
         assert.ok(capturedWhere);
 
-        assert.equal((capturedWhere as { userId?: string }).userId, ROLE_USER_IDS.SDR);
+        assert.equal((capturedWhere as { userId?: string }).userId, ROLE_USER_IDS.CONSULTANT);
         assert.deepEqual((capturedWhere as { lead?: { is?: Prisma.LeadWhereInput } }).lead?.is, {
-            assignedUserId: ROLE_USER_IDS.SDR,
+            assignedUserId: ROLE_USER_IDS.CONSULTANT,
         });
         assert.equal(capturedLeadSelect?.qualificationData, undefined);
         assert.equal(capturedLeadSelect?.roiData, undefined);
@@ -96,7 +96,7 @@ test('POST /api/meetings should return 403 for DIRECTOR', async () => {
 });
 
 test('POST /api/meetings should return 404 when lead is outside scope', async () => {
-    const restoreAuth = withAuthSession(setMeetingsAuth, resetMeetingsAuth, sessionForRole('SDR'));
+    const restoreAuth = withAuthSession(setMeetingsAuth, resetMeetingsAuth, sessionForRole('CONSULTANT'));
     const restores: RestoreFn[] = [];
 
     restores.push(
@@ -114,7 +114,7 @@ test('POST /api/meetings should return 404 when lead is outside scope', async ()
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({
                     leadId: 'lead-out',
-                    userId: ROLE_USER_IDS.SDR,
+                    userId: ROLE_USER_IDS.CONSULTANT,
                     title: 'ReuniÃ£o',
                     startTime: '2026-03-10T13:00:00.000Z',
                     endTime: '2026-03-10T14:00:00.000Z',
@@ -129,7 +129,7 @@ test('POST /api/meetings should return 404 when lead is outside scope', async ()
 });
 
 test('POST /api/meetings should create meeting for in-scope lead with safe lead select', async () => {
-    const restoreAuth = withAuthSession(setMeetingsAuth, resetMeetingsAuth, sessionForRole('SDR'));
+    const restoreAuth = withAuthSession(setMeetingsAuth, resetMeetingsAuth, sessionForRole('CONSULTANT'));
     setMeetingsTeamsHandlers({
         isTeamsConfigured: () => true,
         createTeamsMeeting: async () => ({
@@ -152,7 +152,7 @@ test('POST /api/meetings should create meeting for in-scope lead with safe lead 
         mockMethod(
             prisma.user,
             'findUnique',
-            (async () => ({ email: 'sdr@empresa.com' })) as unknown as typeof prisma.user.findUnique
+            (async () => ({ email: 'consultor@empresa.com' })) as unknown as typeof prisma.user.findUnique
         )
     );
     restores.push(
@@ -164,11 +164,11 @@ test('POST /api/meetings should create meeting for in-scope lead with safe lead 
                 return {
                     id: 'meeting-1',
                     leadId: 'lead-1',
-                    userId: ROLE_USER_IDS.SDR,
+                    userId: ROLE_USER_IDS.CONSULTANT,
                     title: 'ReuniÃ£o',
                     status: 'SCHEDULED',
                     lead: { id: 'lead-1', name: 'Lead 1' },
-                    user: { id: ROLE_USER_IDS.SDR, name: 'SDR' },
+                    user: { id: ROLE_USER_IDS.CONSULTANT, name: 'Consultor' },
                 } as unknown as Awaited<ReturnType<typeof prisma.meeting.create>>;
             }) as unknown as typeof prisma.meeting.create
         )
@@ -212,7 +212,7 @@ test('POST /api/meetings should create meeting for in-scope lead with safe lead 
                 headers: { 'content-type': 'application/json' },
                 body: JSON.stringify({
                     leadId: 'lead-1',
-                    userId: ROLE_USER_IDS.SDR,
+                    userId: ROLE_USER_IDS.CONSULTANT,
                     title: 'ReuniÃ£o',
                     startTime: '2026-03-10T13:00:00.000Z',
                     endTime: '2026-03-10T14:00:00.000Z',
@@ -308,8 +308,8 @@ test('PATCH /api/meetings/[id] should return 403 for DIRECTOR', async () => {
     }
 });
 
-test('PATCH /api/meetings/[id] should return 403 when non-privileged user is not the meeting owner', async () => {
-    const restoreAuth = withAuthSession(setMeetingByIdAuth, resetMeetingByIdAuth, sessionForRole('SDR'));
+test('PATCH /api/meetings/[id] should return 403 when CONSULTANT is not the meeting owner', async () => {
+    const restoreAuth = withAuthSession(setMeetingByIdAuth, resetMeetingByIdAuth, sessionForRole('CONSULTANT'));
     const restores: RestoreFn[] = [];
 
     restores.push(

@@ -2,13 +2,13 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import Image from 'next/image';
 import { Logo } from '@/components/ui/Logo';
 import {
   Menu, ArrowRight, PlayCircle, Handshake, Store, Megaphone,
   TrendingUp, CreditCard, Building2, Tag, ChevronDown, Rocket,
   Phone, Mail, Facebook, Instagram, Linkedin, CheckCircle2,
-  Users, ShoppingBag, Pill, BarChart3, HelpCircle, MapPin, X,
+  Users, ShoppingBag, Pill, BarChart3, HelpCircle, X,
   LayoutDashboard, Calendar, Settings, FileText, ShieldCheck, Video
 } from 'lucide-react';
 
@@ -16,13 +16,13 @@ export default function LandingPage() {
   const router = useRouter();
   const [isVideoOpen, setIsVideoOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isPagesMenuOpen, setIsPagesMenuOpen] = useState(false);
+
 
   const toggleMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
   const closeMenu = () => setIsMobileMenuOpen(false);
 
   const navigateTo = (page: string) => {
-    setIsPagesMenuOpen(false);
+
     closeMenu();
 
     const routes: Record<string, string> = {
@@ -63,63 +63,7 @@ export default function LandingPage() {
               <a href="#ferramentas" className="text-gray-600 hover:text-primary font-medium transition-colors">Ferramentas</a>
               <a href="#faq" className="text-gray-600 hover:text-primary font-medium transition-colors">Dúvidas</a>
 
-              {/* Pages Dropdown */}
-              <div className="relative">
-                <button
-                  onClick={() => setIsPagesMenuOpen(!isPagesMenuOpen)}
-                  className="flex items-center gap-1 text-gray-600 hover:text-primary font-medium transition-colors outline-none"
-                >
-                  Telas <ChevronDown size={16} className={`transition-transform duration-200 ${isPagesMenuOpen ? 'rotate-180' : ''}`} />
-                </button>
-                {isPagesMenuOpen && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setIsPagesMenuOpen(false)}></div>
-                    <div className="absolute top-full right-0 mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-50 animate-in fade-in zoom-in-95 duration-200">
-                      <div className="px-4 py-2 border-b border-gray-100 bg-gray-50/50">
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Área Logada (App)</p>
-                      </div>
-                      <button onClick={() => navigateTo('dashboard')} className="w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-primary/5 hover:text-primary transition-colors flex items-center gap-3">
-                        <LayoutDashboard size={16} className="text-gray-400" /> Dashboard
-                      </button>
-                      <button onClick={() => navigateTo('kanban')} className="w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-primary/5 hover:text-primary transition-colors flex items-center gap-3">
-                        <Users size={16} className="text-gray-400" /> CRM Leads
-                      </button>
-                      <button onClick={() => navigateTo('lead-detail')} className="w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-primary/5 hover:text-primary transition-colors flex items-center gap-3">
-                        <div className="w-4" /> Detalhe do Lead
-                      </button>
-                      <button onClick={() => navigateTo('calendar')} className="w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-primary/5 hover:text-primary transition-colors flex items-center gap-3">
-                        <Calendar size={16} className="text-gray-400" /> Agenda
-                      </button>
-                      <button onClick={() => navigateTo('analytics')} className="w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-primary/5 hover:text-primary transition-colors flex items-center gap-3">
-                        <BarChart3 size={16} className="text-gray-400" /> Relatórios
-                      </button>
-                      <button onClick={() => navigateTo('settings')} className="w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-primary/5 hover:text-primary transition-colors flex items-center gap-3">
-                        <Settings size={16} className="text-gray-400" /> Configurações
-                      </button>
 
-                      <div className="border-t border-gray-100 my-1"></div>
-                      <div className="px-4 py-2 bg-gray-50/50 border-b border-gray-100">
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Páginas Públicas</p>
-                      </div>
-                      <button onClick={() => navigateTo('login')} className="w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-primary/5 hover:text-primary transition-colors flex items-center gap-3">
-                        <ArrowRight size={16} className="text-gray-400" /> Login
-                      </button>
-                      <button onClick={() => navigateTo('wizard')} className="w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-primary/5 hover:text-primary transition-colors flex items-center gap-3">
-                        <Rocket size={16} className="text-gray-400" /> Wizard de Adesão
-                      </button>
-                      <button onClick={() => navigateTo('schedule-call')} className="w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-primary/5 hover:text-primary transition-colors flex items-center gap-3">
-                        <Video size={16} className="text-gray-400" /> Agendamento de Call
-                      </button>
-                      <button onClick={() => navigateTo('privacy')} className="w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-primary/5 hover:text-primary transition-colors flex items-center gap-3">
-                        <ShieldCheck size={16} className="text-gray-400" /> Política de Privacidade
-                      </button>
-                      <button onClick={() => navigateTo('terms')} className="w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-primary/5 hover:text-primary transition-colors flex items-center gap-3">
-                        <FileText size={16} className="text-gray-400" /> Termos de Uso
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
 
               <button
                 onClick={() => navigateTo('wizard')}
@@ -225,13 +169,13 @@ export default function LandingPage() {
               <div className="mt-8 flex items-center justify-center lg:justify-start gap-4 text-sm text-gray-500">
                 <div className="flex -space-x-2">
                   <div className="w-8 h-8 rounded-full bg-gray-300 border-2 border-white overflow-hidden">
-                    <img alt="Portrait" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCHH6HQ0LiEoc3kYKDUH4wJaWTMUJdkSXZkYB8aSBMqRRnZjLP2CjmnfEcwWeL4jrZgKYZGSw8rVt-NFzddSHX4IvsFAErfePs8ukPHVEm06HuKrOdBhnFVcDhI3Si22Pm2IMYBV3oPmC8VFK74vJzMNF_HunJCn_qX1KQzNxVoDTJMbWcQ8I3HeKvDAdLH_9mPBrWUeAj6Dc5OARIkiXjD-Wi3zZUg6kLeHUQBnh24rbghPZYayfesfyDXLlGG01BK_fQd7gVUVeM" />
+                    <Image alt="Portrait" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCHH6HQ0LiEoc3kYKDUH4wJaWTMUJdkSXZkYB8aSBMqRRnZjLP2CjmnfEcwWeL4jrZgKYZGSw8rVt-NFzddSHX4IvsFAErfePs8ukPHVEm06HuKrOdBhnFVcDhI3Si22Pm2IMYBV3oPmC8VFK74vJzMNF_HunJCn_qX1KQzNxVoDTJMbWcQ8I3HeKvDAdLH_9mPBrWUeAj6Dc5OARIkiXjD-Wi3zZUg6kLeHUQBnh24rbghPZYayfesfyDXLlGG01BK_fQd7gVUVeM" width={32} height={32} />
                   </div>
                   <div className="w-8 h-8 rounded-full bg-gray-300 border-2 border-white overflow-hidden">
-                    <img alt="Portrait" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDiFFUXLpBbHP5Dg8-mGZ2oApYtfXbhpRlRrNkUsYYOV_Ja9_EZOlzuqsJ_ibKyenKETxKulWHqYYGdVI6FVAG2CinqsT9qEHPqlBpqK6X5ZyXOcQI_cbRIvMsMn1tMi25G6-IKusL2vAP-SfhFY09Kd7fsixoBDDNWJP-YFMgx1Y49YRYbbo2XSb8PTyhCHkMXB-w8asiw11hgztoiNTE-rl_-4c_k3BPTUNu0QPRY53Oc3Glap03JnVw8BSfE3RmKwzg4UrvqWfQ" />
+                    <Image alt="Portrait" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDiFFUXLpBbHP5Dg8-mGZ2oApYtfXbhpRlRrNkUsYYOV_Ja9_EZOlzuqsJ_ibKyenKETxKulWHqYYGdVI6FVAG2CinqsT9qEHPqlBpqK6X5ZyXOcQI_cbRIvMsMn1tMi25G6-IKusL2vAP-SfhFY09Kd7fsixoBDDNWJP-YFMgx1Y49YRYbbo2XSb8PTyhCHkMXB-w8asiw11hgztoiNTE-rl_-4c_k3BPTUNu0QPRY53Oc3Glap03JnVw8BSfE3RmKwzg4UrvqWfQ" width={32} height={32} />
                   </div>
                   <div className="w-8 h-8 rounded-full bg-gray-300 border-2 border-white overflow-hidden">
-                    <img alt="Portrait" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBkBYhXeMYkopMp_hPAyIt1SPi9eQKFoSRz6XSNcJdNijpCr_65hwl0C8KZ0L1lY8JiGBDiViUn9ZHH4D-_Tl--Ebk-AxuamFLBHltgXL-iOW2pA3aMOykkoee0JyE2YjwcGB9dbC50buihsrc9nftxObNiI4_59qxjqdjJwKWn5dSCNU6dArhrR9n5itJjefN2OcogWbOGUBZ9C1K_4vCHVOpgPRu8IdoLwJIAuBcMQNURMMtN0MoJeLNDGQ6X7P5_fmJG0d60-ds" />
+                    <Image alt="Portrait" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBkBYhXeMYkopMp_hPAyIt1SPi9eQKFoSRz6XSNcJdNijpCr_65hwl0C8KZ0L1lY8JiGBDiViUn9ZHH4D-_Tl--Ebk-AxuamFLBHltgXL-iOW2pA3aMOykkoee0JyE2YjwcGB9dbC50buihsrc9nftxObNiI4_59qxjqdjJwKWn5dSCNU6dArhrR9n5itJjefN2OcogWbOGUBZ9C1K_4vCHVOpgPRu8IdoLwJIAuBcMQNURMMtN0MoJeLNDGQ6X7P5_fmJG0d60-ds" width={32} height={32} />
                   </div>
                 </div>
                 <p>Junte-se a <span className="font-bold text-gray-900">200+</span> lojas associadas</p>
@@ -240,10 +184,12 @@ export default function LandingPage() {
             <div className="relative lg:h-full flex items-center justify-center">
               <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl border-4 border-white">
                 <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 to-transparent z-10"></div>
-                <img
+                <Image
                   alt="Equipe Hiperfarma"
                   className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-700"
                   src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMDdUOiDm4V4Il7X17QQ_fbxCndUueQtEcP8Bnjl515ORoVy4ILWoat0VqIDVTMl6HCjxZmyog1_ucpaP6bd2ScSnZJUIPBrtjN2oquJJvdfLUN2DUfaDHtvJcGX3myokFTOOuKsQOIEofAz02acxIyPkEn8obIWkhtiDfnT26_zECJUWfvPGbuiKjIUecbQWvv1mEJhYi390MHV3TIiwF3tCRJZt0hrlToLA1KvYc-6klyIchIdWM8lxNZDnKpu_XchGY5wxER3Q"
+                  width={1200}
+                  height={900}
                 />
               </div>
               <div className="absolute -bottom-6 -left-6 bg-white p-4 rounded-xl shadow-xl border border-gray-100 flex items-center gap-3 z-20 animate-bounce" style={{ animationDuration: '3s' }}>
@@ -373,7 +319,7 @@ export default function LandingPage() {
               <div className="absolute -inset-4 bg-primary/20 rounded-full blur-3xl opacity-30"></div>
               <div className="relative bg-gradient-to-br from-primary to-secondary rounded-2xl p-1 shadow-2xl">
                 <div className="bg-white rounded-xl overflow-hidden h-full">
-                  <img alt="Loyalty card" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMDdUOiDm4V4Il7X17QQ_fbxCndUueQtEcP8Bnjl515ORoVy4ILWoat0VqIDVTMl6HCjxZmyog1_ucpaP6bd2ScSnZJUIPBrtjN2oquJJvdfLUN2DUfaDHtvJcGX3myokFTOOuKsQOIEofAz02acxIyPkEn8obIWkhtiDfnT26_zECJUWfvPGbuiKjIUecbQWvv1mEJhYi390MHV3TIiwF3tCRJZt0hrlToLA1KvYc-6klyIchIdWM8lxNZDnKpu_XchGY5wxER3Q" />
+                  <Image alt="Loyalty card" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMDdUOiDm4V4Il7X17QQ_fbxCndUueQtEcP8Bnjl515ORoVy4ILWoat0VqIDVTMl6HCjxZmyog1_ucpaP6bd2ScSnZJUIPBrtjN2oquJJvdfLUN2DUfaDHtvJcGX3myokFTOOuKsQOIEofAz02acxIyPkEn8obIWkhtiDfnT26_zECJUWfvPGbuiKjIUecbQWvv1mEJhYi390MHV3TIiwF3tCRJZt0hrlToLA1KvYc-6klyIchIdWM8lxNZDnKpu_XchGY5wxER3Q" width={1200} height={900} />
                 </div>
               </div>
             </div>
@@ -522,10 +468,12 @@ export default function LandingPage() {
             </div>
             <div className="w-full lg:w-2/5 bg-gray-100 order-1 lg:order-2 relative overflow-hidden group">
               <div className="absolute inset-0 bg-primary/20 z-10 mix-blend-multiply group-hover:bg-primary/10 transition-all duration-700"></div>
-              <img
+              <Image
                 alt="Pharmacists discussion"
                 className="w-full h-full object-cover transform scale-100 group-hover:scale-110 transition-transform duration-1000"
                 src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMDdUOiDm4V4Il7X17QQ_fbxCndUueQtEcP8Bnjl515ORoVy4ILWoat0VqIDVTMl6HCjxZmyog1_ucpaP6bd2ScSnZJUIPBrtjN2oquJJvdfLUN2DUfaDHtvJcGX3myokFTOOuKsQOIEofAz02acxIyPkEn8obIWkhtiDfnT26_zECJUWfvPGbuiKjIUecbQWvv1mEJhYi390MHV3TIiwF3tCRJZt0hrlToLA1KvYc-6klyIchIdWM8lxNZDnKpu_XchGY5wxER3Q"
+                width={1200}
+                height={900}
               />
               <div className="absolute bottom-0 left-0 w-full p-10 z-20 bg-gradient-to-t from-black/90 to-transparent">
                 <div className="bg-white/10 backdrop-blur-md p-6 rounded-xl border border-white/20">

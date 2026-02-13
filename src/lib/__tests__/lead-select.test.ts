@@ -6,8 +6,9 @@ import {
     buildLeadSelect,
     canReadSensitiveLeadFields,
 } from '@/lib/lead-select';
+import { DEFAULT_ROLE_PERMISSIONS } from '@/services/permissions-service';
 
-const ALL_ROLES: readonly UserRole[] = ['ADMIN', 'DIRECTOR', 'MANAGER', 'SDR', 'CONSULTANT'];
+const ALL_ROLES: readonly UserRole[] = ['ADMIN', 'DIRECTOR', 'MANAGER', 'CONSULTANT'];
 
 test('buildLeadBaseSelect should include only base lead fields', () => {
     const select = buildLeadBaseSelect();
@@ -31,7 +32,8 @@ test('buildLeadBaseSelect should include only base lead fields', () => {
 
 test('canReadSensitiveLeadFields should respect permission matrix', () => {
     for (const role of ALL_ROLES) {
-        assert.equal(canReadSensitiveLeadFields(role), true);
+        const perms = DEFAULT_ROLE_PERMISSIONS[role];
+        assert.equal(canReadSensitiveLeadFields({ role, permissions: perms }), true);
     }
     assert.equal(canReadSensitiveLeadFields(null), false);
     assert.equal(canReadSensitiveLeadFields(undefined), false);
@@ -39,7 +41,7 @@ test('canReadSensitiveLeadFields should respect permission matrix', () => {
 
 test('buildLeadSelect should include score/grade for permitted roles', () => {
     for (const role of ALL_ROLES) {
-        const select = buildLeadSelect({ role, includeSensitive: true });
+        const select = buildLeadSelect({ user: { role, permissions: DEFAULT_ROLE_PERMISSIONS[role] }, includeSensitive: true });
         assert.equal(select.score, true);
         assert.equal(select.grade, true);
     }
@@ -47,7 +49,7 @@ test('buildLeadSelect should include score/grade for permitted roles', () => {
 
 test('buildLeadSelect should hide qualificationData/roiData for consultant', () => {
     const select = buildLeadSelect({
-        role: 'CONSULTANT',
+        user: { role: 'CONSULTANT', permissions: DEFAULT_ROLE_PERMISSIONS.CONSULTANT },
         includeSensitive: true,
         includeQualificationData: true,
         includeRoiData: true,
@@ -61,7 +63,7 @@ test('buildLeadSelect should hide qualificationData/roiData for consultant', () 
 
 test('buildLeadSelect should include qualificationData/roiData for non-consultant with permission', () => {
     const select = buildLeadSelect({
-        role: 'MANAGER',
+        user: { role: 'MANAGER', permissions: DEFAULT_ROLE_PERMISSIONS.MANAGER },
         includeSensitive: true,
         includeQualificationData: true,
         includeRoiData: true,
@@ -75,7 +77,7 @@ test('buildLeadSelect should include qualificationData/roiData for non-consultan
 
 test('buildLeadSelect should include requested relations', () => {
     const select = buildLeadSelect({
-        role: 'ADMIN',
+        user: { role: 'ADMIN', permissions: DEFAULT_ROLE_PERMISSIONS.ADMIN },
         includeRelations: true,
     });
 

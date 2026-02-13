@@ -46,17 +46,17 @@ test('GET /api/crm/availability should return 403 when role has no availability 
 });
 
 test('GET /api/crm/availability should force non-admin to own user scope', async () => {
-    const restoreAuth = withAuthSession({ user: { id: 'sdr-1', role: 'SDR' } });
+    const restoreAuth = withAuthSession({ user: { id: 'consultant-1', role: 'CONSULTANT', permissions: ['availability:manage'] } });
     const restores: RestoreFn[] = [];
 
     restores.push(
-        mockMethod(prisma.user, 'findUnique', (async () => ({ id: 'sdr-1', role: 'SDR' })) as unknown as typeof prisma.user.findUnique)
+        mockMethod(prisma.user, 'findUnique', (async () => ({ id: 'consultant-1', role: 'CONSULTANT' })) as unknown as typeof prisma.user.findUnique)
     );
     restores.push(
         mockMethod(prisma.availabilitySlot, 'findMany', (async () => ([
             {
                 id: 'slot-1',
-                userId: 'sdr-1',
+                userId: 'consultant-1',
                 dayOfWeek: 1,
                 startTime: '09:00',
                 endTime: '12:00',
@@ -81,7 +81,7 @@ test('GET /api/crm/availability should force non-admin to own user scope', async
             consultants: unknown[];
             permissions?: { canManageOthers?: boolean };
         };
-        assert.equal(payload.userId, 'sdr-1');
+        assert.equal(payload.userId, 'consultant-1');
         assert.equal(Array.isArray(payload.slots), true);
         assert.equal(payload.consultants.length, 0);
         assert.equal(payload.permissions?.canManageOthers, false);
@@ -92,11 +92,11 @@ test('GET /api/crm/availability should force non-admin to own user scope', async
 });
 
 test('PUT /api/crm/availability should return 400 for overlapping slots', async () => {
-    const restoreAuth = withAuthSession({ user: { id: 'sdr-1', role: 'SDR' } });
+    const restoreAuth = withAuthSession({ user: { id: 'sdr-1', role: 'CONSULTANT', permissions: ['availability:manage'] } });
     const restores: RestoreFn[] = [];
 
     restores.push(
-        mockMethod(prisma.user, 'findUnique', (async () => ({ id: 'sdr-1', role: 'SDR' })) as unknown as typeof prisma.user.findUnique)
+        mockMethod(prisma.user, 'findUnique', (async () => ({ id: 'sdr-1', role: 'CONSULTANT' })) as unknown as typeof prisma.user.findUnique)
     );
 
     try {
@@ -120,7 +120,7 @@ test('PUT /api/crm/availability should return 400 for overlapping slots', async 
 });
 
 test('PUT /api/crm/availability should return 400 when admin targets invalid role', async () => {
-    const restoreAuth = withAuthSession({ user: { id: 'admin-1', role: 'ADMIN' } });
+    const restoreAuth = withAuthSession({ user: { id: 'admin-1', role: 'ADMIN', permissions: ['availability:manage', 'leads:read:all'] } });
     const restores: RestoreFn[] = [];
 
     restores.push(
@@ -146,7 +146,7 @@ test('PUT /api/crm/availability should return 400 when admin targets invalid rol
 });
 
 test('PUT /api/crm/availability should save and return payload for valid admin request', async () => {
-    const restoreAuth = withAuthSession({ user: { id: 'admin-1', role: 'ADMIN' } });
+    const restoreAuth = withAuthSession({ user: { id: 'admin-1', role: 'ADMIN', permissions: ['availability:manage', 'leads:read:all'] } });
     const restores: RestoreFn[] = [];
     let deletedSlots = false;
     let deletedBlocks = false;

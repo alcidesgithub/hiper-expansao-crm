@@ -16,7 +16,7 @@ import {
     DollarSign,
 } from 'lucide-react';
 
-type AppRole = 'ADMIN' | 'DIRECTOR' | 'MANAGER' | 'SDR' | 'CONSULTANT';
+type AppRole = 'ADMIN' | 'DIRECTOR' | 'MANAGER' | 'CONSULTANT';
 
 interface SidebarProps {
     isOpen: boolean;
@@ -32,10 +32,10 @@ interface NavItem {
 }
 
 const NAV_ITEMS: readonly NavItem[] = [
-    { href: '/dashboard', icon: <LayoutDashboard size={20} />, label: 'Dashboard', roles: ['ADMIN', 'DIRECTOR', 'MANAGER', 'SDR'] },
-    { href: '/dashboard/leads', icon: <Users size={20} />, label: 'Leads CRM', roles: ['ADMIN', 'DIRECTOR', 'MANAGER', 'SDR', 'CONSULTANT'] },
-    { href: '/dashboard/agenda', icon: <CalendarIcon size={20} />, label: 'Agenda', roles: ['ADMIN', 'DIRECTOR', 'MANAGER', 'SDR', 'CONSULTANT'] },
-    { href: '/dashboard/disponibilidade', icon: <CalendarIcon size={20} />, label: 'Disponibilidade', roles: ['ADMIN', 'SDR', 'CONSULTANT'] },
+    { href: '/dashboard', icon: <LayoutDashboard size={20} />, label: 'Dashboard', roles: ['ADMIN', 'DIRECTOR', 'MANAGER'] },
+    { href: '/dashboard/leads', icon: <Users size={20} />, label: 'Leads CRM', roles: ['ADMIN', 'DIRECTOR', 'MANAGER', 'CONSULTANT'] },
+    { href: '/dashboard/agenda', icon: <CalendarIcon size={20} />, label: 'Agenda', roles: ['ADMIN', 'DIRECTOR', 'MANAGER', 'CONSULTANT'] },
+    { href: '/dashboard/disponibilidade', icon: <CalendarIcon size={20} />, label: 'Disponibilidade', roles: ['ADMIN', 'CONSULTANT'] },
     { href: '/dashboard/relatorios', icon: <BarChart3 size={20} />, label: 'Relatórios', roles: ['ADMIN', 'DIRECTOR', 'MANAGER'] },
     { href: '/dashboard/usuarios', icon: <UserCog size={20} />, label: 'Gestão de Usuários', roles: ['ADMIN'] },
     { href: '/dashboard/pricing', icon: <DollarSign size={20} />, label: 'Mensalidades', roles: ['ADMIN', 'DIRECTOR', 'MANAGER'] },
@@ -43,7 +43,7 @@ const NAV_ITEMS: readonly NavItem[] = [
 ];
 
 function isAppRole(role: string | null | undefined): role is AppRole {
-    return role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER' || role === 'SDR' || role === 'CONSULTANT';
+    return role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER' || role === 'CONSULTANT';
 }
 
 export function Sidebar({ isOpen, onClose, userRole }: SidebarProps) {
@@ -109,8 +109,8 @@ const NavButton = ({ href, active, icon, label, onClick }: NavButtonProps) => (
         href={href}
         onClick={onClick}
         className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${active
-                ? 'bg-primary/10 text-primary font-medium'
-                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            ? 'bg-primary/10 text-primary font-medium'
+            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
             }`}
     >
         {icon}

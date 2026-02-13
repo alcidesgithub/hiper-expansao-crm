@@ -1,11 +1,11 @@
 import type { NextAuthConfig } from 'next-auth';
 
-type AppRole = 'ADMIN' | 'DIRECTOR' | 'MANAGER' | 'SDR' | 'CONSULTANT';
+type AppRole = 'ADMIN' | 'DIRECTOR' | 'MANAGER' | 'CONSULTANT';
 type TokenUser = { id?: string; role?: string };
 type SessionUser = { id?: string; role?: string };
 
 function isAppRole(role: string | undefined): role is AppRole {
-    return role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER' || role === 'SDR' || role === 'CONSULTANT';
+    return role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER' || role === 'CONSULTANT';
 }
 
 function canAccessDashboardPath(pathname: string, role: AppRole): boolean {

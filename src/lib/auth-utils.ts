@@ -1,7 +1,7 @@
 import { auth } from '@/auth';
 import { NextResponse } from 'next/server';
 
-type UserRole = 'ADMIN' | 'DIRECTOR' | 'MANAGER' | 'SDR' | 'CONSULTANT';
+type UserRole = 'ADMIN' | 'DIRECTOR' | 'MANAGER' | 'CONSULTANT';
 
 interface SessionUser {
     id: string;
@@ -11,7 +11,7 @@ interface SessionUser {
 }
 
 function isUserRole(role: unknown): role is UserRole {
-    return role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER' || role === 'SDR' || role === 'CONSULTANT';
+    return role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER' || role === 'CONSULTANT';
 }
 
 /**

@@ -119,7 +119,7 @@ export const pricingCreateSchema = z.object({
 export const userCreateSchema = z.object({
     name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
     email: z.string().email('Email invalido'),
-    role: z.enum(['ADMIN', 'DIRECTOR', 'MANAGER', 'SDR', 'CONSULTANT']),
+    role: z.enum(['ADMIN', 'DIRECTOR', 'MANAGER', 'CONSULTANT']),
     status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED']).default('ACTIVE'),
     department: z.string().max(120).optional().nullable(),
     phone: z.string().max(40).optional().nullable(),
@@ -129,7 +129,7 @@ export const userCreateSchema = z.object({
 export const userUpdateSchema = z.object({
     name: z.string().min(2).optional(),
     email: z.string().email().optional(),
-    role: z.enum(['ADMIN', 'DIRECTOR', 'MANAGER', 'SDR', 'CONSULTANT']).optional(),
+    role: z.enum(['ADMIN', 'DIRECTOR', 'MANAGER', 'CONSULTANT']).optional(),
     status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED']).optional(),
     department: z.string().max(120).optional().nullable(),
     phone: z.string().max(40).optional().nullable(),

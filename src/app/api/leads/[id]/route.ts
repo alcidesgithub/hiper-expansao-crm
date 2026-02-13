@@ -12,12 +12,19 @@ import { processAutomationRules, AutomationRule } from '@/lib/automation';
 
 interface SessionUser {
     id?: string;
-    role?: UserRole;
+    role?: string;
+    permissions?: string[];
 }
 
 function getSessionUser(session: unknown): SessionUser | null {
     if (!session || typeof session !== 'object') return null;
-    return (session as { user?: SessionUser }).user || null;
+    const user = (session as { user?: SessionUser }).user;
+    if (!user) return null;
+    return {
+        id: user.id,
+        role: user.role,
+        permissions: user.permissions
+    };
 }
 
 type AuthHandler = typeof auth;
@@ -31,17 +38,17 @@ export function __resetAuthHandlerForTests(): void {
     authHandler = auth;
 }
 
-function canView(role?: UserRole): boolean {
-    return canAny(role, ['leads:read:all', 'leads:read:team', 'leads:read:own']);
+function canView(user: SessionUser): boolean {
+    return canAny(user, ['leads:read:all', 'leads:read:team', 'leads:read:own']);
 }
 
-function canManage(role?: UserRole): boolean {
-    return can(role, 'leads:write:own');
+function canManage(user: SessionUser): boolean {
+    return can(user, 'leads:write:own');
 }
 
-async function getLeadDetails(id: string, scope: Prisma.LeadWhereInput, role?: UserRole) {
+async function getLeadDetails(id: string, scope: Prisma.LeadWhereInput, user: SessionUser) {
     const leadSelect = buildLeadSelect({
-        role,
+        user,
         includeRelations: true,
         includeSensitive: true,
         includeQualificationData: true,
@@ -85,13 +92,13 @@ export async function GET(
     const session = await authHandler();
     const user = getSessionUser(session);
     if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    if (!canView(user.role)) return NextResponse.json({ error: 'Sem permissão para visualizar leads' }, { status: 403 });
+    if (!canView(user)) return NextResponse.json({ error: 'Sem permissão para visualizar leads' }, { status: 403 });
 
     const { id } = await params;
 
     try {
         const leadScope = await buildLeadScope(user);
-        const lead = await getLeadDetails(id, leadScope, user.role);
+        const lead = await getLeadDetails(id, leadScope, user);
         if (!lead) return NextResponse.json({ error: 'Lead não encontrado' }, { status: 404 });
 
         return NextResponse.json(lead);
@@ -108,7 +115,7 @@ export async function PATCH(
     const session = await authHandler();
     const user = getSessionUser(session);
     if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    if (!canManage(user.role)) return NextResponse.json({ error: 'Sem permissão para editar leads' }, { status: 403 });
+    if (!canManage(user)) return NextResponse.json({ error: 'Sem permissão para editar leads' }, { status: 403 });
 
     const { id } = await params;
 
@@ -127,7 +134,7 @@ export async function PATCH(
             return NextResponse.json({ error: 'Nenhum campo para atualizar' }, { status: 400 });
         }
 
-        if (data.pipelineStageId !== undefined && !can(user.role, 'pipeline:advance')) {
+        if (data.pipelineStageId !== undefined && !can(user, 'pipeline:advance')) {
             return NextResponse.json({ error: 'Sem permissão para avançar pipeline' }, { status: 403 });
         }
 
@@ -149,7 +156,7 @@ export async function PATCH(
             }
         }
 
-        if (data.assignedUserId !== undefined && !can(user.role, 'leads:assign')) {
+        if (data.assignedUserId !== undefined && !can(user, 'leads:assign')) {
             if (!user.id || data.assignedUserId !== user.id) {
                 return NextResponse.json(
                     { error: 'Sem permissão para atribuir leads' },
@@ -158,7 +165,7 @@ export async function PATCH(
             }
         }
 
-        if (user.role === 'SDR' || user.role === 'CONSULTANT') {
+        if (user.role === 'CONSULTANT') {
             if (!user.id) return NextResponse.json({ error: 'Usuário inválido' }, { status: 401 });
             if (data.assignedUserId && data.assignedUserId !== user.id) {
                 return NextResponse.json(
@@ -299,7 +306,7 @@ export async function PATCH(
             where: { id },
             data: updateData,
             select: buildLeadSelect({
-                role: user.role,
+                user,
                 includeRelations: true,
                 includeSensitive: true,
                 includeQualificationData: true,
@@ -357,7 +364,7 @@ export async function DELETE(
     const session = await authHandler();
     const user = getSessionUser(session);
     if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    if (!can(user.role, 'leads:delete')) return NextResponse.json({ error: 'Sem permissão para arquivar leads' }, { status: 403 });
+    if (!can(user, 'leads:delete')) return NextResponse.json({ error: 'Sem permissão para arquivar leads' }, { status: 403 });
 
     const { id } = await params;
 

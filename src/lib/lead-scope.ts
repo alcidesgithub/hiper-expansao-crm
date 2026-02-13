@@ -1,21 +1,11 @@
 import { Prisma, UserRole } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { can } from './permissions';
 
 export interface LeadScopeUser {
     id?: string | null;
-    role?: UserRole | null;
-}
-
-const PRIVILEGED_ROLES: readonly UserRole[] = ['ADMIN', 'DIRECTOR'];
-const MANAGER_ROLE: UserRole = 'MANAGER';
-const OWNERSHIP_ROLES: readonly UserRole[] = ['SDR', 'CONSULTANT'];
-
-export function canReadAllLeads(role?: UserRole | null): boolean {
-    return Boolean(role && PRIVILEGED_ROLES.includes(role));
-}
-
-export function isManagerRole(role?: UserRole | null): boolean {
-    return role === MANAGER_ROLE;
+    role?: string | null; // Changed to string to match session/permissions
+    permissions?: string[] | null;
 }
 
 export async function getManagerScopedUserIds(managerId: string): Promise<string[]> {
@@ -32,23 +22,29 @@ export async function getManagerScopedUserIds(managerId: string): Promise<string
 }
 
 export async function buildLeadScope(user: LeadScopeUser): Promise<Prisma.LeadWhereInput> {
-    if (!user.id || !user.role) {
+    if (!user.id) {
         return { id: '__no-access__' };
     }
 
-    if (canReadAllLeads(user.role)) {
+    // 1. Can read all leads? (Admin/Director)
+    if (can(user, 'leads:read:all')) {
         return {};
     }
 
-    if (isManagerRole(user.role)) {
+    // 2. Can read team leads? (Manager)
+    if (can(user, 'leads:read:team')) {
         const scopedIds = await getManagerScopedUserIds(user.id);
         if (scopedIds.length === 0) {
-            return { id: '__no-access__' };
+            // Even if manager has no team, they should see their own leads?
+            // Usually managers also have leads assigned to them.
+            // If scopedIds is empty (impossible because we add managerId), it means managerId is there.
+            return { assignedUserId: user.id };
         }
         return { assignedUserId: { in: scopedIds } };
     }
 
-    if (OWNERSHIP_ROLES.includes(user.role)) {
+    // 3. Can read own leads? (Consultant)
+    if (can(user, 'leads:read:own')) {
         return { assignedUserId: user.id };
     }
 

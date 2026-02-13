@@ -7,7 +7,8 @@ import { can } from '@/lib/permissions';
 
 interface SessionUser {
     id?: string;
-    role?: UserRole;
+    role?: string;
+    permissions?: string[];
 }
 
 const pricingPatchSchema = z.object({
@@ -23,15 +24,21 @@ const pricingPatchSchema = z.object({
 
 function getSessionUser(session: unknown): SessionUser | null {
     if (!session || typeof session !== 'object') return null;
-    return (session as { user?: SessionUser }).user || null;
+    const user = (session as { user?: SessionUser }).user;
+    if (!user) return null;
+    return {
+        id: user.id,
+        role: user.role,
+        permissions: user.permissions
+    };
 }
 
-function canView(role?: UserRole): boolean {
-    return can(role, 'pricing:read');
+function canView(user?: SessionUser | null): boolean {
+    return can(user, 'pricing:read');
 }
 
-function canManage(role?: UserRole): boolean {
-    return can(role, 'pricing:write');
+function canManage(user?: SessionUser | null): boolean {
+    return can(user, 'pricing:write');
 }
 
 function parseDate(value: string, fieldName: string): Date {
@@ -50,7 +57,7 @@ export async function GET(
     const session = await auth();
     const user = getSessionUser(session);
     if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    if (!canView(user.role)) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
+    if (!canView(user)) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
 
     const { id } = await params;
 
@@ -82,7 +89,7 @@ export async function PATCH(
     const session = await auth();
     const user = getSessionUser(session);
     if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    if (!canManage(user.role)) return NextResponse.json({ error: 'Sem permissão para editar tabela' }, { status: 403 });
+    if (!canManage(user)) return NextResponse.json({ error: 'Sem permissão para editar tabela' }, { status: 403 });
 
     const { id } = await params;
 
@@ -178,7 +185,7 @@ export async function DELETE(
     const session = await auth();
     const user = getSessionUser(session);
     if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    if (!canManage(user.role)) return NextResponse.json({ error: 'Sem permissão para excluir tabela' }, { status: 403 });
+    if (!canManage(user)) return NextResponse.json({ error: 'Sem permissão para excluir tabela' }, { status: 403 });
 
     const { id } = await params;
 

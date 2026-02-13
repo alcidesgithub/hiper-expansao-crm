@@ -40,7 +40,6 @@ test('GET /api/leads should apply role scope matrix on where clause', async () =
         { role: 'ADMIN', userId: ROLE_USER_IDS.ADMIN, scope: 'all' },
         { role: 'DIRECTOR', userId: ROLE_USER_IDS.DIRECTOR, scope: 'all' },
         { role: 'MANAGER', userId: ROLE_USER_IDS.MANAGER, scope: 'team' },
-        { role: 'SDR', userId: ROLE_USER_IDS.SDR, scope: 'own' },
         { role: 'CONSULTANT', userId: ROLE_USER_IDS.CONSULTANT, scope: 'own' },
     ] as const;
 
@@ -174,7 +173,7 @@ test('POST /api/leads should block MANAGER assigning lead outside team scope', a
 });
 
 test('GET /api/leads/[id] should return 404 when lead is outside role scope', async () => {
-    const restoreAuth = withAuthSession(setLeadByIdAuth, resetLeadByIdAuth, sessionForRole('SDR'));
+    const restoreAuth = withAuthSession(setLeadByIdAuth, resetLeadByIdAuth, sessionForRole('CONSULTANT'));
     const restores: RestoreFn[] = [];
 
     restores.push(

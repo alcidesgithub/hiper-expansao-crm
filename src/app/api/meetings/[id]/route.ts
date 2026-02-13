@@ -11,12 +11,19 @@ import { buildLeadSelect } from '@/lib/lead-select';
 
 interface SessionUser {
     id?: string;
-    role?: UserRole;
+    role?: string;
+    permissions?: string[];
 }
 
 function getSessionUser(session: unknown): SessionUser | null {
     if (!session || typeof session !== 'object') return null;
-    return (session as { user?: SessionUser }).user || null;
+    const user = (session as { user?: SessionUser }).user;
+    if (!user) return null;
+    return {
+        id: user.id,
+        role: user.role,
+        permissions: user.permissions
+    };
 }
 
 type AuthHandler = typeof auth;
@@ -30,7 +37,7 @@ export function __resetAuthHandlerForTests(): void {
     authHandler = auth;
 }
 
-function isPrivileged(role?: UserRole): boolean {
+function isPrivileged(role?: string): boolean {
     return role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER';
 }
 
@@ -45,7 +52,7 @@ async function getMeetingWithAccess(id: string, user: SessionUser) {
         include: {
             lead: {
                 select: buildLeadSelect({
-                    role: user.role,
+                    user,
                     includeSensitive: true,
                     includeQualificationData: true,
                     includeRoiData: true,
@@ -121,7 +128,7 @@ export async function PATCH(
     const user = getSessionUser(session);
     if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     if (!user.id) return NextResponse.json({ error: 'Usuário inválido' }, { status: 401 });
-    if (!can(user.role, 'leads:write:own')) {
+    if (!can(user, 'leads:write:own')) {
         return NextResponse.json({ error: 'Sem permissão para editar reuniões' }, { status: 403 });
     }
 
@@ -142,7 +149,7 @@ export async function PATCH(
         }
 
         const data = parsed.data;
-        if (data.status === 'COMPLETED' && !can(user.role, 'pipeline:advance')) {
+        if (data.status === 'COMPLETED' && !can(user, 'pipeline:advance')) {
             return NextResponse.json({ error: 'Sem permissão para concluir reunião' }, { status: 403 });
         }
         const meeting = await prisma.meeting.update({
@@ -162,7 +169,7 @@ export async function PATCH(
                 ...(data.status === 'SCHEDULED' && { cancelledAt: null }),
             },
             include: {
-                lead: { select: buildLeadSelect({ role: user.role, includeSensitive: true }) },
+                lead: { select: buildLeadSelect({ user, includeSensitive: true }) },
                 user: { select: { id: true, name: true } },
             },
         });
@@ -220,7 +227,7 @@ export async function DELETE(
     const user = getSessionUser(session);
     if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
     if (!user.id) return NextResponse.json({ error: 'Usuário inválido' }, { status: 401 });
-    if (!can(user.role, 'leads:write:own')) {
+    if (!can(user, 'leads:write:own')) {
         return NextResponse.json({ error: 'Sem permissão para cancelar reuniões' }, { status: 403 });
     }
 

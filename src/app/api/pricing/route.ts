@@ -7,31 +7,27 @@ import { can } from '@/lib/permissions';
 
 interface SessionUser {
     id?: string;
-    role?: UserRole;
+    role?: string;
+    permissions?: string[];
 }
-
-const pricingCreateSchema = z.object({
-    name: z.string().trim().min(2, 'Nome é obrigatório'),
-    effectiveDate: z.string().trim().min(1, 'Data de vigência é obrigatória'),
-    expiryDate: z.string().trim().optional().nullable(),
-    isActive: z.boolean().optional().default(false),
-    marketingMonthly: z.coerce.number().positive('Valor de marketing deve ser maior que zero'),
-    marketingDescription: z.string().optional().default(''),
-    adminMonthly: z.coerce.number().positive('Valor administrativo deve ser maior que zero'),
-    adminDescription: z.string().optional().default(''),
-});
 
 function getSessionUser(session: unknown): SessionUser | null {
     if (!session || typeof session !== 'object') return null;
-    return (session as { user?: SessionUser }).user || null;
+    const user = (session as { user?: SessionUser }).user;
+    if (!user) return null;
+    return {
+        id: user.id,
+        role: user.role,
+        permissions: user.permissions
+    };
 }
 
-function hasViewAccess(role?: UserRole): boolean {
-    return can(role, 'pricing:read');
+function hasViewAccess(user?: SessionUser | null): boolean {
+    return can(user, 'pricing:read');
 }
 
-function hasManageAccess(role?: UserRole): boolean {
-    return can(role, 'pricing:write');
+function hasManageAccess(user?: SessionUser | null): boolean {
+    return can(user, 'pricing:write');
 }
 
 function parseDate(value: string, fieldName: string): Date {
@@ -65,7 +61,7 @@ export async function GET(request: Request) {
             const session = await auth();
             const user = getSessionUser(session);
             if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-            if (!hasViewAccess(user.role)) {
+            if (!hasViewAccess(user)) {
                 return NextResponse.json({ error: 'Sem permissão para visualizar tabelas de preços' }, { status: 403 });
             }
 
@@ -76,7 +72,7 @@ export async function GET(request: Request) {
             return NextResponse.json({
                 tables: tables.map(serializePricing),
                 permissions: {
-                    canManage: hasManageAccess(user.role),
+                    canManage: hasManageAccess(user),
                 },
                 currentUser: {
                     id: user.id || null,
@@ -122,7 +118,7 @@ export async function POST(request: Request) {
     const session = await auth();
     const user = getSessionUser(session);
     if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    if (!hasManageAccess(user.role)) {
+    if (!hasManageAccess(user)) {
         return NextResponse.json({ error: 'Sem permissão para criar tabela de preços' }, { status: 403 });
     }
 

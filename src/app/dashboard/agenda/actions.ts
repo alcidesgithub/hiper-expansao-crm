@@ -12,12 +12,19 @@ function isPrivileged(role?: string): boolean {
 
 interface SessionUser {
     id?: string;
-    role?: UserRole;
+    role?: string;
+    permissions?: string[];
 }
 
 function getSessionUser(session: unknown): SessionUser | null {
     if (!session || typeof session !== 'object') return null;
-    return (session as { user?: SessionUser }).user || null;
+    const user = (session as { user?: SessionUser }).user;
+    if (!user) return null;
+    return {
+        id: user.id,
+        role: user.role,
+        permissions: user.permissions
+    };
 }
 
 function parseLocalDateTime(date: string, time: string): Date | null {
@@ -187,7 +194,7 @@ export async function createMeetingFromAgenda(data: {
 
     const user = getSessionUser(session);
     if (!user?.id || !user.role) throw new Error('Usuário inválido');
-    if (!can(user.role, 'pipeline:advance')) throw new Error('Sem permissão para agendar');
+    if (!can(user, 'pipeline:advance')) throw new Error('Sem permissão para agendar');
 
     const userId = user.id;
     const leadScope = await buildLeadScope(user);

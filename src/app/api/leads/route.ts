@@ -16,12 +16,19 @@ const LEAD_SOURCES: readonly LeadSource[] = ['WEBSITE', 'FACEBOOK', 'INSTAGRAM',
 
 interface SessionUser {
     id?: string;
-    role?: UserRole;
+    role?: string;
+    permissions?: string[];
 }
 
 function getSessionUser(session: unknown): SessionUser | null {
     if (!session || typeof session !== 'object') return null;
-    return (session as { user?: SessionUser }).user || null;
+    const user = (session as { user?: SessionUser }).user;
+    if (!user) return null;
+    return {
+        id: user.id,
+        role: user.role,
+        permissions: user.permissions
+    };
 }
 
 type AuthHandler = typeof auth;
@@ -35,12 +42,12 @@ export function __resetAuthHandlerForTests(): void {
     authHandler = auth;
 }
 
-function canView(role?: UserRole): boolean {
-    return canAny(role, ['leads:read:all', 'leads:read:team', 'leads:read:own']);
+function canView(user: SessionUser): boolean {
+    return canAny(user, ['leads:read:all', 'leads:read:team', 'leads:read:own']);
 }
 
-function canManage(role?: UserRole): boolean {
-    return can(role, 'leads:write:own');
+function canManage(user: SessionUser): boolean {
+    return can(user, 'leads:write:own');
 }
 
 function parsePositiveInt(value: string | null, fallback: number, min: number, max: number): number {
@@ -60,7 +67,7 @@ export async function GET(request: Request) {
     const session = await authHandler();
     const user = getSessionUser(session);
     if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    if (!canView(user.role)) return NextResponse.json({ error: 'Sem permissão para visualizar leads' }, { status: 403 });
+    if (!canView(user)) return NextResponse.json({ error: 'Sem permissão para visualizar leads' }, { status: 403 });
 
     const { searchParams } = new URL(request.url);
     const grade = searchParams.get('grade');
@@ -106,7 +113,7 @@ export async function GET(request: Request) {
             prisma.lead.findMany({
                 where,
                 select: buildLeadSelect({
-                    role: user.role,
+                    user,
                     includeRelations: true,
                     includeSensitive: true,
                 }),
@@ -126,8 +133,8 @@ export async function GET(request: Request) {
                 totalPages: Math.max(1, Math.ceil(total / limit)),
             },
             permissions: {
-                canManage: canManage(user.role),
-                canAssign: can(user.role, 'leads:assign'),
+                canManage: canManage(user),
+                canAssign: can(user, 'leads:assign'),
             },
         });
     } catch (error) {
@@ -140,7 +147,7 @@ export async function POST(request: Request) {
     const session = await authHandler();
     const user = getSessionUser(session);
     if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    if (!canManage(user.role)) return NextResponse.json({ error: 'Sem permissão para criar leads' }, { status: 403 });
+    if (!canManage(user)) return NextResponse.json({ error: 'Sem permissão para criar leads' }, { status: 403 });
 
     const ip = getClientIp(request);
     const rl = await rateLimit(`leads:create:${ip}`, { limit: 30, windowSec: 60 });
@@ -188,7 +195,7 @@ export async function POST(request: Request) {
 
         let assignedUserId = parsed.data.assignedUserId || null;
 
-        if (user.role === 'SDR' || user.role === 'CONSULTANT') {
+        if (user.role === 'CONSULTANT') {
             if (!user.id) return NextResponse.json({ error: 'Usuário inválido' }, { status: 401 });
             assignedUserId = user.id;
         }
@@ -261,7 +268,7 @@ export async function POST(request: Request) {
                 pipelineStageId: finalStageId,
             },
             select: buildLeadSelect({
-                role: user.role,
+                user,
                 includeRelations: true,
                 includeSensitive: true,
             }),

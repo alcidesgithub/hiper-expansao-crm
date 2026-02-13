@@ -1,4 +1,5 @@
 import { UserRole } from '@prisma/client';
+import { DEFAULT_ROLE_PERMISSIONS } from '@/services/permissions-service';
 
 export type RestoreFn = () => void;
 
@@ -10,12 +11,12 @@ export const ROLE_USER_IDS: Readonly<Record<UserRole, string>> = {
     ADMIN: 'admin-1',
     DIRECTOR: 'director-1',
     MANAGER: 'manager-1',
-    SDR: 'sdr-1',
+
     CONSULTANT: 'consultant-1',
 };
 
-export function sessionForRole(role: UserRole, id?: string): { user: { id: string; role: UserRole } } {
-    return { user: { id: id || ROLE_USER_IDS[role], role } };
+export function sessionForRole(role: UserRole, id?: string): { user: { id: string; role: UserRole; permissions: string[] } } {
+    return { user: { id: id || ROLE_USER_IDS[role], role, permissions: DEFAULT_ROLE_PERMISSIONS[role] } };
 }
 
 export function withAuthSession(
@@ -53,7 +54,7 @@ export function buildLeadFixture(
         source: 'WEBSITE',
         createdAt: new Date('2026-02-12T12:00:00.000Z'),
         updatedAt: new Date('2026-02-12T12:00:00.000Z'),
-        assignedUserId: 'sdr-1',
+        assignedUserId: 'consultant-1',
         pipelineStageId: 'stage-1',
         score: 80,
         grade: 'A',

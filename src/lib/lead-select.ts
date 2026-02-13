@@ -1,8 +1,8 @@
-import { Prisma, UserRole } from '@prisma/client';
-import { can } from '@/lib/permissions';
+import { Prisma } from '@prisma/client';
+import { can, PermissionUser } from '@/lib/permissions';
 
-export function canReadSensitiveLeadFields(role?: UserRole | null): boolean {
-    return can(role, 'leads:score:read');
+export function canReadSensitiveLeadFields(user?: PermissionUser | null): boolean {
+    return can(user, 'leads:score:read');
 }
 
 export function buildLeadBaseSelect(): Prisma.LeadSelect {
@@ -23,14 +23,14 @@ export function buildLeadBaseSelect(): Prisma.LeadSelect {
 }
 
 export function buildLeadSelect(params: {
-    role?: UserRole | null;
+    user?: PermissionUser | null;
     includeRelations?: boolean;
     includeSensitive?: boolean;
     includeQualificationData?: boolean;
     includeRoiData?: boolean;
 } = {}): Prisma.LeadSelect {
     const {
-        role,
+        user,
         includeRelations = false,
         includeSensitive = false,
         includeQualificationData = false,
@@ -38,8 +38,17 @@ export function buildLeadSelect(params: {
     } = params;
 
     const select: Prisma.LeadSelect = buildLeadBaseSelect();
-    const canReadSensitive = canReadSensitiveLeadFields(role);
-    const canReadDeepSensitive = canReadSensitive && role !== 'CONSULTANT';
+    const canReadSensitive = canReadSensitiveLeadFields(user);
+    const canReadDeepSensitive = canReadSensitive && user?.role !== 'CONSULTANT';
+    // Optimization: Consultant might have score:read but maybe not deep data?
+    // Actually, let's rely on permissions if possible.
+    // 'leads:score:read' is the permission.
+    // Use strictly permission if possible?
+    // The original code had `&& role !== 'CONSULTANT'`.
+    // Let's keep it if there isn't a specific permission for deep data.
+    // Or adds 'leads:deep-sensitive:read'?
+    // For now, keep the role check as an extra guard or refactor later. 
+    // But `user.role` is string now.
 
     if (includeRelations) {
         select.assignedUser = { select: { id: true, name: true } };
@@ -63,3 +72,4 @@ export function buildLeadSelect(params: {
 
     return select;
 }
+

@@ -42,20 +42,6 @@ async function main() {
     });
     console.log('  ok Admin user:', admin.email);
 
-    const sdr = await prisma.user.upsert({
-        where: { email: 'sdr@hiperfarma.com.br' },
-        update: {},
-        create: {
-            email: 'sdr@hiperfarma.com.br',
-            name: 'Maria Silva',
-            role: UserRole.SDR,
-            status: UserStatus.ACTIVE,
-            password: hashedPassword,
-            phone: '(41) 99999-0002',
-            department: 'Expansao',
-        },
-    });
-    console.log('  ok SDR user:', sdr.email);
 
     const consultant = await prisma.user.upsert({
         where: { email: 'consultor@hiperfarma.com.br' },
@@ -188,7 +174,7 @@ async function main() {
     console.log('');
     console.log('Login credentials:');
     console.log('   Admin: admin@hiperfarma.com.br / <SEED_DEFAULT_PASSWORD>');
-    console.log('   SDR:   sdr@hiperfarma.com.br / <SEED_DEFAULT_PASSWORD>');
+
 }
 
 main()

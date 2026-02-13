@@ -1595,11 +1595,11 @@ O sistema possui cinco roles internos. Cada role tem escopo de leitura de leads 
 
 ### 11.2 Implementação de Controle de Acesso
 
-**Middleware de autenticação** — protege todas as rotas internas:
+**Proxy de autenticação** — protege todas as rotas internas:
 
 ```typescript
-// middleware.ts
-export { auth as middleware } from '@/auth'
+// proxy.ts
+export { auth as proxy } from '@/auth'
 export const config = {
   matcher: ['/dashboard/:path*', '/api/crm/:path*']
 }

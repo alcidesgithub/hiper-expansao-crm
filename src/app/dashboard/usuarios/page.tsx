@@ -16,7 +16,7 @@ import {
     XCircle,
 } from 'lucide-react';
 
-type UserRole = 'ADMIN' | 'DIRECTOR' | 'MANAGER' | 'SDR' | 'CONSULTANT';
+type UserRole = 'ADMIN' | 'DIRECTOR' | 'MANAGER' | 'CONSULTANT';
 type UserStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
 
 interface ManagedUser {
@@ -51,7 +51,6 @@ const ROLE_LABELS: Record<UserRole, string> = {
     ADMIN: 'Admin',
     DIRECTOR: 'Diretor',
     MANAGER: 'Gerente',
-    SDR: 'SDR',
     CONSULTANT: 'Consultor',
 };
 

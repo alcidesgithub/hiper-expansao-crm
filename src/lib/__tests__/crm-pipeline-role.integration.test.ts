@@ -30,7 +30,6 @@ test('GET /api/pipeline should apply lead scope and safe lead select for each ro
         { role: 'ADMIN', userId: ROLE_USER_IDS.ADMIN, scope: 'all' },
         { role: 'DIRECTOR', userId: ROLE_USER_IDS.DIRECTOR, scope: 'all' },
         { role: 'MANAGER', userId: ROLE_USER_IDS.MANAGER, scope: 'team' },
-        { role: 'SDR', userId: ROLE_USER_IDS.SDR, scope: 'own' },
         { role: 'CONSULTANT', userId: ROLE_USER_IDS.CONSULTANT, scope: 'own' },
     ] as const;
 

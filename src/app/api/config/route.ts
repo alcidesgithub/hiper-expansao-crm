@@ -67,7 +67,8 @@ const configPayloadSchema = z.object({
 
 interface SessionUser {
     id?: string;
-    role?: UserRole;
+    role?: string;
+    permissions?: string[];
 }
 
 type StageEntity = {
@@ -80,12 +81,12 @@ type StageEntity = {
     automations: Prisma.JsonValue | null;
 };
 
-function canView(role?: UserRole): boolean {
-    return can(role, 'pipeline:configure');
+function canView(user?: SessionUser | null): boolean {
+    return can(user, 'pipeline:configure');
 }
 
-function canManage(role?: UserRole): boolean {
-    return can(role, 'pipeline:configure');
+function canManage(user?: SessionUser | null): boolean {
+    return can(user, 'pipeline:configure');
 }
 
 function operatorRequiresValue(operator: string): boolean {
@@ -94,7 +95,13 @@ function operatorRequiresValue(operator: string): boolean {
 
 function getSessionUser(session: unknown): SessionUser | null {
     if (!session || typeof session !== 'object') return null;
-    return (session as { user?: SessionUser }).user || null;
+    const user = (session as { user?: SessionUser }).user;
+    if (!user) return null;
+    return {
+        id: user.id,
+        role: user.role,
+        permissions: user.permissions
+    };
 }
 
 function sanitizeCriteria(value: unknown) {
@@ -288,7 +295,7 @@ export async function GET() {
     const session = await auth();
     const user = getSessionUser(session);
     if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    if (!canView(user.role)) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
+    if (!canView(user)) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
 
     try {
         const result = await prisma.$transaction(async (tx) => {
@@ -307,7 +314,7 @@ export async function GET() {
             });
 
             return buildConfigResponse({
-                canManageConfig: canManage(user.role),
+                canManageConfig: canManage(user),
                 pipelineName: pipeline.name,
                 stages: pipeline.stages,
                 scoringCriteria: sanitizeCriteria(scoringSetting?.value),
@@ -328,7 +335,7 @@ export async function PUT(request: Request) {
     const session = await auth();
     const user = getSessionUser(session);
     if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    if (!canManage(user.role)) return NextResponse.json({ error: 'Sem permissão para editar configurações' }, { status: 403 });
+    if (!canManage(user)) return NextResponse.json({ error: 'Sem permissão para editar configurações' }, { status: 403 });
 
     try {
         const body = await request.json();

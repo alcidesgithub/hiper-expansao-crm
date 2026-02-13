@@ -8,7 +8,8 @@ import { can } from '@/lib/permissions';
 
 interface SessionUser {
     id?: string;
-    role?: UserRole;
+    role?: string;
+    permissions?: string[];
 }
 
 type AuthHandler = typeof auth;
@@ -43,11 +44,17 @@ const updateAvailabilitySchema = z.object({
 
 function getSessionUser(session: unknown): SessionUser | null {
     if (!session || typeof session !== 'object') return null;
-    return (session as { user?: SessionUser }).user || null;
+    const user = (session as { user?: SessionUser }).user;
+    if (!user) return null;
+    return {
+        id: user.id,
+        role: user.role,
+        permissions: user.permissions
+    };
 }
 
-function canManageAvailability(role?: UserRole): boolean {
-    return can(role, 'availability:manage');
+function canManageAvailability(user?: SessionUser | null): boolean {
+    return can(user, 'availability:manage');
 }
 
 function canManageOthers(role?: UserRole): boolean {
@@ -117,7 +124,7 @@ async function ensureTargetUserCanHaveAvailability(targetUserId: string, actorUs
     });
     if (!target) return false;
     if (target.id === actorUserId) return true;
-    return target.role === 'SDR' || target.role === 'CONSULTANT';
+    return target.role === 'CONSULTANT';
 }
 
 async function loadAvailabilityPayload(targetUserId: string, includeConsultants: boolean) {
@@ -134,7 +141,7 @@ async function loadAvailabilityPayload(targetUserId: string, includeConsultants:
             ? prisma.user.findMany({
                 where: {
                     status: 'ACTIVE',
-                    role: { in: ['SDR', 'CONSULTANT'] },
+                    role: { in: ['CONSULTANT'] },
                 },
                 select: { id: true, name: true, role: true },
                 orderBy: { name: 'asc' },
@@ -170,7 +177,7 @@ export async function GET(request: Request) {
     const session = await authHandler();
     const user = getSessionUser(session);
     if (!user?.id || !user.role) return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 });
-    if (!canManageAvailability(user.role)) {
+    if (!canManageAvailability(user)) {
         return NextResponse.json({ error: 'Sem permissao para gerenciar disponibilidade' }, { status: 403 });
     }
 
@@ -196,7 +203,7 @@ export async function PUT(request: Request) {
     const session = await authHandler();
     const user = getSessionUser(session);
     if (!user?.id || !user.role) return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 });
-    if (!canManageAvailability(user.role)) {
+    if (!canManageAvailability(user)) {
         return NextResponse.json({ error: 'Sem permissao para gerenciar disponibilidade' }, { status: 403 });
     }
 

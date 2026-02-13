@@ -243,7 +243,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Somente leads aprovados podem agendar' }, { status: 403 });
         }
 
-        if (!consultor || consultor.status !== 'ACTIVE' || !['CONSULTANT', 'SDR'].includes(consultor.role)) {
+        if (!consultor || consultor.status !== 'ACTIVE' || !['CONSULTANT'].includes(consultor.role)) {
             return NextResponse.json({ error: 'Consultor invalido ou inativo' }, { status: 404 });
         }
 

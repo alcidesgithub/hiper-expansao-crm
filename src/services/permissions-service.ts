@@ -1,0 +1,123 @@
+import { prisma } from '@/lib/prisma';
+import { AppRole, Permission } from '@/lib/permissions';
+
+const SYSTEM_SETTINGS_KEY = 'role_permissions_matrix';
+
+// Default permissions (fallback)
+export const DEFAULT_ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
+    ADMIN: [
+        'leads:read:all',
+        'leads:read:team',
+        'leads:read:own',
+        'leads:write:own',
+        'leads:delete',
+        'leads:assign',
+        'leads:score:read',
+        'pipeline:advance',
+        'pipeline:configure',
+        'pricing:read',
+        'pricing:write',
+        'users:manage',
+        'dashboard:executive',
+        'dashboard:operational',
+        'dashboard:sdr',
+        'integrations:manage',
+        'audit:read',
+        'availability:manage',
+        'system:configure',
+    ],
+    DIRECTOR: [
+        'leads:read:all',
+        'leads:score:read',
+        'pricing:read',
+        'dashboard:executive',
+        'dashboard:operational',
+        'system:configure',
+    ],
+    MANAGER: [
+        'leads:read:team',
+        'leads:read:own',
+        'leads:write:own',
+        'leads:assign',
+        'leads:score:read',
+        'pipeline:advance',
+        'pricing:read',
+        'dashboard:operational',
+        'dashboard:sdr',
+    ],
+    CONSULTANT: [
+        'leads:read:own',
+        'leads:write:own',
+        'leads:score:read',
+        'pipeline:advance',
+        'dashboard:sdr',
+        'availability:manage',
+    ],
+};
+
+export const ALL_PERMISSIONS: Permission[] = [
+    'leads:read:all',
+    'leads:read:team',
+    'leads:read:own',
+    'leads:write:own',
+    'leads:delete',
+    'leads:assign',
+    'leads:score:read',
+    'pipeline:advance',
+    'pipeline:configure',
+    'pricing:read',
+    'pricing:write',
+    'users:manage',
+    'dashboard:executive',
+    'dashboard:operational',
+    'dashboard:sdr',
+    'integrations:manage',
+    'audit:read',
+    'availability:manage',
+    'system:configure',
+];
+
+export async function getRolePermissions(): Promise<Record<AppRole, Permission[]>> {
+    try {
+        const setting = await prisma.systemSettings.findUnique({
+            where: { key: SYSTEM_SETTINGS_KEY },
+        });
+
+        if (setting?.value) {
+            // Validate structure (sencillo)
+            const matrix = setting.value as Record<string, string[]>;
+            // Ensure all roles exist
+            const finalMatrix = { ...DEFAULT_ROLE_PERMISSIONS };
+
+            (Object.keys(DEFAULT_ROLE_PERMISSIONS) as AppRole[]).forEach(role => {
+                if (matrix[role] && Array.isArray(matrix[role])) {
+                    finalMatrix[role] = matrix[role] as Permission[];
+                }
+            });
+
+            return finalMatrix;
+        }
+    } catch (error) {
+        console.error('Failed to fetch permission matrix, using defaults', error);
+    }
+
+    return DEFAULT_ROLE_PERMISSIONS;
+}
+
+export async function updateRolePermissions(matrix: Record<AppRole, Permission[]>) {
+    await prisma.systemSettings.upsert({
+        where: { key: SYSTEM_SETTINGS_KEY },
+        update: { value: matrix },
+        create: {
+            key: SYSTEM_SETTINGS_KEY,
+            value: matrix,
+        },
+    });
+}
+
+export const PermissionService = {
+    getRolePermissions,
+    updateRolePermissions,
+    DEFAULT_ROLE_PERMISSIONS,
+    ALL_PERMISSIONS,
+};

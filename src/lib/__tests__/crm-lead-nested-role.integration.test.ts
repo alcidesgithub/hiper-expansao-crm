@@ -62,7 +62,7 @@ test('POST /api/leads/[id]/notes should return 403 for DIRECTOR', async () => {
 });
 
 test('GET /api/leads/[id]/notes should return 404 when lead is outside scope', async () => {
-    const restoreAuth = withAuthSession(setNotesAuth, resetNotesAuth, sessionForRole('SDR'));
+    const restoreAuth = withAuthSession(setNotesAuth, resetNotesAuth, sessionForRole('CONSULTANT'));
     const restores: RestoreFn[] = [];
     restores.push(
         mockMethod(prisma.lead, 'findFirst', (async () => null) as unknown as typeof prisma.lead.findFirst)
@@ -79,11 +79,11 @@ test('GET /api/leads/[id]/notes should return 404 when lead is outside scope', a
     }
 });
 
-test('notes CRUD should succeed for SDR within lead scope', async () => {
+test('notes CRUD should succeed for CONSULTANT within lead scope', async () => {
     const restoreAuth = withAuthSession(
         setNotesAuth,
         resetNotesAuth,
-        sessionForRole('SDR', ROLE_USER_IDS.SDR)
+        sessionForRole('CONSULTANT', ROLE_USER_IDS.CONSULTANT)
     );
     const restores: RestoreFn[] = [];
 
@@ -308,7 +308,7 @@ test('tasks CRUD should succeed for CONSULTANT within lead scope', async () => {
 });
 
 test('GET /api/leads/[id]/activities should return 404 when lead is outside scope', async () => {
-    const restoreAuth = withAuthSession(setActivitiesAuth, resetActivitiesAuth, sessionForRole('SDR'));
+    const restoreAuth = withAuthSession(setActivitiesAuth, resetActivitiesAuth, sessionForRole('CONSULTANT'));
     const restores: RestoreFn[] = [];
     restores.push(
         mockMethod(prisma.lead, 'findFirst', (async () => null) as unknown as typeof prisma.lead.findFirst)

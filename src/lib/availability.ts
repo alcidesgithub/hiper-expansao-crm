@@ -148,7 +148,7 @@ export async function getPublicAvailabilitySlotsForDate(
     const consultors = await prisma.user.findMany({
         where: {
             status: 'ACTIVE',
-            role: { in: ['CONSULTANT', 'SDR'] },
+            role: { in: ['CONSULTANT'] },
         },
         select: { id: true, name: true },
         orderBy: { name: 'asc' },

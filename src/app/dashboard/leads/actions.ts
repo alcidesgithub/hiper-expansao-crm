@@ -8,12 +8,19 @@ import { can } from '@/lib/permissions';
 
 interface SessionUser {
     id?: string;
-    role?: UserRole;
+    role?: string; // changed from UserRole to string to match next-auth types
+    permissions?: string[];
 }
 
 function getSessionUser(session: unknown): SessionUser | null {
     if (!session || typeof session !== 'object') return null;
-    return (session as { user?: SessionUser }).user || null;
+    const user = (session as { user?: SessionUser }).user;
+    if (!user) return null;
+    return {
+        id: user.id,
+        role: user.role,
+        permissions: user.permissions
+    };
 }
 
 export async function getKanbanData() {
@@ -92,7 +99,7 @@ export async function moveLeadToStage(leadId: string, stageId: string) {
     const session = await auth();
     const user = getSessionUser(session);
     if (!user?.id || !user.role) throw new Error('Não autorizado');
-    if (!can(user.role, 'pipeline:advance')) throw new Error('Sem permissão para avançar pipeline');
+    if (!can(user, 'pipeline:advance')) throw new Error('Sem permissão para avançar pipeline');
 
     const leadScope = await buildLeadScope(user);
     const scopedLead = await prisma.lead.findFirst({

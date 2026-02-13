@@ -21,7 +21,7 @@ type AvailabilityBlock = {
 type ConsultantOption = {
     id: string;
     name: string;
-    role: 'SDR' | 'CONSULTANT';
+    role: 'CONSULTANT';
 };
 
 const WEEK_DAYS: Array<{ value: number; label: string }> = [
