@@ -14,7 +14,9 @@ import {
     LogOut,
     UserCog,
     DollarSign,
+    ShieldCheck,
 } from 'lucide-react';
+import { signOutAction } from '@/app/dashboard/actions';
 
 type AppRole = 'ADMIN' | 'DIRECTOR' | 'MANAGER' | 'CONSULTANT';
 
@@ -40,6 +42,7 @@ const NAV_ITEMS: readonly NavItem[] = [
     { href: '/dashboard/usuarios', icon: <UserCog size={20} />, label: 'Gestão de Usuários', roles: ['ADMIN'] },
     { href: '/dashboard/pricing', icon: <DollarSign size={20} />, label: 'Mensalidades', roles: ['ADMIN', 'DIRECTOR', 'MANAGER'] },
     { href: '/dashboard/config', icon: <Settings size={20} />, label: 'Configurações', roles: ['ADMIN'] },
+    { href: '/dashboard/admin/settings/permissions', icon: <ShieldCheck size={20} />, label: 'Permissões', roles: ['ADMIN'] },
 ];
 
 function isAppRole(role: string | null | undefined): role is AppRole {
@@ -88,7 +91,16 @@ export function Sidebar({ isOpen, onClose, userRole }: SidebarProps) {
 
                     <div className="pt-8 mt-8 border-t border-gray-100">
                         <NavButton href="/" active={false} icon={<Home size={20} />} label="Voltar ao Site" onClick={onClose} />
-                        <NavButton href="/login" active={false} icon={<LogOut size={20} />} label="Sair" onClick={onClose} />
+                        <NavButton
+                            href="#"
+                            active={false}
+                            icon={<LogOut size={20} />}
+                            label="Sair"
+                            onClick={async () => {
+                                onClose();
+                                await signOutAction();
+                            }}
+                        />
                     </div>
                 </nav>
             </aside>
@@ -104,17 +116,31 @@ interface NavButtonProps {
     onClick?: () => void;
 }
 
-const NavButton = ({ href, active, icon, label, onClick }: NavButtonProps) => (
-    <Link
-        href={href}
-        onClick={onClick}
-        className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${active
-            ? 'bg-primary/10 text-primary font-medium'
-            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-            }`}
-    >
-        {icon}
-        <span>{label}</span>
-    </Link>
-);
+const NavButton = ({ href, active, icon, label, onClick }: NavButtonProps) => {
+    const content = (
+        <>
+            {icon}
+            <span>{label}</span>
+        </>
+    );
+
+    const className = `w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${active
+        ? 'bg-primary/10 text-primary font-medium'
+        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+        }`;
+
+    if (href === '#') {
+        return (
+            <button onClick={onClick} className={className}>
+                {content}
+            </button>
+        );
+    }
+
+    return (
+        <Link href={href} onClick={onClick} className={className}>
+            {content}
+        </Link>
+    );
+};
 

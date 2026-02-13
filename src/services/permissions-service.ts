@@ -77,6 +77,40 @@ export const ALL_PERMISSIONS: Permission[] = [
     'system:configure',
 ];
 
+export const PERMISSIONS_BY_RESOURCE: Record<string, Permission[]> = {
+    'Leads': [
+        'leads:read:all',
+        'leads:read:team',
+        'leads:read:own',
+        'leads:write:own',
+        'leads:delete',
+        'leads:assign',
+        'leads:score:read',
+    ],
+    'Pipeline': [
+        'pipeline:advance',
+        'pipeline:configure',
+    ],
+    'Precificação': [
+        'pricing:read',
+        'pricing:write',
+    ],
+    'Usuários': [
+        'users:manage',
+    ],
+    'Dashboards': [
+        'dashboard:executive',
+        'dashboard:operational',
+        'dashboard:sdr',
+    ],
+    'Sistema': [
+        'integrations:manage',
+        'audit:read',
+        'availability:manage',
+        'system:configure',
+    ],
+};
+
 export async function getRolePermissions(): Promise<Record<AppRole, Permission[]>> {
     try {
         const setting = await prisma.systemSettings.findUnique({
@@ -115,9 +149,20 @@ export async function updateRolePermissions(matrix: Record<AppRole, Permission[]
     });
 }
 
+export async function updateSingleRolePermissions(role: AppRole, permissions: Permission[]) {
+    const currentMatrix = await getRolePermissions();
+    const newMatrix = {
+        ...currentMatrix,
+        [role]: permissions,
+    };
+    await updateRolePermissions(newMatrix);
+}
+
 export const PermissionService = {
     getRolePermissions,
     updateRolePermissions,
+    updateSingleRolePermissions,
     DEFAULT_ROLE_PERMISSIONS,
     ALL_PERMISSIONS,
+    PERMISSIONS_BY_RESOURCE,
 };

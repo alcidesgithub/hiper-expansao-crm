@@ -1,11 +1,10 @@
 ﻿'use client';
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import {
-    AlertTriangle,
     ArrowDown,
     ArrowUp,
-    CheckCircle2,
     GripVertical,
     Lightbulb,
     Plus,
@@ -13,7 +12,9 @@ import {
     Sliders,
     Trash2,
     Zap,
+    ShieldCheck,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import {
     AUTOMATION_ACTION_TYPES,
     AUTOMATION_OPERATORS,
@@ -96,8 +97,6 @@ function findFieldOption(options: ConfigFieldOption[], key: string): ConfigField
 export default function SettingsPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
-    const [error, setError] = useState('');
-    const [success, setSuccess] = useState('');
     const [canManage, setCanManage] = useState(false);
 
     const [scoringCriteria, setScoringCriteria] = useState<ScoringCriterion[]>([]);
@@ -111,8 +110,6 @@ export default function SettingsPage() {
     const [automationActionTypeOptions, setAutomationActionTypeOptions] = useState<SelectOption[]>(AUTOMATION_ACTION_TYPES);
 
     const clearAlerts = () => {
-        setError('');
-        setSuccess('');
     };
 
     const loadConfig = useCallback(async () => {
@@ -123,7 +120,7 @@ export default function SettingsPage() {
             const response = await fetch('/api/config', { cache: 'no-store' });
             const payload = await response.json();
             if (!response.ok) {
-                setError(payload?.error || 'Erro ao carregar configurações');
+                toast.error(payload?.error || 'Erro ao carregar configurações');
                 return;
             }
 
@@ -146,7 +143,7 @@ export default function SettingsPage() {
             );
         } catch (requestError) {
             console.error('Error loading config:', requestError);
-            setError('Erro de conexão ao carregar configurações');
+            toast.error('Erro de conexão ao carregar configurações');
         } finally {
             setLoading(false);
         }
@@ -304,11 +301,11 @@ export default function SettingsPage() {
         clearAlerts();
 
         if (scoringCriteria.length === 0) {
-            setError('Adicione ao menos um critério de pontuação');
+            toast.error('Adicione ao menos um critério de pontuação');
             return;
         }
         if (stages.length < 2) {
-            setError('O pipeline deve ter ao menos 2 estágios');
+            toast.error('O pipeline deve ter ao menos 2 estágios');
             return;
         }
 
@@ -331,7 +328,7 @@ export default function SettingsPage() {
             });
             const payload = await response.json();
             if (!response.ok) {
-                setError(payload?.error || 'Erro ao salvar configurações');
+                toast.error(payload?.error || 'Erro ao salvar configurações');
                 return;
             }
 
@@ -350,10 +347,10 @@ export default function SettingsPage() {
             setAutomationActionTypeOptions(
                 data.catalogs?.automationActionTypes?.length ? data.catalogs.automationActionTypes : AUTOMATION_ACTION_TYPES
             );
-            setSuccess('Configurações salvas com sucesso');
+            toast.success('Configurações salvas com sucesso');
         } catch (saveError) {
             console.error('Error saving config:', saveError);
-            setError('Erro de conexão ao salvar configurações');
+            toast.error('Erro de conexão ao salvar configurações');
         } finally {
             setSaving(false);
         }
@@ -379,7 +376,17 @@ export default function SettingsPage() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Configurações</h1>
-                    <p className="mt-2 text-slate-500">Gerencie pontuação, automações e etapas do pipeline.</p>
+                    <div className="flex items-center gap-4 mt-2">
+                        <p className="text-slate-500">Gerencie pontuação, automações e etapas do pipeline.</p>
+                        <span className="text-slate-300">|</span>
+                        <Link
+                            href="/dashboard/admin/settings/permissions"
+                            className="text-primary hover:underline text-sm font-medium flex items-center gap-1"
+                        >
+                            <ShieldCheck size={14} />
+                            Gestão de Permissões
+                        </Link>
+                    </div>
                 </div>
                 <button
                     onClick={() => void saveConfig()}
@@ -394,17 +401,6 @@ export default function SettingsPage() {
             {!canManage && (
                 <div className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-lg text-sm">
                     Você está em modo somente leitura para esta área.
-                </div>
-            )}
-
-            {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
-                    <AlertTriangle size={16} /> {error}
-                </div>
-            )}
-            {success && (
-                <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
-                    <CheckCircle2 size={16} /> {success}
                 </div>
             )}
 

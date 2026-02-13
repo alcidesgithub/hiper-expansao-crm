@@ -23,6 +23,7 @@ Este PRD detalha a implementação técnica do **Projeto Estratégico de Estrutu
 - ✅ Storage **local** (sem AWS)
 - ✅ Stack **moderna e atualizada** (Next.js 15, React 19)
 - ✅ Eliminação automática de **40%** dos leads sem fit
+- ✅ Matriz de permissões totalmente configurável pelo Administrador
 - ✅ **Controle de acesso por role** com escopo de leads por hierarquia
 
 ---
@@ -46,7 +47,7 @@ Estruturar o setor de expansão como um processo **previsível, escalável e men
 ✅ Garantir alinhamento com DNA da rede  
 ✅ Eliminar desperdício de tempo com leads sem capacidade financeira  
 ✅ Permitir agendamento automático após qualificação  
-✅ Preservar o SDR como responsável pela apresentação de valor na reunião
+✅ Preservar o Consultor como responsável pela apresentação de valor na reunião
 
 ---
 
@@ -70,7 +71,7 @@ Estruturar o setor de expansão como um processo **previsível, escalável e men
    - Formulário busca dinamicamente os valores vigentes cadastrados
    - Lead responde perguntas de capacidade com os valores reais exibidos
    - Eliminação automática de leads financeiramente inaptos
-   - **Meta:** menos de 5% de leads inaptos chegando ao SDR
+   - **Meta:** menos de 5% de leads inaptos chegando ao Consultor
    - **Modelo:** rede associativista — sem taxa de adesão, sem cálculo de ROI
 
 4. **📅 Permitir agendamento self-service nativo**
@@ -107,7 +108,7 @@ Estruturar o setor de expansão como um processo **previsível, escalável e men
 | Conversão em associados | >15% | >20% |
 | CAC | Redução 30% | Redução 45% |
 | Tempo médio decisão | <45 dias | <35 dias |
-| Leads inaptos ao SDR | ~25% | <5% |
+| Leads inaptos ao Consultor | ~25% | <5% |
 
 ---
 
@@ -125,7 +126,7 @@ Estruturar o setor de expansão como um processo **previsível, escalável e men
 ├─────────────────┤
 │  AGENDAMENTO    │ → Lead escolhe dia/hora (sistema nativo + Teams) ⭐
 ├─────────────────┤
-│   DIAGNÓSTICO   │ → SDR apresenta benefícios e diferenciais na reunião
+│   DIAGNÓSTICO   │ → Consultor apresenta benefícios e diferenciais na reunião
 ├─────────────────┤
 │   FECHAMENTO    │ → Decisão consciente e alinhada
 ├─────────────────┤
@@ -387,7 +388,7 @@ Configurar backup periódico do diretório de uploads via cron no host:
    ├─ Lead escolhe dia/hora no calendário nativo
    ├─ Sistema cria reunião no Microsoft Teams
    ├─ Envia confirmação por email com link do Teams
-   └─ Notifica SDR/Consultor com dados de qualificação
+   └─ Notifica o Consultor com dados de qualificação
 7. SENÃO:
    └─ Envia para nurturing
 ```
@@ -556,14 +557,14 @@ if (financialCapacity === 'INSUFFICIENT') {
 
 ### 6.1 Visão Geral
 
-O sistema possui um **calendário nativo** onde consultores/SDRs configuram sua disponibilidade através de **slots de horários**. Leads qualificados (Grade A/B) podem escolher dia e horário disponível de forma self-service. Ao confirmar, o sistema:
+O sistema possui um **calendário nativo** onde consultores configuram sua disponibilidade através de **slots de horários**. Leads qualificados (Grade A/B) podem escolher dia e horário disponível de forma self-service. Ao confirmar, o sistema:
 
 1. Cria o agendamento no banco de dados
 2. Gera reunião online via **Microsoft Teams** (Graph API)
 3. Envia emails de confirmação com link do Teams
 4. Notifica o consultor
 
-### 6.2 Configuração de Disponibilidade (Consultores/SDRs)
+### 6.2 Configuração de Disponibilidade (Consultores)
 
 **Interface interna para gerenciar slots:**
 
@@ -951,14 +952,9 @@ function validateScheduling(params) {
 │  ├─ Atribuir leads na equipe                     │
 │  └─ Visualizar mensalidades ativas               │
 ├──────────────────────────────────────────────────┤
-│  SDR                                             │
-│  ├─ Meus leads                                   │
-│  ├─ Dashboard SDR                                │
-│  ├─ Gerenciar reuniões                           │
-│  └─ Configurar disponibilidade                   │
-├──────────────────────────────────────────────────┤
 │  CONSULTANT                                      │
 │  ├─ Meus leads                                   │
+│  ├─ Dashboard Operacional/Consultor             │
 │  ├─ Gerenciar reuniões                           │
 │  └─ Configurar disponibilidade                   │
 └──────────────────────────────────────────────────┘
@@ -1023,11 +1019,11 @@ function validateScheduling(params) {
 └──────────────────────────────────────────────────────────┘
 ```
 
-### 8.3 Dashboard SDR (ADMIN, MANAGER, SDR)
+### 8.3 Dashboard Consultor (ADMIN, MANAGER, CONSULTANT)
 
 ```
 ┌──────────────────────────────────────────────────────────┐
-│  MEUS LEADS - João Silva (SDR)                           │
+│  MEUS LEADS - João Silva (Consultor)                  │
 ├──────────────────────────────────────────────────────────┤
 │                                                          │
 │  📋 ATIVOS                                               │
@@ -1552,9 +1548,9 @@ NEXT_PUBLIC_APP_URL="https://crm.hiperfarma.com.br"
 
 ## 🔒 11. Segurança, Controle de Acesso e Performance
 
-### 11.1 Níveis de Acesso por Role
+### 11.1 Níveis de Acesso por Role (Configurável)
 
-O sistema possui cinco roles internos. Cada role tem escopo de leitura de leads e conjunto de ações distintos.
+O sistema possui quatro roles internos. A matriz de permissões é **totalmente configurável** pelo Administrador via painel de configurações, permitindo ajustar o conjunto de ações de cada role conforme a necessidade.
 
 **Escopo de leitura de leads:**
 
@@ -1563,33 +1559,32 @@ O sistema possui cinco roles internos. Cada role tem escopo de leitura de leads 
 | ADMIN | Todos os leads do sistema |
 | DIRECTOR | Todos os leads (somente leitura) |
 | MANAGER | Leads da própria equipe (TeamMember) |
-| SDR | Apenas leads atribuídos a si |
 | CONSULTANT | Apenas leads atribuídos a si |
 
-**Matriz de permissões por recurso:**
+**Matriz de permissões base (Customizável):**
 
-| Recurso | ADMIN | DIRECTOR | MANAGER | SDR | CONSULTANT |
-|---------|:-----:|:--------:|:-------:|:---:|:----------:|
-| Ver leads (todos) | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Ver leads (equipe) | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Ver leads (próprios) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Editar leads | ✅ | ❌ | ✅* | ✅* | ✅* |
-| Excluir leads | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Ver score / grade / qualifData | ✅ | ✅ | ✅* | ✅* | ✅* |
-| Redistribuir / atribuir leads | ✅ | ❌ | ✅ | ❌ | ❌ |
-| Avançar lead no pipeline | ✅ | ❌ | ✅ | ✅ | ❌ |
-| Configurar pipeline e etapas | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Ver pricing ativo | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Configurar pricing | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Dashboard executivo | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Dashboard operacional | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Dashboard SDR | ✅ | ❌ | ✅ | ✅ | ❌ |
-| Gerenciar usuários | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Gerenciar integrações | ✅ | ❌ | ❌ | ❌ | ❌ |
-| AuditLog | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Notas e tarefas | ✅ | ❌ | ✅* | ✅* | ✅* |
-| Agendar reuniões | ✅ | ❌ | ✅* | ✅* | ✅* |
-| Gerenciar disponibilidade | ✅ | ❌ | ❌ | ✅ | ✅ |
+| Recurso | ADMIN | DIRECTOR | MANAGER | CONSULTANT |
+|---------|:-----:|:--------:|:-------:|:----------:|
+| Ver leads (todos) | ✅ | ✅ | ❌ | ❌ |
+| Ver leads (equipe) | ✅ | ✅ | ✅ | ❌ |
+| Ver leads (próprios) | ✅ | ✅ | ✅ | ✅ |
+| Editar leads | ✅ | ❌ | ✅* | ✅* |
+| Excluir leads | ✅ | ❌ | ❌ | ❌ |
+| Ver score / grade / qualifData | ✅ | ✅ | ✅* | ✅* |
+| Redistribuir / atribuir leads | ✅ | ❌ | ✅ | ❌ |
+| Avançar lead no pipeline | ✅ | ❌ | ✅ | ✅ |
+| Configurar pipeline e etapas | ✅ | ❌ | ❌ | ❌ |
+| Ver pricing ativo | ✅ | ✅ | ✅ | ✅ |
+| Configurar pricing | ✅ | ❌ | ❌ | ❌ |
+| Dashboard executivo | ✅ | ✅ | ❌ | ❌ |
+| Dashboard operacional | ✅ | ✅ | ✅ | ❌ |
+| Dashboard Consultor | ✅ | ❌ | ✅ | ✅ |
+| Gerenciar usuários | ✅ | ❌ | ❌ | ❌ |
+| Gerenciar integrações | ✅ | ❌ | ❌ | ❌ |
+| AuditLog | ✅ | ❌ | ❌ | ❌ |
+| Notas e tarefas | ✅ | ❌ | ✅* | ✅* |
+| Agendar reuniões | ✅ | ❌ | ✅* | ✅* |
+| Gerenciar disponibilidade | ✅ | ❌ | ❌ | ✅ |
 
 *restrito ao escopo de leads permitido para o role
 
@@ -1611,22 +1606,22 @@ export const config = {
 type Permission =
   | 'leads:read:all'        // ADMIN, DIRECTOR
   | 'leads:read:team'       // MANAGER
-  | 'leads:read:own'        // SDR, CONSULTANT
-  | 'leads:write:own'       // SDR, CONSULTANT, MANAGER
+  | 'leads:read:own'        // CONSULTANT
+  | 'leads:write:own'       // CONSULTANT, MANAGER
   | 'leads:delete'          // ADMIN
   | 'leads:assign'          // ADMIN, MANAGER
   | 'leads:score:read'      // todos (dentro do escopo de cada role)
-  | 'pipeline:advance'      // SDR, MANAGER, ADMIN
+  | 'pipeline:advance'      // CONSULTANT, MANAGER, ADMIN
   | 'pipeline:configure'    // ADMIN
   | 'pricing:read'          // ADMIN, DIRECTOR, MANAGER
   | 'pricing:write'         // ADMIN
   | 'users:manage'          // ADMIN
   | 'dashboard:executive'   // ADMIN, DIRECTOR
   | 'dashboard:operational' // ADMIN, DIRECTOR, MANAGER
-  | 'dashboard:sdr'         // ADMIN, MANAGER, SDR
+  | 'dashboard:sdr'         // ADMIN, MANAGER, CONSULTANT
   | 'integrations:manage'   // ADMIN
   | 'audit:read'            // ADMIN
-  | 'availability:manage'   // SDR, CONSULTANT
+  | 'availability:manage'   // CONSULTANT
 
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   ADMIN: [
@@ -1649,16 +1644,14 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'pricing:read',
     'dashboard:operational', 'dashboard:sdr'
   ],
-  SDR: [
-    'leads:read:own', 'leads:write:own', 'leads:score:read',
-    'pipeline:advance',
-    'dashboard:sdr', 'availability:manage'
-  ],
   CONSULTANT: [
     'leads:read:own', 'leads:write:own', 'leads:score:read',
-    'availability:manage'
+    'pipeline:advance', 'dashboard:sdr', 'availability:manage'
   ]
 }
+
+// Nota: Na v8.0, o ROLE_PERMISSIONS serve apenas como Seed/Default.
+// O sistema agora carrega a matriz dinamicamente do banco de dados (SystemSettings).
 
 export function can(user: User, permission: Permission): boolean {
   return ROLE_PERMISSIONS[user.role].includes(permission)
@@ -1681,7 +1674,7 @@ export async function buildLeadScope(session: Session) {
     })
     return { assignedUserId: { in: members.map(m => m.userId) } }
   }
-  // SDR, CONSULTANT — apenas leads próprios
+  // CONSULTANT — apenas leads próprios
   return { assignedUserId: session.user.id }
 }
 
@@ -1753,7 +1746,7 @@ export function buildLeadSelect(session: Session) {
 - ✅ 65%+ leads Grade A+B
 - ✅ **80%+ reuniões agendadas automaticamente**
 - ✅ CAC < R$ 4.500
-- ✅ <5% leads inviáveis ao SDR
+- ✅ <5% leads inviáveis ao Consultor
 
 ### Experiência
 - ✅ NPS > 8/10
@@ -1799,7 +1792,7 @@ export function buildLeadSelect(session: Session) {
 **Última atualização:** 12/02/2026  
 **Status:** Pronto para implementação
 
-> **"Sistema de funil digital com qualificação ultra-robusta, agendamento nativo com Microsoft Teams e mensalidades dinâmicas — SDR focado em apresentar valor, não em filtrar leads financeiramente inaptos."**
+> **"Sistema de funil digital com qualificação ultra-robusta, agendamento nativo com Microsoft Teams e mensalidades dinâmicas — Consultor focado em apresentar valor, não em filtrar leads financeiramente inaptos."**
 
 ---
 
@@ -1917,7 +1910,7 @@ node test-teams-auth.js
 
 Para que o sistema possa criar eventos nos calendários:
 
-1. Garantir que todos os consultores/SDRs têm:
+1. Garantir que todos os consultores têm:
    - Email corporativo Microsoft 365
    - Licença do Microsoft Teams
    - Calendário ativo no Outlook

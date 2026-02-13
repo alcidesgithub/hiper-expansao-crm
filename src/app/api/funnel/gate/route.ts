@@ -13,6 +13,7 @@ const GATE_CHOICES: readonly GateChoice[] = ['DECISOR', 'INFLUENCIADOR', 'PESQUI
 interface SessionUser {
     id?: string;
     role?: UserRole;
+    permissions?: string[];
 }
 
 type AuthHandler = typeof auth;
@@ -100,8 +101,8 @@ export async function GET(request: Request) {
     const session = await authHandler();
     const user = getSessionUser(session);
     if (!user) return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 });
-    if (!canAny(user.role, ['dashboard:executive', 'dashboard:operational'])) {
-        return NextResponse.json({ error: 'Sem permissao para visualizar analytics do gate' }, { status: 403 });
+    if (!canAny(user, ['dashboard:executive', 'dashboard:operational'])) {
+        return NextResponse.json({ error: 'Sem permissão para visualizar analytics do gate' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);

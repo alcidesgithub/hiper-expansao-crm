@@ -15,7 +15,7 @@ export async function updateRolePermissions(role: string, permissions: string[])
     }
 
     try {
-        await PermissionService.updateRolePermissions(role, permissions);
+        await PermissionService.updateSingleRolePermissions(role as any, permissions as any);
         revalidatePath('/dashboard/admin/settings/permissions');
         return { success: true };
     } catch (error) {

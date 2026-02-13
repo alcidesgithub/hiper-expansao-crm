@@ -4,7 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { DragDropContext, Draggable, Droppable, type DropResult } from '@hello-pangea/dnd';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, ChevronRight, Clock, Layout, Plus, X } from 'lucide-react';
-import { createLead, updateLeadStage } from '@/app/dashboard/actions';
+import { createLead, updateLeadStage } from '../actions';
 
 interface Lead {
     id: string;

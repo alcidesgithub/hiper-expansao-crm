@@ -1,5 +1,11 @@
 import { DashboardShell } from "@/components/layout/DashboardShell";
 import { getCurrentUser, getNotifications } from "./actions";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+    title: "HiperFarma CRM - Expansão",
+    description: "Sistema de gestão de expansão e relacionamento.",
+};
 
 export default async function DashboardLayout({
     children,

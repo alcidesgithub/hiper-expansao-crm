@@ -25,16 +25,15 @@ export default function LoginPage() {
 
                 <div className="relative z-10 max-w-lg mb-20">
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-medium mb-6">
-                        <span className="w-2 h-2 rounded-full bg-primary"></span> Expansão Digital 2024
+                        <span className="w-2 h-2 rounded-full bg-primary"></span> Expansão Hiperfarma
                     </div>
-                    <h1 className="text-4xl xl:text-5xl font-bold leading-tight mb-6">Impulsionando o crescimento da indústria farmacêutica.</h1>
+                    <h1 className="text-4xl xl:text-5xl font-bold leading-tight mb-6">Acesse o CRM de Expansão</h1>
                     <p className="text-blue-100 text-lg leading-relaxed">Acesse o painel de expansão para gerenciar leads, acompanhar métricas de vendas e conectar oportunidades em tempo real.</p>
                 </div>
 
                 <div className="relative z-10 flex justify-between items-end text-sm text-blue-200">
                     <div>
                         <p>© {new Date().getFullYear()} Hiperfarma. Todos os direitos reservados.</p>
-                        <p className="text-xs opacity-70 mt-1">Design System v2.0</p>
                     </div>
                     <div className="flex gap-4">
                         <Link href="/termos" className="hover:text-white transition-colors">Termos</Link>
@@ -99,14 +98,9 @@ export default function LoginPage() {
                         </div>
                     </form>
 
-                    <div className="mt-8 pt-6 border-t border-slate-100 text-center">
-                        <p className="text-sm text-slate-500">
-                            Não tem uma conta? <Link href="#" className="font-medium text-secondary hover:text-secondary/80 transition-colors">Entre em contato com o administrador</Link>
-                        </p>
-                        <div className="mt-6 flex items-center justify-center gap-4 text-slate-300" title="Secure SSL">
-                            <LockKeyhole size={24} />
-                            <span className="text-xs uppercase tracking-widest font-semibold">Acesso Seguro</span>
-                        </div>
+                    <div className="mt-6 flex items-center justify-center gap-4 text-slate-300" title="Secure SSL">
+                        <LockKeyhole size={24} />
+                        <span className="text-xs uppercase tracking-widest font-semibold">Acesso Seguro</span>
                     </div>
                 </div>
                 {/* Decor */}

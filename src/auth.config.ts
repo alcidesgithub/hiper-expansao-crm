@@ -2,23 +2,24 @@ import type { NextAuthConfig } from 'next-auth';
 
 type AppRole = 'ADMIN' | 'DIRECTOR' | 'MANAGER' | 'CONSULTANT';
 type TokenUser = { id?: string; role?: string };
-type SessionUser = { id?: string; role?: string };
+type SessionUser = { id?: string; role?: string; permissions?: string[] };
 
-function isAppRole(role: string | undefined): role is AppRole {
-    return role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER' || role === 'CONSULTANT';
-}
+function canAccessDashboardPath(pathname: string, user: SessionUser): boolean {
+    const permissions = user.permissions || [];
+    const role = user.role as AppRole;
 
-function canAccessDashboardPath(pathname: string, role: AppRole): boolean {
     if (pathname === '/dashboard') {
-        return role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER' || role === 'SDR';
+        return permissions.includes('dashboard:operational') || permissions.includes('dashboard:executive') || role === 'ADMIN';
     }
-    if (pathname.startsWith('/dashboard/usuarios')) return role === 'ADMIN';
-    if (pathname.startsWith('/dashboard/config')) return role === 'ADMIN';
-    if (pathname.startsWith('/dashboard/pricing')) return role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER';
-    if (pathname.startsWith('/dashboard/relatorios')) return role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER';
-    if (pathname.startsWith('/dashboard/disponibilidade')) return role === 'ADMIN' || role === 'SDR' || role === 'CONSULTANT';
-    if (pathname.startsWith('/dashboard/leads')) return true;
-    if (pathname.startsWith('/dashboard/agenda')) return true;
+    if (pathname.startsWith('/dashboard/usuarios')) return permissions.includes('users:manage');
+    if (pathname.startsWith('/dashboard/config')) return permissions.includes('system:configure');
+    if (pathname.startsWith('/dashboard/pricing')) return permissions.includes('pricing:read');
+    if (pathname.startsWith('/dashboard/relatorios')) {
+        return permissions.includes('dashboard:operational') || permissions.includes('dashboard:executive');
+    }
+    if (pathname.startsWith('/dashboard/disponibilidade')) return permissions.includes('availability:manage');
+    if (pathname.startsWith('/dashboard/leads')) return permissions.includes('leads:read:own') || permissions.includes('leads:read:team') || permissions.includes('leads:read:all');
+
     return true;
 }
 
@@ -33,10 +34,10 @@ export const authConfig = {
             if (isOnDashboard) {
                 if (!isLoggedIn) return false;
 
-                const role = (auth?.user as { role?: string } | undefined)?.role;
-                if (!isAppRole(role)) return false;
+                const user = auth?.user as SessionUser | undefined;
+                if (!user || !user.role) return false;
 
-                if (!canAccessDashboardPath(nextUrl.pathname, role)) {
+                if (!canAccessDashboardPath(nextUrl.pathname, user)) {
                     return Response.redirect(new URL('/dashboard/leads', nextUrl));
                 }
 

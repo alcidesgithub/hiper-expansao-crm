@@ -41,8 +41,7 @@ function getPeriodLabel(period: DashboardPeriod): string {
 
 export default async function DashboardPage({ searchParams }: { searchParams?: DashboardSearchParams }) {
     const session = await auth();
-    const role = (session?.user as { role?: string } | undefined)?.role;
-    const canAccessDashboard = canAny(role, ['dashboard:executive', 'dashboard:operational', 'dashboard:sdr']);
+    const canAccessDashboard = canAny(session?.user, ['dashboard:executive', 'dashboard:operational']);
     if (!canAccessDashboard) {
         redirect('/dashboard/leads');
     }
@@ -88,11 +87,10 @@ export default async function DashboardPage({ searchParams }: { searchParams?: D
                             <Link
                                 key={option.key}
                                 href={{ pathname: '/dashboard', query: { period: option.key } }}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                                    isActive
-                                        ? 'bg-primary text-white border-primary'
-                                        : 'bg-white text-gray-600 border-gray-200 hover:border-primary/30'
-                                }`}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${isActive
+                                    ? 'bg-primary text-white border-primary'
+                                    : 'bg-white text-gray-600 border-gray-200 hover:border-primary/30'
+                                    }`}
                             >
                                 {option.label}
                             </Link>
@@ -300,13 +298,12 @@ export default async function DashboardPage({ searchParams }: { searchParams?: D
                                 </div>
                                 <div>
                                     <span
-                                        className={`text-xs px-2 py-1 rounded-full font-medium ${
-                                            meeting.lead?.grade === 'A'
-                                                ? 'bg-green-100 text-green-700'
-                                                : meeting.lead?.grade === 'B'
-                                                    ? 'bg-blue-100 text-blue-700'
-                                                    : 'bg-gray-100 text-gray-600'
-                                        }`}
+                                        className={`text-xs px-2 py-1 rounded-full font-medium ${meeting.lead?.grade === 'A'
+                                            ? 'bg-green-100 text-green-700'
+                                            : meeting.lead?.grade === 'B'
+                                                ? 'bg-blue-100 text-blue-700'
+                                                : 'bg-gray-100 text-gray-600'
+                                            }`}
                                     >
                                         Grade {meeting.lead?.grade || 'N/A'}
                                     </span>

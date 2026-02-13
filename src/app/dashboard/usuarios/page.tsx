@@ -63,7 +63,7 @@ const STATUS_LABELS: Record<UserStatus, string> = {
 const EMPTY_FORM: UserFormState = {
     name: '',
     email: '',
-    role: 'SDR',
+    role: 'CONSULTANT',
     status: 'ACTIVE',
     department: '',
     phone: '',

@@ -48,11 +48,12 @@ export async function PATCH(
     const user = getSessionUser(rawSession);
     if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
-    if (!canManageUsers(user)) {
+    const { id } = await params;
+    const isSelf = user.id === id;
+
+    if (!canManageUsers(user) && !isSelf) {
         return NextResponse.json({ error: 'Sem permissão para editar usuários' }, { status: 403 });
     }
-
-    const { id } = await params;
 
     try {
         const body = await request.json();
@@ -68,6 +69,13 @@ export async function PATCH(
         const updateData: Prisma.UserUpdateInput = {};
         if (data.name !== undefined) updateData.name = data.name.trim();
         if (data.email !== undefined) updateData.email = data.email.trim().toLowerCase();
+        if (data.role !== undefined && !canManageUsers(user)) {
+            return NextResponse.json({ error: 'Sem permissão para alterar cargos' }, { status: 403 });
+        }
+        if (data.status !== undefined && !canManageUsers(user)) {
+            return NextResponse.json({ error: 'Sem permissão para alterar status' }, { status: 403 });
+        }
+
         if (data.role !== undefined) updateData.role = data.role;
         if (data.status !== undefined) updateData.status = data.status;
         if (data.department !== undefined) updateData.department = data.department?.trim() || null;
@@ -132,7 +140,7 @@ export async function PATCH(
         });
 
         await logAudit({
-            userId: currentUserId || undefined,
+            userId: user.id || undefined,
             action: 'UPDATE',
             entity: 'User',
             entityId: id,
@@ -213,7 +221,7 @@ export async function DELETE(
         });
 
         await logAudit({
-            userId: currentUserId || undefined,
+            userId: user.id || undefined,
             action: 'SOFT_DELETE',
             entity: 'User',
             entityId: id,

@@ -142,7 +142,7 @@ export default function LandingPage() {
             <div className="text-center lg:text-left">
               <div className="inline-flex items-center px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-semibold mb-6 border border-primary/20">
                 <span className="w-2 h-2 rounded-full bg-primary mr-2 animate-pulse"></span>
-                A rede que mais cresce no Sul do Brasil
+                Aqui, quem caminha junto, vai mais longe
               </div>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-gray-900 leading-tight mb-6">
                 Sua farmácia muito mais <span className="text-primary">competitiva e lucrativa</span>
