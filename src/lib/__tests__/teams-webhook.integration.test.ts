@@ -101,7 +101,7 @@ test('POST /api/integrations/teams/webhook should cancel meeting on deleted even
                 status: 'SCHEDULED',
                 startTime: new Date('2026-03-10T13:00:00.000Z'),
                 endTime: new Date('2026-03-10T14:00:00.000Z'),
-                meetingLink: 'https://teams.microsoft.com/old',
+                teamsJoinUrl: 'https://teams.microsoft.com/old',
                 provider: 'teams',
                 user: { email: 'consultor@empresa.com' },
             })) as unknown as typeof prisma.meeting.findUnique
@@ -205,7 +205,7 @@ test('POST /api/integrations/teams/webhook should reschedule meeting when times 
                 status: 'SCHEDULED',
                 startTime: new Date('2026-03-10T13:00:00.000Z'),
                 endTime: new Date('2026-03-10T14:00:00.000Z'),
-                meetingLink: 'https://teams.microsoft.com/old-link',
+                teamsJoinUrl: 'https://teams.microsoft.com/old-link',
                 provider: 'teams',
                 user: { email: 'consultor@empresa.com' },
             })) as unknown as typeof prisma.meeting.findUnique
@@ -220,7 +220,7 @@ test('POST /api/integrations/teams/webhook should reschedule meeting when times 
                 updatedStatus = args.data?.status;
                 updatedStartTime = args.data?.startTime;
                 updatedEndTime = args.data?.endTime;
-                updatedMeetingLink = args.data?.meetingLink;
+                updatedMeetingLink = args.data?.teamsJoinUrl;
                 return { id: 'meeting-2' };
             }) as unknown as typeof prisma.meeting.update
         )

@@ -52,6 +52,7 @@ model User {
   meetings      Meeting[]
   availabilitySlots AvailabilitySlot[]
   availabilityBlocks AvailabilityBlock[]
+  consultantAvailability ConsultantAvailability[]
   notes         Note[]
   tasks         Task[]
   notifications Notification[]
@@ -186,6 +187,10 @@ model Lead {
   tasks           Task[]
   documents       Document[]
   
+  // Status do agendamento (Guia Teams v1.0)
+  meetingScheduled Boolean @default(false)
+  lastMeetingAt    DateTime?
+  
   // Timestamps
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
@@ -302,36 +307,49 @@ model Meeting {
   
   title           String
   description     String?
+  
+  // Dados do agendamento
   startTime       DateTime
   endTime         DateTime
+  scheduledAt     DateTime?     // Backup redundante ou data de escolha
+  duration        Int           @default(60)
   
-  // Agendamento nativo + integração opcional (Teams, Zoom, etc.)
-  externalEventId String?       @unique  // ID do evento externo (Teams/Zoom)
-  meetingLink     String?                // Link de videoconferência
-  provider        String?                // 'teams' | 'zoom' | null (presencial)
+  // Integração Microsoft Teams (Guia v1.0)
+  teamsEventId    String?       @unique  // Anterior: externalEventId
+  teamsMeetingId  String?       @unique
+  teamsJoinUrl    String?                // Anterior: meetingLink
+  teamsThreadId   String?
+  provider        String?       @default("teams")
   
   status          MeetingStatus @default(SCHEDULED)
   location        String?
   attendees       Json?
   
-  // Anotações pós-reunião (preenchidas pelo consultor, não pelo lead)
-  notes           String?
+  // Anotações (Guia v1.0)
+  leadNotes       String?       // Observações do lead ao agendar
+  consultantNotes String?       // Observações do consultor (anterior: notes)
   nextSteps       String?
   outcome         String?       // INTERESTED, NOT_INTERESTED, FOLLOW_UP, CLOSED
   
-  // Agendado pelo próprio lead via self-service?
+  // Controle
   selfScheduled   Boolean       @default(false)
+  confirmedAt     DateTime?
+  cancelledAt     DateTime?
+  cancelReason    String?
+  completedAt     DateTime?
   
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
-  completedAt     DateTime?
-  cancelledAt     DateTime?
   
+  // Audit trail (opcional conforme guia)
+  createdBy       String?
+  cancelledBy     String?
+
   @@index([leadId])
   @@index([userId])
   @@index([startTime])
   @@index([status])
-  @@index([externalEventId])
+  @@index([teamsEventId])
 }
 
 model AvailabilitySlot {
@@ -348,6 +366,32 @@ model AvailabilitySlot {
   updatedAt DateTime @updatedAt
 
   @@index([userId, dayOfWeek])
+}
+
+// Novo modelo de disponibilidade conforme Guia Teams v1.0
+model ConsultantAvailability {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  consultantId String
+  consultant   User   @relation(fields: [consultantId], references: [id], onDelete: Cascade)
+
+  // Dia da semana (0 = Domingo, 6 = Sábado)
+  dayOfWeek Int
+
+  // Horários (formato HH:mm)
+  startTime String  // Ex: "09:00"
+  endTime   String  // Ex: "18:00"
+
+  // Intervalo entre slots (minutos)
+  slotDuration Int @default(60)
+
+  // Ativo/Inativo
+  isActive Boolean @default(true)
+
+  @@unique([consultantId, dayOfWeek, startTime, endTime])
+  @@index([consultantId, isActive])
 }
 
 model AvailabilityBlock {

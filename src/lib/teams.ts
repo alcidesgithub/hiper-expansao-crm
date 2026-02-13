@@ -157,58 +157,19 @@ function parseGraphEvent(payload: GraphEventPayload): TeamsEventPayload | null {
     };
 }
 
+import { graphService } from './services/microsoft-graph.service';
+
 export async function createTeamsMeeting(params: CreateTeamsMeetingParams): Promise<TeamsMeetingPayload> {
-    const payload = {
+    const meeting = await graphService.createOnlineMeeting({
         subject: params.subject,
-        body: {
-            contentType: 'HTML',
-            content: params.description || 'Reuniao agendada pelo CRM Hiperfarma.',
-        },
-        start: {
-            dateTime: params.startTime.toISOString(),
-            timeZone: 'UTC',
-        },
-        end: {
-            dateTime: params.endTime.toISOString(),
-            timeZone: 'UTC',
-        },
-        isOnlineMeeting: true,
-        onlineMeetingProvider: 'teamsForBusiness',
-        attendees: [
-            {
-                emailAddress: {
-                    address: params.leadEmail,
-                    name: params.leadName,
-                },
-                type: 'required',
-            },
-        ],
-    };
-
-    const response = await fetchGraph(
-        `/users/${encodeURIComponent(params.organizerEmail)}/events`,
-        {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(payload),
-        }
-    );
-
-    if (!response.ok) {
-        const detail = await response.text();
-        throw new Error(`Falha ao criar evento Teams: ${response.status} ${detail}`);
-    }
-
-    const event = await response.json() as GraphEventPayload;
-    const externalEventId = event.id;
-    const meetingLink = event.onlineMeeting?.joinUrl || event.webLink;
-    if (!externalEventId || !meetingLink) {
-        throw new Error('Evento Teams criado sem id/link de reuniao');
-    }
+        startDateTime: params.startTime,
+        endDateTime: params.endTime,
+        organizerEmail: params.organizerEmail,
+    });
 
     return {
-        externalEventId,
-        meetingLink,
+        externalEventId: meeting.id!,
+        meetingLink: meeting.joinWebUrl!,
         provider: 'teams',
     };
 }
@@ -217,6 +178,11 @@ export async function getTeamsEvent(params: {
     organizerEmail: string;
     externalEventId: string;
 }): Promise<TeamsEventPayload | null> {
+    // Nota: O graphService atual não tem o parse exato do GraphEventPayload legado, 
+    // mas para compatibilidade simples, podemos estender ou usar o client diretamente.
+    // Como o webhook ainda usa isso, vamos manter a lógica de fetch ou delegar.
+
+    // Para minimizar mudanças drásticas aqui e manter compatibilidade com o webhook legado:
     const response = await fetchGraph(
         `/users/${encodeURIComponent(params.organizerEmail)}/events/${encodeURIComponent(params.externalEventId)}?$select=id,isCancelled,start,end,webLink,onlineMeeting,lastModifiedDateTime`,
         {
@@ -228,10 +194,7 @@ export async function getTeamsEvent(params: {
     );
 
     if (response.status === 404) return null;
-    if (!response.ok) {
-        const detail = await response.text();
-        throw new Error(`Falha ao consultar evento Teams: ${response.status} ${detail}`);
-    }
+    if (!response.ok) return null;
 
     const payload = await response.json() as GraphEventPayload;
     return parseGraphEvent(payload);
@@ -241,21 +204,7 @@ export async function cancelTeamsMeeting(params: {
     organizerEmail: string;
     externalEventId: string;
 }): Promise<void> {
-    const config = getTeamsConfig();
-    if (!config) return;
-
-    const response = await fetchGraph(
-        `/users/${encodeURIComponent(params.organizerEmail)}/events/${encodeURIComponent(params.externalEventId)}`,
-        {
-            method: 'DELETE',
-        }
-    );
-
-    if (response.status === 404) return;
-    if (!response.ok) {
-        const detail = await response.text();
-        throw new Error(`Falha ao cancelar evento Teams: ${response.status} ${detail}`);
-    }
+    await graphService.cancelCalendarEvent(params.organizerEmail, params.externalEventId);
 }
 
 export async function createTeamsEventSubscription(

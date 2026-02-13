@@ -325,8 +325,8 @@ export async function POST(request: Request) {
                     endTime,
                     selfScheduled: true,
                     status: 'SCHEDULED',
-                    meetingLink: teamsMeeting.meetingLink,
-                    externalEventId: teamsMeeting.externalEventId,
+                    teamsJoinUrl: teamsMeeting.meetingLink,
+                    teamsEventId: teamsMeeting.externalEventId,
                     provider: teamsMeeting.provider,
                 },
             });
@@ -374,7 +374,7 @@ export async function POST(request: Request) {
             consultorName: consultor.name,
             date: dateFormatted,
             time: timeFormatted,
-            meetingLink: meeting.meetingLink || undefined,
+            meetingLink: meeting.teamsJoinUrl || undefined,
         }).catch((err) => console.error('[Schedule] Email to lead failed:', err));
 
         const appUrl = resolveAppUrl(request);
@@ -391,7 +391,7 @@ export async function POST(request: Request) {
             urgencia: '',
             date: dateFormatted,
             time: timeFormatted,
-            meetingLink: meeting.meetingLink || undefined,
+            meetingLink: meeting.teamsJoinUrl || undefined,
             leadNotes: notes || undefined,
             leadCrmUrl: `${appUrl}/dashboard/leads/${leadId}`,
         }).catch((err) => console.error('[Schedule] Email to consultor failed:', err));

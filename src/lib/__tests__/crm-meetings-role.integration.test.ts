@@ -269,7 +269,7 @@ test('GET /api/meetings/[id] should avoid deep sensitive lead fields for CONSULT
                     userId: ROLE_USER_IDS.CONSULTANT,
                     leadId: 'lead-1',
                     provider: null,
-                    externalEventId: null,
+                    teamsEventId: null,
                     lead: { id: 'lead-1', name: 'Lead 1' },
                     user: { id: ROLE_USER_IDS.CONSULTANT, name: 'Consultor', email: 'consultor@empresa.com' },
                 } as unknown as Awaited<ReturnType<typeof prisma.meeting.findFirst>>;
@@ -321,7 +321,7 @@ test('PATCH /api/meetings/[id] should return 403 when CONSULTANT is not the meet
                 userId: 'another-user',
                 leadId: 'lead-1',
                 provider: null,
-                externalEventId: null,
+                teamsEventId: null,
                 lead: { id: 'lead-1', name: 'Lead 1' },
                 user: { id: 'another-user', name: 'Outro', email: 'outro@empresa.com' },
             })) as unknown as typeof prisma.meeting.findFirst
@@ -364,7 +364,7 @@ test('DELETE /api/meetings/[id] should cancel meeting for MANAGER in scope', asy
                 userId: 'team-user-1',
                 leadId: 'lead-1',
                 provider: null,
-                externalEventId: null,
+                teamsEventId: null,
                 lead: { id: 'lead-1', name: 'Lead 1' },
                 user: { id: 'team-user-1', name: 'Time', email: 'time@empresa.com' },
             })) as unknown as typeof prisma.meeting.findFirst

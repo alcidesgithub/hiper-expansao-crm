@@ -60,7 +60,8 @@ AUTH_TRUST_HOST=true
 RESEND_API_KEY=<chave-resend>
 RESEND_FROM_EMAIL=naoresponda@seudominio.com
 
-# Microsoft Teams (opcional)
+# Microsoft Teams (opcional — usa SDK Microsoft Graph)
+# Nomes alternativos aceitos: MICROSOFT_TENANT_ID, MICROSOFT_CLIENT_ID, MICROSOFT_CLIENT_SECRET
 MS_TEAMS_CLIENT_ID=
 MS_TEAMS_CLIENT_SECRET=
 MS_TEAMS_TENANT_ID=
@@ -149,6 +150,7 @@ Respostas esperadas:
 
 - Verifique se `DATABASE_URL` esta correta.
 - Verifique se `SEED_DEFAULT_PASSWORD` existe e possui 12+ chars.
+- O `prisma.config.ts` deve estar presente na raiz (o Dockerfile ja o copia para o estagio `migrator`).
 - Consulte logs do servico `migrate`.
 
 ### SSL nao provisiona

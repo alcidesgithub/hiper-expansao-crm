@@ -127,7 +127,7 @@ export async function getAgendaMeetings(startDate?: string, endDate?: string) {
         startTime: meeting.startTime.toISOString(),
         endTime: meeting.endTime.toISOString(),
         status: meeting.status,
-        meetingLink: meeting.meetingLink,
+        meetingLink: meeting.teamsJoinUrl,
         provider: meeting.provider,
         selfScheduled: meeting.selfScheduled,
         lead: meeting.lead,
@@ -175,7 +175,7 @@ export async function getUpcomingAgendaMeetings(limit = 5) {
         startTime: meeting.startTime.toISOString(),
         endTime: meeting.endTime.toISOString(),
         status: meeting.status,
-        meetingLink: meeting.meetingLink,
+        meetingLink: meeting.teamsJoinUrl,
         lead: meeting.lead,
         user: meeting.user,
     }));

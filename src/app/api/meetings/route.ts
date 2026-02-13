@@ -183,84 +183,34 @@ export async function POST(request: Request) {
             ? parsed.data.userId
             : sessionUserId;
 
-        const provider = parsed.data.provider ?? 'teams';
-        if (provider !== 'teams') {
-            return NextResponse.json({ error: 'Provider de reunião inválido' }, { status: 400 });
-        }
-        if (!isTeamsConfiguredHandler()) {
-            return NextResponse.json({ error: 'Integração com Teams não configurada' }, { status: 503 });
-        }
+        // Versão Revisada v1.0 - Usando MeetingService
+        const { meetingService } = await import('@/lib/services/meeting.service');
 
-        const organizer = await prisma.user.findUnique({
-            where: { id: assignedUserId },
-            select: { email: true },
-        });
-        if (!organizer?.email || !scopedLead.email) {
-            return NextResponse.json({ error: 'Email do consultor ou lead inválido para Teams' }, { status: 400 });
-        }
-
-        let teamsMeeting: TeamsMeetingPayload;
         try {
-            teamsMeeting = await createTeamsMeetingHandler({
-                organizerEmail: organizer.email,
-                leadEmail: scopedLead.email,
-                leadName: scopedLead.name,
-                subject: parsed.data.title,
-                description: parsed.data.description || null,
-                startTime: new Date(parsed.data.startTime),
-                endTime: new Date(parsed.data.endTime),
-            });
-        } catch (error) {
-            console.error('Error creating Teams meeting:', error);
-            return NextResponse.json({ error: 'Falha ao criar reunião no Teams' }, { status: 502 });
-        }
-
-        const meeting = await prisma.meeting.create({
-            data: {
+            const { meeting } = await meetingService.scheduleMeeting({
                 leadId: parsed.data.leadId,
-                userId: assignedUserId,
+                consultantId: assignedUserId,
+                scheduledAt: new Date(parsed.data.startTime),
+                duration: Math.round((new Date(parsed.data.endTime).getTime() - new Date(parsed.data.startTime).getTime()) / 60000),
                 title: parsed.data.title,
-                description: parsed.data.description || null,
-                startTime: new Date(parsed.data.startTime),
-                endTime: new Date(parsed.data.endTime),
-                location: parsed.data.location || null,
-                provider: teamsMeeting.provider,
-                meetingLink: teamsMeeting.meetingLink,
-                externalEventId: teamsMeeting.externalEventId,
-                selfScheduled: parsed.data.selfScheduled,
-                status: 'SCHEDULED',
-            },
-            include: {
-                lead: { select: buildLeadSelect({ user, includeSensitive: true }) },
-                user: { select: { id: true, name: true } },
-            },
-        });
+                leadNotes: parsed.data.description || undefined,
+            });
 
-        const progression = await resolveMeetingProgression(parsed.data.leadId);
-        await prisma.lead.update({
-            where: { id: parsed.data.leadId },
-            data: progression,
-        });
+            // O meetingService já cria o meeting, atualiza o lead, faz o audit e manda email.
+            // Aqui apenas retornamos a reunião criada com o include necessário para o frontend.
+            const fullMeeting = await prisma.meeting.findUnique({
+                where: { id: meeting.id },
+                include: {
+                    lead: { select: buildLeadSelect({ user, includeSensitive: true }) },
+                    user: { select: { id: true, name: true } },
+                },
+            });
 
-        await prisma.activity.create({
-            data: {
-                leadId: parsed.data.leadId,
-                type: 'MEETING',
-                title: 'Reunião agendada',
-                description: `${parsed.data.title} - ${new Date(parsed.data.startTime).toLocaleDateString('pt-BR')}`,
-                userId: sessionUserId,
-            },
-        });
-
-        await logAudit({
-            userId: sessionUserId,
-            action: 'CREATE',
-            entity: 'Meeting',
-            entityId: meeting.id,
-            changes: { leadId: parsed.data.leadId, startTime: parsed.data.startTime, userId: assignedUserId },
-        });
-
-        return NextResponse.json(meeting, { status: 201 });
+            return NextResponse.json(fullMeeting, { status: 201 });
+        } catch (error: any) {
+            console.error('Error in scheduleMeeting:', error);
+            return NextResponse.json({ error: error.message || 'Falha ao agendar reunião' }, { status: 500 });
+        }
     } catch (error) {
         console.error('Error creating meeting:', error);
         return NextResponse.json({ error: 'Erro ao criar reunião' }, { status: 500 });

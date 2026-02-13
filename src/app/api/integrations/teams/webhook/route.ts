@@ -69,7 +69,7 @@ function buildMeetingUpdate(
         startTime: Date;
         endTime: Date;
         status: string;
-        meetingLink: string | null;
+        teamsJoinUrl: string | null;
         provider: string | null;
     },
     teamsEvent: TeamsEventPayload
@@ -91,8 +91,8 @@ function buildMeetingUpdate(
     if (hasStart && startChanged) update.startTime = nextStartTime;
     if (hasEnd && endChanged) update.endTime = nextEndTime;
 
-    if (teamsEvent.meetingLink && teamsEvent.meetingLink !== current.meetingLink) {
-        update.meetingLink = teamsEvent.meetingLink;
+    if (teamsEvent.meetingLink && teamsEvent.meetingLink !== current.teamsJoinUrl) {
+        update.teamsJoinUrl = teamsEvent.meetingLink;
     }
 
     if (timeChanged && canChangeStatus) {
@@ -156,11 +156,11 @@ async function processNotification(notification: TeamsGraphNotification): Promis
     if (notification.clientState !== expectedClientState) return 'ignored';
 
     const parsed = parseResource(notification.resource);
-    const externalEventId = parsed.externalEventId || notification.resourceData?.id || null;
-    if (!externalEventId) return 'ignored';
+    const teamsEventId = parsed.externalEventId || notification.resourceData?.id || null;
+    if (!teamsEventId) return 'ignored';
 
     const meeting = await prisma.meeting.findUnique({
-        where: { externalEventId },
+        where: { teamsEventId },
         select: {
             id: true,
             leadId: true,
@@ -168,7 +168,7 @@ async function processNotification(notification: TeamsGraphNotification): Promis
             status: true,
             startTime: true,
             endTime: true,
-            meetingLink: true,
+            teamsJoinUrl: true,
             provider: true,
             user: { select: { email: true } },
         },
@@ -184,7 +184,7 @@ async function processNotification(notification: TeamsGraphNotification): Promis
 
     const teamsEvent = await getTeamsEventHandler({
         organizerEmail: organizer,
-        externalEventId,
+        externalEventId: teamsEventId,
     });
 
     if (!teamsEvent || teamsEvent.isCancelled) {
@@ -206,9 +206,9 @@ async function processNotification(notification: TeamsGraphNotification): Promis
         entityId: meeting.id,
         changes: {
             source: 'teams-webhook',
-            externalEventId,
+            teamsEventId,
             status: update.status || meeting.status,
-            meetingLinkUpdated: update.meetingLink !== undefined,
+            teamsJoinUrlUpdated: update.teamsJoinUrl !== undefined,
         },
     });
 

@@ -202,12 +202,12 @@ export async function PATCH(
         if (
             data.status === 'CANCELLED' &&
             currentMeeting.provider === 'teams' &&
-            currentMeeting.externalEventId &&
+            currentMeeting.teamsEventId &&
             currentMeeting.user.email
         ) {
             cancelTeamsMeeting({
                 organizerEmail: currentMeeting.user.email,
-                externalEventId: currentMeeting.externalEventId,
+                externalEventId: currentMeeting.teamsEventId,
             }).catch((error) => console.error('Failed to cancel Teams meeting:', error));
         }
 
@@ -255,12 +255,12 @@ export async function DELETE(
 
         if (
             currentMeeting.provider === 'teams' &&
-            currentMeeting.externalEventId &&
+            currentMeeting.teamsEventId &&
             currentMeeting.user.email
         ) {
             cancelTeamsMeeting({
                 organizerEmail: currentMeeting.user.email,
-                externalEventId: currentMeeting.externalEventId,
+                externalEventId: currentMeeting.teamsEventId,
             }).catch((error) => console.error('Failed to cancel Teams meeting:', error));
         }
 

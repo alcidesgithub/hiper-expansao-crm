@@ -34,7 +34,7 @@ interface Meeting {
         company: string | null;
     };
     provider?: string | null;
-    meetingLink?: string | null;
+    teamsJoinUrl?: string | null;
     status?: string;
 }
 
@@ -196,7 +196,7 @@ export default function AgendaBoard({ initialMeetings, leads }: AgendaBoardProps
                         description: newEvent.notes,
                         lead: lead ? { name: lead.name, company: lead.company } : undefined,
                         provider: result.meeting.provider || null,
-                        meetingLink: result.meeting.meetingLink || null,
+                        teamsJoinUrl: result.meeting.teamsJoinUrl || null,
                         status: 'SCHEDULED',
                     },
                 ]);
@@ -645,12 +645,12 @@ export default function AgendaBoard({ initialMeetings, leads }: AgendaBoardProps
                             </div>
 
                             {/* Link */}
-                            {selectedMeeting.meetingLink && (
+                            {selectedMeeting.teamsJoinUrl && (
                                 <div className="flex items-center gap-3">
                                     <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
                                         <Video size={16} />
                                     </div>
-                                    <a href={selectedMeeting.meetingLink} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-blue-600 hover:underline flex items-center gap-1">
+                                    <a href={selectedMeeting.teamsJoinUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-blue-600 hover:underline flex items-center gap-1">
                                         Entrar na reunião <ExternalLink size={12} />
                                     </a>
                                 </div>

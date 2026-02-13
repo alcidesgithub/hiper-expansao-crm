@@ -494,7 +494,7 @@ export async function createMeeting(data: {
                 userId: (session.user as any).id,
                 description: data.notes,
                 status: 'SCHEDULED',
-                meetingLink: data.autoLink ? `https://teams.microsoft.com/l/meetup-join/mock-${Math.random().toString(36).substring(7)}` : null,
+                teamsJoinUrl: data.autoLink ? `https://teams.microsoft.com/l/meetup-join/mock-${Math.random().toString(36).substring(7)}` : null,
                 provider: data.autoLink ? 'TEAMS' : null
             }
         });

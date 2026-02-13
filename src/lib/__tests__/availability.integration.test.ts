@@ -435,7 +435,7 @@ test('POST /api/schedule should return 201 and create meeting flow when slot is 
                     findFirst: async () => null,
                     create: async () => ({
                         id: 'meeting-created-1',
-                        meetingLink: null,
+                        teamsJoinUrl: null,
                     }),
                 },
             };
