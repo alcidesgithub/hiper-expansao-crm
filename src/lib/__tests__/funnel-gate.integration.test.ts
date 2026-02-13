@@ -69,7 +69,7 @@ test('GET /api/funnel/gate should return aggregated analytics for authorized rol
     const restoreAuth = withAuthSession(
         __setAuthHandlerForTests,
         __resetAuthHandlerForTests,
-        { user: { id: 'director-1', role: 'DIRECTOR' } }
+        { user: { id: 'director-1', role: 'DIRECTOR', permissions: ['dashboard:executive'] } }
     );
     const restores: RestoreFn[] = [];
 

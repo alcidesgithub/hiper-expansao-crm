@@ -269,7 +269,7 @@ test('GET /api/leads/[id] should select deep sensitive fields for MANAGER', asyn
                 capturedSelect = args.select as Record<string, unknown>;
                 return {
                     ...buildLeadFixture({ assignedUserId: 'team-user-1' }),
-                    assignedUser: { id: 'team-user-1', name: 'SDR Time', email: 'sdr@empresa.com' },
+                    assignedUser: { id: 'team-user-1', name: 'Equipe Comercial', email: 'equipe@empresa.com' },
                     pipelineStage: { id: 'stage-1', name: 'Novo', pipelineId: 'pipe-1' },
                     activities: [],
                     notes: [],

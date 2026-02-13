@@ -15,7 +15,7 @@ export type Permission =
     | 'users:manage'
     | 'dashboard:executive'
     | 'dashboard:operational'
-    | 'dashboard:sdr'
+
     | 'integrations:manage'
     | 'audit:read'
     | 'availability:manage'

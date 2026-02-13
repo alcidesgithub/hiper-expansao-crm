@@ -5,7 +5,7 @@
 
 ## 🎯 Filosofia do Sistema
 
-**Princípio:** "Melhor perder um lead duvidoso do que desperdiçar tempo do SDR com perfil errado"
+**Princípio:** "Melhor perder um lead duvidoso do que desperdiçar tempo do Consultor com perfil errado"
 
 O sistema funciona como um **funil de altíssima precisão** que:
 1. ✅ **Elimina** 40% dos leads sem fit no gate inicial
@@ -24,8 +24,8 @@ O sistema funciona como um **funil de altíssima precisão** que:
 |---------|-------|-------------|
 | Taxa de aprovação gate | N/A | 60% (40% eliminados) |
 | Precisão qualificação | ~70% | 87%+ |
-| Leads inaptos ao SDR | ~25% | <5% |
-| Tempo desperdiçado SDR | Alto | Redução 60% |
+| Leads inaptos ao Consultor | ~25% | <5% |
+| Tempo desperdiçado Consultor | Alto | Redução 60% |
 | Conversão Grade A | ~50% | 70%+ |
 | **Reuniões agendadas auto** | 0% | 80%+ |
 
@@ -487,7 +487,7 @@ function getGradeDetails(grade: LeadGrade) {
         '📧 Newsletter geral',
         '📚 Conteúdo educativo básico',
         '🔄 Reavaliar em 90 dias',
-        '🚫 NÃO alocar SDR'
+        '🚫 NÃO alocar Consultor'
       ]
     },
     F: {
@@ -500,7 +500,7 @@ function getGradeDetails(grade: LeadGrade) {
       acoes: [
         '📧 Email de agradecimento',
         '📚 Newsletter genérica',
-        '🚫 NÃO alocar SDR'
+        '🚫 NÃO alocar Consultor'
       ]
     }
   }
@@ -696,7 +696,7 @@ const redFlags = {
 
 ## 📊 DASHBOARD DE QUALIFICAÇÃO (time interno)
 
-> **Acesso:** ADMIN e DIRECTOR — visão completa | MANAGER — apenas equipe | SDR — apenas próprios leads
+> **Acesso:** ADMIN e DIRECTOR — visão completa | MANAGER — apenas equipe | CONSULTANT — apenas próprios leads
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -783,7 +783,7 @@ const redFlags = {
 - [ ] Testes de integração
 
 ### Fase 6: Sistema de Calendário Nativo
-- [ ] CRUD de slots de disponibilidade (consultores/SDRs)
+- [ ] CRUD de slots de disponibilidade (consultores)
 - [ ] CRUD de bloqueios específicos
 - [ ] Algoritmo de verificação de disponibilidade
 - [ ] Componente de calendário (UI)

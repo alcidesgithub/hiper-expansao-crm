@@ -99,7 +99,7 @@ test('notes CRUD should succeed for CONSULTANT within lead scope', async () => {
             prisma.note,
             'findMany',
             (async () => [
-                { id: 'note-1', leadId: 'lead-1', content: 'Nota', user: { id: 'sdr-1', name: 'SDR' } },
+                { id: 'note-1', leadId: 'lead-1', content: 'Nota', user: { id: 'consultant-1', name: 'Consultor' } },
             ]) as unknown as typeof prisma.note.findMany
         )
     );
@@ -107,7 +107,7 @@ test('notes CRUD should succeed for CONSULTANT within lead scope', async () => {
         mockMethod(
             prisma.note,
             'create',
-            (async () => ({ id: 'note-1', content: 'Nota criada', user: { id: 'sdr-1', name: 'SDR' } })) as unknown as typeof prisma.note.create
+            (async () => ({ id: 'note-1', content: 'Nota criada', user: { id: 'consultant-1', name: 'Consultor' } })) as unknown as typeof prisma.note.create
         )
     );
     restores.push(
@@ -121,7 +121,7 @@ test('notes CRUD should succeed for CONSULTANT within lead scope', async () => {
         mockMethod(
             prisma.note,
             'update',
-            (async () => ({ id: 'note-1', content: 'Nota atualizada', user: { id: 'sdr-1', name: 'SDR' } })) as unknown as typeof prisma.note.update
+            (async () => ({ id: 'note-1', content: 'Nota atualizada', user: { id: 'consultant-1', name: 'Consultor' } })) as unknown as typeof prisma.note.update
         )
     );
     restores.push(

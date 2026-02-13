@@ -439,7 +439,7 @@ const GRADE_INFO: Record<string, Omit<ScoringResult, 'scoreBruto' | 'scoreBonus'
         acoes: [
             '📧 Email educativo automático',
             '📚 Nurture trimestral',
-            '🔄 Reavaliar em 60 dias',
+            '🚫 NÃO alocar Consultor',
         ],
     },
     F: {
@@ -452,7 +452,7 @@ const GRADE_INFO: Record<string, Omit<ScoringResult, 'scoreBruto' | 'scoreBonus'
         acoes: [
             '📧 Email de agradecimento',
             '📚 Newsletter genérica',
-            '🚫 NÃO alocar SDR',
+            '🚫 NÃO alocar Consultor',
         ],
     },
 };

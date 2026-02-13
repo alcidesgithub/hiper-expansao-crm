@@ -20,7 +20,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
         'users:manage',
         'dashboard:executive',
         'dashboard:operational',
-        'dashboard:sdr',
+
         'integrations:manage',
         'audit:read',
         'availability:manage',
@@ -43,14 +43,14 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
         'pipeline:advance',
         'pricing:read',
         'dashboard:operational',
-        'dashboard:sdr',
+        'dashboard:operational',
     ],
     CONSULTANT: [
         'leads:read:own',
         'leads:write:own',
         'leads:score:read',
         'pipeline:advance',
-        'dashboard:sdr',
+        'pipeline:advance',
         'availability:manage',
     ],
 };
@@ -70,7 +70,7 @@ export const ALL_PERMISSIONS: Permission[] = [
     'users:manage',
     'dashboard:executive',
     'dashboard:operational',
-    'dashboard:sdr',
+
     'integrations:manage',
     'audit:read',
     'availability:manage',
@@ -101,7 +101,7 @@ export const PERMISSIONS_BY_RESOURCE: Record<string, Permission[]> = {
     'Dashboards': [
         'dashboard:executive',
         'dashboard:operational',
-        'dashboard:sdr',
+
     ],
     'Sistema': [
         'integrations:manage',
