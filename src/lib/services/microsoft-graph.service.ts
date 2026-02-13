@@ -33,6 +33,14 @@ export class MicrosoftGraphService {
         return this._client;
     }
 
+    public isConfigured(): boolean {
+        const tenantId = process.env.MS_TEAMS_TENANT_ID || process.env.MICROSOFT_TENANT_ID;
+        const clientId = process.env.MS_TEAMS_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID;
+        const clientSecret = process.env.MS_TEAMS_CLIENT_SECRET || process.env.MICROSOFT_CLIENT_SECRET;
+
+        return !!(tenantId && clientId && clientSecret);
+    }
+
     /**
      * Cria reunião online do Teams
      */

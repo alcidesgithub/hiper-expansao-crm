@@ -65,44 +65,60 @@ export class MeetingService {
         const endDateTime = addMinutes(startDateTime, params.duration || 60);
         const subject = params.title || `Apresentação Hiperfarma - ${lead.name}`;
 
-        // 5. Criar reunião no Teams
-        const onlineMeeting = await graphService.createOnlineMeeting({
-            subject,
-            startDateTime,
-            endDateTime,
-            organizerEmail: consultant.email,
-        });
+        // 5. Criar reunião no Teams (se configurado)
+        let onlineMeeting = null;
+        let calendarEvent = null;
+        const isTeamsConfigured = graphService.isConfigured();
 
-        // 6. Criar evento no calendário
-        const calendarEvent = await graphService.createCalendarEvent({
-            consultantEmail: consultant.email,
-            subject,
-            startDateTime,
-            endDateTime,
-            joinUrl: onlineMeeting.joinWebUrl!,
-            leadName: lead.name,
-            leadEmail: lead.email,
-            leadPhone: lead.phone,
-        });
+        if (isTeamsConfigured) {
+            try {
+                onlineMeeting = await graphService.createOnlineMeeting({
+                    subject,
+                    startDateTime,
+                    endDateTime,
+                    organizerEmail: consultant.email,
+                });
+
+                // 6. Criar evento no calendário
+                calendarEvent = await graphService.createCalendarEvent({
+                    consultantEmail: consultant.email,
+                    subject,
+                    startDateTime,
+                    endDateTime,
+                    joinUrl: onlineMeeting.joinWebUrl!,
+                    leadName: lead.name,
+                    leadEmail: lead.email,
+                    leadPhone: lead.phone,
+                });
+            } catch (error) {
+                console.error('Falha ao criar reunião no Teams, prosseguindo com reunião local:', error);
+                // Fallback para local se falhar a criação no Teams mesmo configurado
+            }
+        }
 
         // 7. Salvar no banco (Novo Schema v1.0)
+        const meetingData: any = {
+            leadId: params.leadId,
+            userId: params.consultantId,
+            title: subject,
+            startTime: startDateTime,
+            endTime: endDateTime,
+            scheduledAt: startDateTime,
+            duration: params.duration || 60,
+            status: 'SCHEDULED',
+            leadNotes: params.leadNotes,
+            provider: onlineMeeting ? 'teams' : 'local',
+        };
+
+        if (onlineMeeting && calendarEvent) {
+            meetingData.teamsEventId = calendarEvent.id!;
+            meetingData.teamsMeetingId = onlineMeeting.id!;
+            meetingData.teamsJoinUrl = onlineMeeting.joinWebUrl!;
+            meetingData.teamsThreadId = onlineMeeting.chatInfo?.threadId;
+        }
+
         const meeting = await prisma.meeting.create({
-            data: {
-                leadId: params.leadId,
-                userId: params.consultantId,
-                title: subject,
-                startTime: startDateTime,
-                endTime: endDateTime,
-                scheduledAt: startDateTime,
-                duration: params.duration || 60,
-                status: 'SCHEDULED',
-                teamsEventId: calendarEvent.id!,
-                teamsMeetingId: onlineMeeting.id!,
-                teamsJoinUrl: onlineMeeting.joinWebUrl!,
-                teamsThreadId: onlineMeeting.chatInfo?.threadId,
-                leadNotes: params.leadNotes,
-                provider: 'teams',
-            },
+            data: meetingData,
         });
 
         // 8. Atualizar status do lead
@@ -124,7 +140,8 @@ export class MeetingService {
             changes: {
                 leadId: params.leadId,
                 scheduledAt: startDateTime,
-                teamsJoinUrl: onlineMeeting.joinWebUrl,
+                teamsJoinUrl: onlineMeeting?.joinWebUrl ?? undefined,
+                provider: meetingData.provider,
             },
         });
 
@@ -133,12 +150,12 @@ export class MeetingService {
             meeting,
             lead,
             consultant,
-            joinUrl: onlineMeeting.joinWebUrl!,
+            joinUrl: onlineMeeting?.joinWebUrl ?? undefined,
         });
 
         return {
             meeting,
-            joinUrl: onlineMeeting.joinWebUrl!,
+            joinUrl: onlineMeeting?.joinWebUrl ?? undefined,
         };
     }
 
@@ -231,10 +248,18 @@ export class MeetingService {
         meeting: any;
         lead: any;
         consultant: any;
-        joinUrl: string;
+        joinUrl?: string;
     }) {
         // Nota: Usando a função genérica sendEmail ou as específicas se existirem no lib/email.ts
         // Como não quero quebrar se não houver templates específicos, vou usar uma lógica básica
+
+        const meetingLinkHtml = params.joinUrl
+            ? `<p><strong>Link da Reunião (Teams):</strong> <a href="${params.joinUrl}">Clique aqui para entrar</a></p>`
+            : '<p><strong>Local:</strong> A confirmar (Reunião Presencial/Telefone)</p>';
+
+        const meetingLinkHtmlConsultant = params.joinUrl
+            ? `<p><strong>Link Teams:</strong> <a href="${params.joinUrl}">Entrar na Reunião</a></p>`
+            : '';
 
         // Email para o Lead
         await sendEmail({
@@ -244,7 +269,7 @@ export class MeetingService {
         <h1>Olá ${params.lead.name},</h1>
         <p>Sua reunião com <strong>${params.consultant.name}</strong> foi agendada com sucesso.</p>
         <p><strong>Data:</strong> ${params.meeting.startTime.toLocaleString('pt-BR')}</p>
-        <p><strong>Link da Reunião (Teams):</strong> <a href="${params.joinUrl}">Clique aqui para entrar</a></p>
+        ${meetingLinkHtml}
         <br/>
         <p>Atenciosamente,<br/>Expansão Hiperfarma</p>
       `,
@@ -260,7 +285,7 @@ export class MeetingService {
         <p><strong>Lead:</strong> ${params.lead.name}</p>
         <p><strong>Empresa:</strong> ${params.lead.company || 'Não informada'}</p>
         <p><strong>Data:</strong> ${params.meeting.startTime.toLocaleString('pt-BR')}</p>
-        <p><strong>Link Teams:</strong> <a href="${params.joinUrl}">Entrar na Reunião</a></p>
+        ${meetingLinkHtmlConsultant}
       `,
         });
     }
