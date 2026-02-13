@@ -6,19 +6,21 @@ Sistema de captacao, qualificacao e operacao comercial para o processo de expans
 
 Este repositorio concentra:
 
-- Funnel publico de qualificacao (`/funnel/*`) com gate de perfil e score de lead.
-- CRM interno (`/dashboard/*`) para acompanhamento comercial, agenda e operacao.
-- Agendamento de reunioes com suporte a integracao opcional com Microsoft Teams.
-- Controle de acesso por papel (RBAC) para proteger dados e acoes sensiveis.
-- Pipeline de deploy com migracao + seed automatizados via Docker Compose/Coolify.
+- **Funnel de Expansao**: Publico (`/funnel/*`) com gate de perfil, score de lead e automacao de estagios.
+- **CRM Interno**: Dashboard administrativo (`/dashboard/*`) para acompanhamento de leads, agenda e operacao.
+- **Autenticacao & RBAC**: Controle de acesso granular (Admin, Consultor) via NextAuth.
+- **Agendamento**: Gestao de reunioes e integracao com Microsoft Teams.
+- **Infraestrutura**: Pipeline de deploy com migracao + seed automatizados (Docker/Coolify).
 
 ## Stack
 
-- Next.js 16 (App Router) + React 19 + TypeScript
-- Prisma ORM + PostgreSQL
-- Redis
-- NextAuth (Auth.js v5 beta)
-- Playwright (E2E) + testes de integracao/unidade em `tsx --test`
+- **Framework**: Next.js 16.1 (App Router) + React 19
+- **Linguagem**: TypeScript 5
+- **Banco de Dados**: PostgreSQL + Prisma ORM 6
+- **Cache/Fila**: Redis (IoRedis)
+- **Auth**: NextAuth (Auth.js v5 beta)
+- **Testes**: Playwright (E2E) + Node Test Runner (`tsx --test`)
+- **Estilizacao**: Tailwind CSS 4 + Shadcn/ui
 
 ## Requisitos
 
@@ -71,89 +73,69 @@ npm run dev
 
 ## Credenciais de Seed
 
-O seed cria usuarios padrao:
+O seed cria usuarios padrao para o ambiente de desenvolvimento/teste:
 
-- `admin@hiperfarma.com.br`
-- `sdr@hiperfarma.com.br`
-- `consultor@hiperfarma.com.br`
+- `admin@hiperfarma.com.br` (Perfil: Admin)
+- `consultor@hiperfarma.com.br` (Perfil: Consultor)
 
-Senha:
+**Senha:**
 
-- Usa `SEED_DEFAULT_PASSWORD` quando definido.
-- Em desenvolvimento (`NODE_ENV != production`), cai para `admin123` se a variavel nao existir.
+- Usa `SEED_DEFAULT_PASSWORD` quando definido no `.env`.
+- Em desenvolvimento (`NODE_ENV != production`), o fallback e `admin123` se a variavel nao existir.
 - Em producao, `SEED_DEFAULT_PASSWORD` e obrigatoria (minimo de 12 caracteres).
 
 ## Scripts Principais
 
-- `npm run dev`: servidor local
-- `npm run build`: build de producao
-- `npm run start`: sobe app em modo producao
-- `npm run db:migrate`: aplica migrations (`prisma migrate deploy`)
-- `npm run db:seed`: executa seed
-- `npm run db:setup`: migrate + seed
-- `npm run lint`: lint
-- `npm run test`: suite principal (unit + integracao focada)
-- `npm run test:roles`: testes de autorizacao por papel
-- `npm run test:teams`: testes de integracao Teams
-- `npm run test:e2e`: testes E2E Playwright
-- `npm run test:critical`: gate critico para release
-- `npm run release:check`: lint + typecheck + testes criticos + status de migration
-- `npm run release:check:full`: inclui E2E no gate
+- `npm run dev`: Inicia servidor de desenvolvimento
+- `npm run build`: Build de producao
+- `npm run start`: Inicia servidor de producao
+- `npm run db:setup`: Reset, migrate e seed do banco de dados
+- `npm run db:migrate`: Aplica migrations pendentes
+- `npm run db:seed`: Executa o script de seed
+- `npm run lint`: Verifica padroes de codigo (ESLint)
+- `npm run test`: Executa suite principal de testes (unitarios + integracao)
+- `npm run test:roles`: Executa testes de autorizacao e permissoes (RBAC)
+- `npm run test:teams`: Executa testes de integracao com MS Teams
+- `npm run test:e2e`: Executa testes E2E (headless)
+- `npm run test:e2e:ui`: Executa testes E2E com interface grafica interativa
+- `npm run test:critical`: Suite rapida para verificação critica antes de commits
+- `npm run release:check`: Check completo para release (lint + types + testes criticos + migrations)
+- `npm run release:check:full`: `release:check` + testes E2E
 
 ## Health Check
 
 Endpoint: `GET /api/health`
 
 Comportamento:
-
-- `status: "ok"`: banco e redis saudaveis
-- `status: "degraded"`: servico opcional degradado (ex.: `REDIS_URL` ausente)
-- `status: "down"` (HTTP 503): dependencia critica indisponivel
+- `status: "ok"`: Banco e Redis saudaveis
+- `status: "degraded"`: Servico opcional degradado (ex.: `REDIS_URL` ausente/falha)
+- `status: "down"` (HTTP 503): Dependencia critica indisponivel
 
 ## Deploy
 
-Deploy alvo em Coolify com Docker Compose e servicos:
-
+O projeto conta com configuracao para deploy via Docker Compose (ex: Coolify/Portainer).
+Servicos inclusos:
 - `postgres`
 - `redis`
-- `migrate` (job one-shot para migration + seed)
+- `migrate` (Job efemero para migration + seed)
 - `app`
 
-Documentacao detalhada:
-
-- `DEPLOY.md`
-- `RELEASE_CHECKLIST.md`
-- `coolify.yaml`
-
-## Variaveis de Ambiente
-
-Use `.env.example` como referencia unica de variaveis obrigatorias e opcionais.
-
-Observacoes:
-
-- Nao versione `.env` real com secrets.
-- Em producao, configure secrets no painel do provedor (Coolify).
-- Para integracao Teams, preencha `MS_TEAMS_*` e `TEAMS_SYNC_CRON_TOKEN`.
+Consulte `DEPLOY.md` e `coolify.yaml` para mais detalhes.
 
 ## Estrutura do Projeto
 
-- `src/app`: paginas, layouts e rotas API
-- `src/lib`: regras de negocio, auth, validacao, permissao e integracoes
-- `src/components`: componentes de interface
-- `prisma`: schema, migrations e seed
-- `e2e`: testes Playwright
-- `scripts`: utilitarios e rotinas auxiliares
+- `src/app`: Paginas, layouts e rotas API (App Router)
+- `src/lib`: Nucleo da logica (regras de negocio, auth, validacoes)
+- `src/components`: Componentes React reutilizaveis (UI)
+- `src/services`: Servicos de integracao e logica complexa
+- `src/types`: Definicoes de tipos TypeScript globais/compartilhados
+- `prisma`: Schema do banco de dados, migrations e seed
+- `e2e`: Testes E2E com Playwright
+- `scripts`: Utilitarios de manutencao e CI/CD
 
 ## Fluxo de Release Recomendado
 
-1. `npm run lint`
-2. `npx tsc --noEmit`
-3. `npm run test:critical`
-4. `npm run test:e2e` (quando aplicavel)
-5. `npx prisma migrate status`
+Para garantir a estabilidade antes de subir alteracoes:
 
-Ou execute tudo com:
-
-```bash
-npm run release:check:full
-```
+1. `npm run release:check` (Rapido)
+2. `npm run release:check:full` (Completo, inclui E2E)
