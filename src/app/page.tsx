@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { Logo } from '@/components/ui/Logo';
 import {
   Menu, ArrowRight, PlayCircle, Handshake, Store, Megaphone,
   TrendingUp, CreditCard, Building2, Tag, ChevronDown, Rocket,
@@ -52,9 +53,8 @@ export default function LandingPage() {
       <nav className="fixed w-full z-50 bg-white/95 backdrop-blur-md border-b border-gray-200 transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
-            <div className="flex-shrink-0 flex items-center gap-2 cursor-pointer" onClick={() => window.scrollTo(0, 0)}>
-              <div className="h-10 w-10 bg-primary rounded-lg flex items-center justify-center text-white font-bold text-xl">H</div>
-              <span className="font-bold text-2xl text-secondary tracking-tight">Hiperfarma</span>
+            <div className="flex-shrink-0 cursor-pointer" onClick={() => window.scrollTo(0, 0)}>
+              <Logo height={40} />
             </div>
 
             {/* Desktop Menu */}
@@ -548,9 +548,8 @@ export default function LandingPage() {
       <footer className="bg-white pt-12 pb-8 border-t border-gray-200 text-center">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col items-center mb-8">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="h-10 w-10 bg-primary rounded-lg flex items-center justify-center text-white font-bold text-xl">H</div>
-              <span className="font-bold text-2xl text-gray-900">Hiperfarma</span>
+            <div className="mb-4">
+              <Logo height={40} />
             </div>
             <p className="text-gray-500 text-sm leading-relaxed max-w-md mx-auto">
               R. Roberto Faria, 180 - Fanny<br />
@@ -585,7 +584,7 @@ export default function LandingPage() {
             </a>
           </div>
           <div className="border-t border-gray-200 pt-8 flex flex-col md:flex-row justify-center items-center gap-6 text-xs text-gray-500">
-            <p>© 2024 Hiperfarma. Todos os direitos reservados.</p>
+            <p>© {new Date().getFullYear()} Hiperfarma. Todos os direitos reservados.</p>
             <div className="flex gap-6">
               <button onClick={() => navigateTo('privacy')} className="hover:text-gray-900 transition-colors">Política de Privacidade</button>
               <button onClick={() => navigateTo('terms')} className="hover:text-gray-900 transition-colors">Termos de Uso</button>

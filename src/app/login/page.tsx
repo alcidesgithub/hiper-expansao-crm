@@ -4,6 +4,7 @@ import React from 'react';
 import { useActionState } from 'react';
 import Link from 'next/link';
 import { Mail, Lock, Eye, LogIn, LockKeyhole } from 'lucide-react';
+import { Logo } from '@/components/ui/Logo';
 import { authenticate } from '@/app/lib/actions';
 
 export default function LoginPage() {
@@ -18,9 +19,8 @@ export default function LoginPage() {
                 <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 rounded-full bg-primary/20 blur-3xl"></div>
                 <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-80 h-80 rounded-full bg-blue-400/20 blur-3xl"></div>
 
-                <div className="relative z-10 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center text-primary font-bold text-xl shadow-lg">H</div>
-                    <span className="font-bold text-xl tracking-tight">Hiperfarma <span className="font-light opacity-80">CRM</span></span>
+                <div className="relative z-10">
+                    <Logo height={36} />
                 </div>
 
                 <div className="relative z-10 max-w-lg mb-20">
@@ -33,7 +33,7 @@ export default function LoginPage() {
 
                 <div className="relative z-10 flex justify-between items-end text-sm text-blue-200">
                     <div>
-                        <p>© 2024 Hiperfarma. Todos os direitos reservados.</p>
+                        <p>© {new Date().getFullYear()} Hiperfarma. Todos os direitos reservados.</p>
                         <p className="text-xs opacity-70 mt-1">Design System v2.0</p>
                     </div>
                     <div className="flex gap-4">
@@ -47,10 +47,7 @@ export default function LoginPage() {
             <div className="w-full lg:w-1/2 xl:w-5/12 flex items-center justify-center bg-white p-6 sm:p-12 relative">
                 <div className="w-full max-w-md space-y-8">
                     <div className="lg:hidden flex justify-center mb-8">
-                        <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-lg">H</div>
-                            <span className="font-bold text-xl text-secondary">Hiperfarma</span>
-                        </div>
+                        <Logo height={32} />
                     </div>
 
                     <div className="text-center lg:text-left">

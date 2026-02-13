@@ -14,12 +14,24 @@ import {
     Trash2,
     Zap,
 } from 'lucide-react';
+import {
+    AUTOMATION_ACTION_TYPES,
+    AUTOMATION_OPERATORS,
+    AUTOMATION_TRIGGER_FIELD_OPTIONS,
+    SCORING_FIELD_OPTIONS,
+    SCORING_OPERATORS,
+    type ConfigFieldOption,
+    type SelectOption,
+} from '@/lib/config-options';
 
 interface ScoringCriterion {
     id: string;
     name: string;
     subtitle: string;
-    category: 'DEMOGRAPHIC' | 'ENGAGEMENT';
+    category: 'PROFILE' | 'FINANCIAL' | 'BEHAVIOR';
+    fieldKey: string;
+    operator: string;
+    expectedValue: string;
     value: number;
     min: number;
     max: number;
@@ -51,9 +63,35 @@ interface ConfigResponse {
     pipeline: { name: string; stages: StageConfig[] };
     scoringCriteria: ScoringCriterion[];
     automationRules: AutomationRule[];
+    users: Array<{ id: string; name: string | null; role: string }>;
+    catalogs?: {
+        scoringFields?: ConfigFieldOption[];
+        scoringOperators?: SelectOption[];
+        automationTriggerFields?: ConfigFieldOption[];
+        automationOperators?: SelectOption[];
+        automationActionTypes?: SelectOption[];
+    };
 }
 
 const uid = () => `id-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+
+function requiresTriggerValue(operator: string): boolean {
+    return operator !== 'exists' && operator !== 'not_exists';
+}
+
+function usesSingleValueSelect(operator: string): boolean {
+    return operator !== 'in' && operator !== 'not_in' && operator !== 'contains';
+}
+
+function resolveDefaultExpectedValue(field: ConfigFieldOption | undefined, operator: string): string {
+    if (!requiresTriggerValue(operator)) return '';
+    if (!field?.options?.length) return '';
+    return usesSingleValueSelect(operator) ? field.options[0].value : '';
+}
+
+function findFieldOption(options: ConfigFieldOption[], key: string): ConfigFieldOption | undefined {
+    return options.find((option) => option.key === key);
+}
 
 export default function SettingsPage() {
     const [loading, setLoading] = useState(true);
@@ -65,6 +103,12 @@ export default function SettingsPage() {
     const [scoringCriteria, setScoringCriteria] = useState<ScoringCriterion[]>([]);
     const [automationRules, setAutomationRules] = useState<AutomationRule[]>([]);
     const [stages, setStages] = useState<StageConfig[]>([]);
+    const [users, setUsers] = useState<Array<{ id: string; name: string | null; role: string }>>([]);
+    const [scoringFieldOptions, setScoringFieldOptions] = useState<ConfigFieldOption[]>(SCORING_FIELD_OPTIONS);
+    const [scoringOperatorOptions, setScoringOperatorOptions] = useState<SelectOption[]>(SCORING_OPERATORS);
+    const [automationFieldOptions, setAutomationFieldOptions] = useState<ConfigFieldOption[]>(AUTOMATION_TRIGGER_FIELD_OPTIONS);
+    const [automationOperatorOptions, setAutomationOperatorOptions] = useState<SelectOption[]>(AUTOMATION_OPERATORS);
+    const [automationActionTypeOptions, setAutomationActionTypeOptions] = useState<SelectOption[]>(AUTOMATION_ACTION_TYPES);
 
     const clearAlerts = () => {
         setError('');
@@ -88,6 +132,18 @@ export default function SettingsPage() {
             setScoringCriteria(data.scoringCriteria || []);
             setAutomationRules(data.automationRules || []);
             setStages(data.pipeline?.stages || []);
+            setUsers(data.users || []);
+            setScoringFieldOptions(data.catalogs?.scoringFields?.length ? data.catalogs.scoringFields : SCORING_FIELD_OPTIONS);
+            setScoringOperatorOptions(data.catalogs?.scoringOperators?.length ? data.catalogs.scoringOperators : SCORING_OPERATORS);
+            setAutomationFieldOptions(
+                data.catalogs?.automationTriggerFields?.length ? data.catalogs.automationTriggerFields : AUTOMATION_TRIGGER_FIELD_OPTIONS
+            );
+            setAutomationOperatorOptions(
+                data.catalogs?.automationOperators?.length ? data.catalogs.automationOperators : AUTOMATION_OPERATORS
+            );
+            setAutomationActionTypeOptions(
+                data.catalogs?.automationActionTypes?.length ? data.catalogs.automationActionTypes : AUTOMATION_ACTION_TYPES
+            );
         } catch (requestError) {
             console.error('Error loading config:', requestError);
             setError('Erro de conexão ao carregar configurações');
@@ -105,18 +161,34 @@ export default function SettingsPage() {
         [scoringCriteria]
     );
 
+    const managerUsers = useMemo(
+        () => users.filter((user) => user.role === 'MANAGER' || user.role === 'DIRECTOR' || user.role === 'ADMIN'),
+        [users]
+    );
+
     const updateCriterion = (id: string, patch: Partial<ScoringCriterion>) => {
         setScoringCriteria((prev) => prev.map((item) => (item.id === id ? { ...item, ...patch } : item)));
     };
 
-    const addCriterion = (category: 'DEMOGRAPHIC' | 'ENGAGEMENT') => {
+    const addCriterion = (category: 'PROFILE' | 'FINANCIAL' | 'BEHAVIOR') => {
+        const defaults = {
+            PROFILE: { name: 'Novo critério de Perfil', subtitle: 'Ex: Experiência, Cargo' },
+            FINANCIAL: { name: 'Novo critério Financeiro', subtitle: 'Ex: Capital, Imóvel' },
+            BEHAVIOR: { name: 'Novo critério de Comportamento', subtitle: 'Ex: Visita, Download' },
+        };
+        const defaultField = scoringFieldOptions[0];
+        const defaultOperator = defaultField?.type === 'number' ? '>=' : 'exists';
+
         setScoringCriteria((prev) => [
             ...prev,
             {
                 id: uid(),
-                name: category === 'DEMOGRAPHIC' ? 'Novo critério demográfico' : 'Novo critério de engajamento',
-                subtitle: '',
+                name: defaults[category].name,
+                subtitle: defaults[category].subtitle,
                 category,
+                fieldKey: defaultField?.key || 'score',
+                operator: defaultOperator,
+                expectedValue: resolveDefaultExpectedValue(defaultField, defaultOperator),
                 value: 10,
                 min: 0,
                 max: 50,
@@ -132,18 +204,34 @@ export default function SettingsPage() {
         setAutomationRules((prev) => prev.map((rule) => (rule.id === id ? { ...rule, ...patch } : rule)));
     };
 
+    const resolveRuleActionTarget = (actionType: string) => {
+        if (actionType === 'move_stage') {
+            return stages.find((stage) => !stage.isWon && !stage.isLost)?.id || stages[0]?.id || '';
+        }
+        if (actionType === 'assign_user' || actionType === 'notify_user') {
+            return users[0]?.id || '';
+        }
+        if (actionType === 'notify_manager') {
+            return 'all_managers';
+        }
+        return actionType === 'add_tag' ? 'revisar' : '';
+    };
+
     const addRule = () => {
+        const defaultField = automationFieldOptions[0];
+        const defaultOperator = defaultField?.type === 'number' ? '>=' : '=';
+        const defaultActionType = 'notify_manager';
         setAutomationRules((prev) => [
             ...prev,
             {
                 id: uid(),
-                name: 'Nova regra',
+                name: 'Nova regra de automação',
                 enabled: false,
-                triggerField: 'leadScore',
-                operator: '>',
-                triggerValue: '70',
-                actionType: 'notifyUser',
-                actionTarget: 'Gestor',
+                triggerField: defaultField?.key || 'score',
+                operator: defaultOperator,
+                triggerValue: resolveDefaultExpectedValue(defaultField, defaultOperator) || '70',
+                actionType: defaultActionType,
+                actionTarget: resolveRuleActionTarget(defaultActionType),
             },
         ]);
     };
@@ -251,6 +339,17 @@ export default function SettingsPage() {
             setScoringCriteria(data.scoringCriteria || []);
             setAutomationRules(data.automationRules || []);
             setStages(data.pipeline?.stages || []);
+            setScoringFieldOptions(data.catalogs?.scoringFields?.length ? data.catalogs.scoringFields : SCORING_FIELD_OPTIONS);
+            setScoringOperatorOptions(data.catalogs?.scoringOperators?.length ? data.catalogs.scoringOperators : SCORING_OPERATORS);
+            setAutomationFieldOptions(
+                data.catalogs?.automationTriggerFields?.length ? data.catalogs.automationTriggerFields : AUTOMATION_TRIGGER_FIELD_OPTIONS
+            );
+            setAutomationOperatorOptions(
+                data.catalogs?.automationOperators?.length ? data.catalogs.automationOperators : AUTOMATION_OPERATORS
+            );
+            setAutomationActionTypeOptions(
+                data.catalogs?.automationActionTypes?.length ? data.catalogs.automationActionTypes : AUTOMATION_ACTION_TYPES
+            );
             setSuccess('Configurações salvas com sucesso');
         } catch (saveError) {
             console.error('Error saving config:', saveError);
@@ -268,6 +367,12 @@ export default function SettingsPage() {
             </div>
         );
     }
+
+    const CATEGORY_LABELS = {
+        PROFILE: 'Perfil & Dados Demográficos',
+        FINANCIAL: 'Capacidade Financeira & Investimento',
+        BEHAVIOR: 'Comportamento & Engajamento',
+    };
 
     return (
         <div className="w-full bg-slate-50 min-h-full font-sans text-slate-800 p-6 space-y-6">
@@ -315,11 +420,11 @@ export default function SettingsPage() {
                             </span>
                         </div>
                         <div className="p-6 space-y-6">
-                            {(['DEMOGRAPHIC', 'ENGAGEMENT'] as const).map((category) => (
+                            {(['PROFILE', 'FINANCIAL', 'BEHAVIOR'] as const).map((category) => (
                                 <div key={category} className="space-y-2">
                                     <div className="flex items-center justify-between">
                                         <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                                            {category === 'DEMOGRAPHIC' ? 'Dados Demográficos' : 'Engajamento'}
+                                            {CATEGORY_LABELS[category]}
                                         </h4>
                                         <button
                                             disabled={!canManage}
@@ -340,11 +445,97 @@ export default function SettingsPage() {
                                                         onChange={(e) => updateCriterion(item.id, { name: e.target.value })}
                                                         className="md:col-span-2 border border-gray-300 rounded px-2 py-1.5 text-sm"
                                                     />
+                                                    <select
+                                                        disabled={!canManage}
+                                                        value={item.fieldKey}
+                                                        onChange={(e) => {
+                                                            const selectedField = findFieldOption(scoringFieldOptions, e.target.value);
+                                                            const nextOperator = item.operator || (selectedField?.type === 'number' ? '>=' : '=');
+                                                            updateCriterion(item.id, {
+                                                                fieldKey: e.target.value,
+                                                                subtitle: selectedField?.label || item.subtitle,
+                                                                operator: nextOperator,
+                                                                expectedValue: resolveDefaultExpectedValue(selectedField, nextOperator),
+                                                            });
+                                                        }}
+                                                        className="md:col-span-2 border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
+                                                    >
+                                                        {scoringFieldOptions.map((field) => (
+                                                            <option key={field.key} value={field.key}>
+                                                                {field.label}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    <select
+                                                        disabled={!canManage}
+                                                        value={item.operator}
+                                                        onChange={(e) => {
+                                                            const selectedField = findFieldOption(scoringFieldOptions, item.fieldKey);
+                                                            const operator = e.target.value;
+                                                            updateCriterion(item.id, {
+                                                                operator,
+                                                                expectedValue:
+                                                                    requiresTriggerValue(operator) && item.expectedValue
+                                                                        ? item.expectedValue
+                                                                        : resolveDefaultExpectedValue(selectedField, operator),
+                                                            });
+                                                        }}
+                                                        className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
+                                                    >
+                                                        {scoringOperatorOptions.map((operator) => (
+                                                            <option key={operator.value} value={operator.value}>
+                                                                {operator.label}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    {(() => {
+                                                        const selectedField = findFieldOption(scoringFieldOptions, item.fieldKey);
+                                                        const shouldRenderSelect =
+                                                            requiresTriggerValue(item.operator) &&
+                                                            Boolean(selectedField?.options?.length) &&
+                                                            usesSingleValueSelect(item.operator);
+                                                        if (!requiresTriggerValue(item.operator)) {
+                                                            return (
+                                                                <input
+                                                                    disabled
+                                                                    value="-"
+                                                                    className="border border-gray-200 rounded px-2 py-1.5 text-sm bg-gray-50 text-gray-400"
+                                                                />
+                                                            );
+                                                        }
+                                                        if (shouldRenderSelect && selectedField?.options) {
+                                                            return (
+                                                                <select
+                                                                    disabled={!canManage}
+                                                                    value={item.expectedValue}
+                                                                    onChange={(e) => updateCriterion(item.id, { expectedValue: e.target.value })}
+                                                                    className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
+                                                                >
+                                                                    {selectedField.options.map((option) => (
+                                                                        <option key={option.value} value={option.value}>
+                                                                            {option.label}
+                                                                        </option>
+                                                                    ))}
+                                                                </select>
+                                                            );
+                                                        }
+                                                        return (
+                                                            <input
+                                                                disabled={!canManage}
+                                                                value={item.expectedValue}
+                                                                onChange={(e) => updateCriterion(item.id, { expectedValue: e.target.value })}
+                                                                className="border border-gray-300 rounded px-2 py-1.5 text-sm"
+                                                                placeholder={item.operator === 'in' || item.operator === 'not_in' ? 'valor1,valor2' : 'Valor'}
+                                                            />
+                                                        );
+                                                    })()}
+                                                </div>
+                                                <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
                                                     <input
                                                         disabled={!canManage}
                                                         value={item.subtitle}
                                                         onChange={(e) => updateCriterion(item.id, { subtitle: e.target.value })}
-                                                        className="md:col-span-2 border border-gray-300 rounded px-2 py-1.5 text-sm"
+                                                        className="md:col-span-4 border border-gray-300 rounded px-2 py-1.5 text-sm"
                                                     />
                                                     <input
                                                         disabled={!canManage}
@@ -411,11 +602,154 @@ export default function SettingsPage() {
                                         </button>
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
-                                        <input disabled={!canManage} value={rule.triggerField} onChange={(e) => updateRule(rule.id, { triggerField: e.target.value })} className="border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                                        <input disabled={!canManage} value={rule.operator} onChange={(e) => updateRule(rule.id, { operator: e.target.value })} className="border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                                        <input disabled={!canManage} value={rule.triggerValue} onChange={(e) => updateRule(rule.id, { triggerValue: e.target.value })} className="border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                                        <input disabled={!canManage} value={rule.actionType} onChange={(e) => updateRule(rule.id, { actionType: e.target.value })} className="border border-gray-300 rounded px-2 py-1.5 text-sm" />
-                                        <input disabled={!canManage} value={rule.actionTarget} onChange={(e) => updateRule(rule.id, { actionTarget: e.target.value })} className="border border-gray-300 rounded px-2 py-1.5 text-sm" />
+                                        <select
+                                            disabled={!canManage}
+                                            value={rule.triggerField}
+                                            onChange={(e) => {
+                                                const selectedField = findFieldOption(automationFieldOptions, e.target.value);
+                                                const operator = rule.operator || (selectedField?.type === 'number' ? '>=' : '=');
+                                                updateRule(rule.id, {
+                                                    triggerField: e.target.value,
+                                                    operator,
+                                                    triggerValue: resolveDefaultExpectedValue(selectedField, operator) || rule.triggerValue || '',
+                                                });
+                                            }}
+                                            className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
+                                        >
+                                            {automationFieldOptions.map((field) => (
+                                                <option key={field.key} value={field.key}>
+                                                    {field.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <select
+                                            disabled={!canManage}
+                                            value={rule.operator}
+                                            onChange={(e) => {
+                                                const selectedField = findFieldOption(automationFieldOptions, rule.triggerField);
+                                                const operator = e.target.value;
+                                                updateRule(rule.id, {
+                                                    operator,
+                                                    triggerValue:
+                                                        requiresTriggerValue(operator) && rule.triggerValue
+                                                            ? rule.triggerValue
+                                                            : resolveDefaultExpectedValue(selectedField, operator),
+                                                });
+                                            }}
+                                            className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
+                                        >
+                                            {automationOperatorOptions.map((operator) => (
+                                                <option key={operator.value} value={operator.value}>
+                                                    {operator.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        {(() => {
+                                            const selectedField = findFieldOption(automationFieldOptions, rule.triggerField);
+                                            const shouldRenderSelect =
+                                                requiresTriggerValue(rule.operator) &&
+                                                Boolean(selectedField?.options?.length) &&
+                                                usesSingleValueSelect(rule.operator);
+                                            if (!requiresTriggerValue(rule.operator)) {
+                                                return (
+                                                    <input
+                                                        disabled
+                                                        value="-"
+                                                        className="border border-gray-200 rounded px-2 py-1.5 text-sm bg-gray-50 text-gray-400"
+                                                    />
+                                                );
+                                            }
+                                            if (shouldRenderSelect && selectedField?.options) {
+                                                return (
+                                                    <select
+                                                        disabled={!canManage}
+                                                        value={rule.triggerValue}
+                                                        onChange={(e) => updateRule(rule.id, { triggerValue: e.target.value })}
+                                                        className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
+                                                    >
+                                                        {selectedField.options.map((option) => (
+                                                            <option key={option.value} value={option.value}>
+                                                                {option.label}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                );
+                                            }
+                                            return (
+                                                <input
+                                                    disabled={!canManage}
+                                                    value={rule.triggerValue}
+                                                    onChange={(e) => updateRule(rule.id, { triggerValue: e.target.value })}
+                                                    className="border border-gray-300 rounded px-2 py-1.5 text-sm"
+                                                    placeholder={rule.operator === 'in' || rule.operator === 'not_in' ? 'valor1,valor2' : 'Valor'}
+                                                />
+                                            );
+                                        })()}
+
+                                        <select
+                                            disabled={!canManage}
+                                            value={rule.actionType}
+                                            onChange={(e) => {
+                                                const actionType = e.target.value;
+                                                updateRule(rule.id, {
+                                                    actionType,
+                                                    actionTarget: resolveRuleActionTarget(actionType),
+                                                });
+                                            }}
+                                            className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
+                                        >
+                                            {automationActionTypeOptions.map((actionType) => (
+                                                <option key={actionType.value} value={actionType.value}>
+                                                    {actionType.label}
+                                                </option>
+                                            ))}
+                                        </select>
+
+                                        {rule.actionType === 'move_stage' ? (
+                                            <select
+                                                disabled={!canManage}
+                                                value={rule.actionTarget}
+                                                onChange={(e) => updateRule(rule.id, { actionTarget: e.target.value })}
+                                                className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
+                                            >
+                                                <option value="">Selecione o estágio...</option>
+                                                {stages.map(stage => (
+                                                    <option key={stage.id} value={stage.id}>{stage.name}</option>
+                                                ))}
+                                            </select>
+                                        ) : rule.actionType === 'assign_user' || rule.actionType === 'notify_user' ? (
+                                            <select
+                                                disabled={!canManage}
+                                                value={rule.actionTarget}
+                                                onChange={(e) => updateRule(rule.id, { actionTarget: e.target.value })}
+                                                className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
+                                            >
+                                                <option value="">Selecione o usuário...</option>
+                                                {users.map(user => (
+                                                    <option key={user.id} value={user.id}>{user.name || user.id} ({user.role})</option>
+                                                ))}
+                                            </select>
+                                        ) : rule.actionType === 'notify_manager' ? (
+                                            <select
+                                                disabled={!canManage}
+                                                value={rule.actionTarget}
+                                                onChange={(e) => updateRule(rule.id, { actionTarget: e.target.value })}
+                                                className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
+                                            >
+                                                <option value="all_managers">Todos os gestores</option>
+                                                {managerUsers.map(user => (
+                                                    <option key={user.id} value={user.id}>{user.name || user.id} ({user.role})</option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <input
+                                                disabled={!canManage}
+                                                value={rule.actionTarget}
+                                                onChange={(e) => updateRule(rule.id, { actionTarget: e.target.value })}
+                                                className="border border-gray-300 rounded px-2 py-1.5 text-sm"
+                                                placeholder="Alvo da ação"
+                                            />
+                                        )}
                                     </div>
                                 </div>
                             ))}
@@ -498,4 +832,3 @@ export default function SettingsPage() {
         </div>
     );
 }
-

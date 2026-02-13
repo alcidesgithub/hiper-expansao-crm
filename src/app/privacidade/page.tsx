@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { ArrowLeft, ShieldCheck, Lock } from 'lucide-react';
+import { Logo } from '@/components/ui/Logo';
 
 export default function PrivacyPolicyPage() {
     return (
@@ -11,9 +12,8 @@ export default function PrivacyPolicyPage() {
             <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
                 <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
                     <div className="flex justify-between h-20 items-center">
-                        <Link href="/" className="flex items-center gap-2 cursor-pointer">
-                            <div className="h-10 w-10 bg-primary rounded-lg flex items-center justify-center text-white font-bold text-xl">H</div>
-                            <span className="font-bold text-2xl text-secondary tracking-tight">Hiperfarma</span>
+                        <Link href="/" className="cursor-pointer">
+                            <Logo height={40} />
                         </Link>
                         <Link
                             href="/"

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { LeadStatus, Prisma, UserRole } from '@prisma/client';
+import { Lead, LeadStatus, Prisma, UserRole } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 import { leadUpdateSchema } from '@/lib/validation';
@@ -7,6 +7,8 @@ import { logAudit } from '@/lib/audit';
 import { buildLeadScope, getManagerScopedUserIds, mergeLeadWhere } from '@/lib/lead-scope';
 import { can, canAny } from '@/lib/permissions';
 import { buildLeadSelect } from '@/lib/lead-select';
+import { calculateLeadScore, DynamicScoringCriterion } from '@/lib/scoring';
+import { processAutomationRules, AutomationRule } from '@/lib/automation';
 
 interface SessionUser {
     id?: string;
@@ -208,7 +210,78 @@ export async function PATCH(
         if (data.position !== undefined) updateData.position = data.position;
         if (data.priority !== undefined) updateData.priority = data.priority;
         if (data.pipelineStageId !== undefined) updateData.pipelineStageId = data.pipelineStageId;
+        if (data.pipelineStageId !== undefined) updateData.pipelineStageId = data.pipelineStageId;
         if (data.assignedUserId !== undefined) updateData.assignedUserId = data.assignedUserId;
+
+        // --- SCORING & AUTOMATION ---
+
+        // Only run if not archived/lost/won or if explicitly reactivating? 
+        // For simplicity, run if active.
+        if (existing.status !== 'ARCHIVED' && existing.status !== 'WON' && existing.status !== 'LOST') {
+            const settings = await prisma.systemSettings.findMany({
+                where: { key: { in: ['config.scoringCriteria.v1', 'config.automationRules.v1'] } },
+            });
+            const scoringCriteria = ((settings.find(s => s.key === 'config.scoringCriteria.v1')?.value) as unknown as DynamicScoringCriterion[]) || [];
+            const automationRules = ((settings.find(s => s.key === 'config.automationRules.v1')?.value) as unknown as AutomationRule[]) || [];
+
+            // Merge for evaluation
+            const leadForEval = {
+                ...existing,
+                ...data, // overwrite with updates
+                // ensure numeric fields are numbers if they came as strings in JSON? 
+                // leadUpdateSchema handles types, so data.estimatedValue should be correct type if defined.
+            };
+
+            const scoringInput: Partial<Lead> & { customFields?: unknown } = {
+                ...leadForEval,
+                phone: typeof leadForEval.phone === 'string' ? leadForEval.phone : '',
+            };
+            const newScore = calculateLeadScore(scoringInput, scoringCriteria);
+            updateData.score = newScore;
+
+            const allStages = await prisma.pipelineStage.findMany({ where: { pipelineId: existing.pipelineStage?.pipelineId || (await prisma.pipeline.findFirst({ where: { isDefault: true } }))?.id } });
+
+            const automationLeadInput: Partial<Lead> = {
+                ...scoringInput,
+                score: newScore,
+            };
+            const automationResult = processAutomationRules(
+                automationLeadInput,
+                automationRules,
+                allStages
+            );
+
+            if (automationResult.updates.pipelineStageId) {
+                updateData.pipelineStageId = automationResult.updates.pipelineStageId;
+                // If automation changed stage, resolvedStatus logic below might need adjustment or re-run
+                // We'll let resolvedStatus logic handle the *user's* input first, but if automation overrides stage, we should check status again.
+                // However, resolvedStatus logic creates 'PROPOSAL' etc based on stage properties.
+                // It's safer to re-evaluate resolvedStatus if stage changed.
+
+                const stage = allStages.find(s => s.id === updateData.pipelineStageId);
+                if (stage) {
+                    stageNameAfter = stage.name; // Update for log
+                    if (!data.status) { // Only override status if user didn't explicitly set it
+                        if (stage.isWon) resolvedStatus = 'WON';
+                        else if (stage.isLost) resolvedStatus = 'LOST';
+                        else resolvedStatus = 'PROPOSAL'; // Logic simplified from above
+                    }
+                }
+            }
+
+            // Notification side effect
+            if (automationResult.notifications.length > 0) {
+                await prisma.activity.create({
+                    data: {
+                        leadId: id,
+                        userId: user.id || 'system',
+                        type: 'NOTE',
+                        title: 'Automação (Update)',
+                        description: automationResult.notifications.map(n => n.message).join('\n'),
+                    }
+                });
+            }
+        }
 
         updateData.status = resolvedStatus;
         if (resolvedStatus === 'WON') {

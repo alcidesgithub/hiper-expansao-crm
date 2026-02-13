@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { Logo } from '@/components/ui/Logo';
 import { usePathname } from 'next/navigation';
 import {
     LayoutDashboard,
@@ -70,8 +71,7 @@ export function Sidebar({ isOpen, onClose, userRole }: SidebarProps) {
                 `}
             >
                 <div className="flex items-center h-16 px-6 border-b border-gray-100">
-                    <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white font-bold text-xl mr-3">H</div>
-                    <span className="font-bold text-xl text-secondary">Hiperfarma</span>
+                    <Logo height={32} />
                 </div>
 
                 <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100vh-4rem)]">
@@ -108,11 +108,10 @@ const NavButton = ({ href, active, icon, label, onClick }: NavButtonProps) => (
     <Link
         href={href}
         onClick={onClick}
-        className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-            active
+        className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${active
                 ? 'bg-primary/10 text-primary font-medium'
                 : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-        }`}
+            }`}
     >
         {icon}
         <span>{label}</span>

@@ -4,6 +4,15 @@ import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 import { can } from '@/lib/permissions';
+import {
+    AUTOMATION_ACTION_TYPES,
+    AUTOMATION_OPERATORS,
+    AUTOMATION_TRIGGER_FIELD_OPTIONS,
+    buildDefaultAutomationRules,
+    DEFAULT_SCORING_CRITERIA,
+    SCORING_FIELD_OPTIONS,
+    SCORING_OPERATORS,
+} from '@/lib/config-options';
 const LEGACY_RESERVED_STAGE_IDS = new Set(['stage-1', 'stage-2', 'stage-3', 'stage-4', 'stage-5', 'stage-6', 'stage-7', 'stage-8']);
 
 const DEFAULT_PIPELINE_NAME = 'Funil de Expansão';
@@ -22,7 +31,10 @@ const scoringCriterionSchema = z.object({
     id: z.string().min(1),
     name: z.string().min(2),
     subtitle: z.string().optional().default(''),
-    category: z.enum(['DEMOGRAPHIC', 'ENGAGEMENT']),
+    category: z.enum(['PROFILE', 'FINANCIAL', 'BEHAVIOR']),
+    fieldKey: z.string().min(1).default('qualificationData.step2CompletedAt'),
+    operator: z.string().min(1).default('exists'),
+    expectedValue: z.string().optional().default(''),
     value: z.number().min(0).max(100),
     min: z.number().min(0).max(100).default(0),
     max: z.number().min(0).max(100).default(100),
@@ -33,9 +45,9 @@ const automationRuleSchema = z.object({
     name: z.string().min(2),
     enabled: z.boolean(),
     triggerField: z.string().min(1),
-    operator: z.string().min(1),
-    triggerValue: z.string().min(1),
-    actionType: z.string().min(1),
+    operator: z.string().min(1).default('='),
+    triggerValue: z.string().default(''),
+    actionType: z.enum(AUTOMATION_ACTION_TYPES.map((option) => option.value) as [string, ...string[]]),
     actionTarget: z.string().min(1),
 });
 
@@ -52,37 +64,6 @@ const configPayloadSchema = z.object({
     automationRules: z.array(automationRuleSchema),
     stages: z.array(pipelineStageSchema).min(2),
 });
-
-const DEFAULT_SCORING_CRITERIA = [
-    { id: 'cargo-decisao', name: 'Cargo de Decisão', subtitle: 'CEO, Diretor, Head', category: 'DEMOGRAPHIC', value: 30, min: 0, max: 50 },
-    { id: 'empresa-enterprise', name: 'Empresa Enterprise', subtitle: '> 500 funcionários', category: 'DEMOGRAPHIC', value: 20, min: 0, max: 50 },
-    { id: 'localizacao-estrategica', name: 'Localização Estratégica', subtitle: 'SP, RJ, Sul', category: 'DEMOGRAPHIC', value: 10, min: 0, max: 30 },
-    { id: 'download-material', name: 'Download de Material', subtitle: 'E-book ou guia', category: 'ENGAGEMENT', value: 15, min: 0, max: 30 },
-    { id: 'abertura-email', name: 'Abertura de E-mail', subtitle: 'Taxa > 20%', category: 'ENGAGEMENT', value: 5, min: 0, max: 20 },
-];
-
-const DEFAULT_AUTOMATION_RULES = [
-    {
-        id: 'hot-lead',
-        name: 'Notificação de Lead Quente',
-        enabled: true,
-        triggerField: 'leadScore',
-        operator: '>',
-        triggerValue: '80',
-        actionType: 'notifyUser',
-        actionTarget: 'Diretor Comercial',
-    },
-    {
-        id: 'cold-lead',
-        name: 'Nutrição Lead Frio',
-        enabled: false,
-        triggerField: 'leadScore',
-        operator: '<',
-        triggerValue: '55',
-        actionType: 'moveStage',
-        actionTarget: 'Nurturing',
-    },
-];
 
 interface SessionUser {
     id?: string;
@@ -107,6 +88,10 @@ function canManage(role?: UserRole): boolean {
     return can(role, 'pipeline:configure');
 }
 
+function operatorRequiresValue(operator: string): boolean {
+    return operator !== 'exists' && operator !== 'not_exists';
+}
+
 function getSessionUser(session: unknown): SessionUser | null {
     if (!session || typeof session !== 'object') return null;
     return (session as { user?: SessionUser }).user || null;
@@ -114,12 +99,32 @@ function getSessionUser(session: unknown): SessionUser | null {
 
 function sanitizeCriteria(value: unknown) {
     const parsed = z.array(scoringCriterionSchema).safeParse(value);
-    return parsed.success ? parsed.data : DEFAULT_SCORING_CRITERIA;
+    if (!parsed.success) return DEFAULT_SCORING_CRITERIA;
+
+    const raw = Array.isArray(value) ? value : [];
+    const hasDynamicFieldSelection = raw.some((item) => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+        const fieldKey = (item as Record<string, unknown>).fieldKey;
+        return typeof fieldKey === 'string' && fieldKey.length > 0;
+    });
+
+    return hasDynamicFieldSelection ? parsed.data : DEFAULT_SCORING_CRITERIA;
 }
 
-function sanitizeRules(value: unknown) {
+function sanitizeRules(value: unknown, stages: StageEntity[]) {
     const parsed = z.array(automationRuleSchema).safeParse(value);
-    return parsed.success ? parsed.data : DEFAULT_AUTOMATION_RULES;
+    if (parsed.success) {
+        return parsed.data.map((rule) => {
+            if (rule.actionType !== 'move_stage') return rule;
+            const byId = stages.find((stage) => stage.id === rule.actionTarget);
+            if (byId) return rule;
+
+            const byName = stages.find((stage) => stage.name.toLowerCase() === rule.actionTarget.toLowerCase());
+            if (!byName) return rule;
+            return { ...rule, actionTarget: byName.id };
+        });
+    }
+    return buildDefaultAutomationRules(stages);
 }
 
 function isReservedStage(automations: Prisma.JsonValue | null): boolean {
@@ -135,19 +140,20 @@ function ensureReservedAutomation(automations: Prisma.JsonValue | null): Prisma.
 }
 
 async function ensureActivePipeline(tx: Prisma.TransactionClient) {
-    let pipeline = await tx.pipeline.findFirst({
-        where: { isActive: true },
+    let pipelines = await tx.pipeline.findMany({
         include: {
             stages: {
                 orderBy: { order: 'asc' },
                 select: { id: true, name: true, color: true, isWon: true, isLost: true, order: true, automations: true },
             },
         },
+        orderBy: [{ isActive: 'desc' }, { isDefault: 'desc' }, { createdAt: 'asc' }],
     });
 
-    if (!pipeline) {
-        pipeline = await tx.pipeline.create({
+    if (pipelines.length === 0) {
+        const createdPipeline = await tx.pipeline.create({
             data: {
+                id: 'pipeline-default',
                 name: DEFAULT_PIPELINE_NAME,
                 isActive: true,
                 isDefault: true,
@@ -165,7 +171,27 @@ async function ensureActivePipeline(tx: Prisma.TransactionClient) {
                 },
             },
         });
-        return pipeline;
+        return createdPipeline;
+    }
+
+    const pipeline =
+        pipelines.find((item) => item.id === 'pipeline-default') ||
+        pipelines.find((item) => item.isActive) ||
+        pipelines[0];
+
+    await tx.pipeline.updateMany({
+        where: {
+            id: { not: pipeline.id },
+            OR: [{ isActive: true }, { isDefault: true }],
+        },
+        data: { isActive: false, isDefault: false },
+    });
+
+    if (!pipeline.isActive || !pipeline.isDefault) {
+        await tx.pipeline.update({
+            where: { id: pipeline.id },
+            data: { isActive: true, isDefault: true },
+        });
     }
 
     const legacyReservedStages = pipeline.stages.filter(
@@ -179,8 +205,8 @@ async function ensureActivePipeline(tx: Prisma.TransactionClient) {
         });
     }
 
-    if (legacyReservedStages.length > 0) {
-        pipeline = await tx.pipeline.findUniqueOrThrow({
+    if (legacyReservedStages.length > 0 || !pipeline.isActive || !pipeline.isDefault) {
+        pipelines = await tx.pipeline.findMany({
             where: { id: pipeline.id },
             include: {
                 stages: {
@@ -191,7 +217,33 @@ async function ensureActivePipeline(tx: Prisma.TransactionClient) {
         });
     }
 
-    return pipeline;
+    let normalized = pipelines.find((item) => item.id === pipeline.id) || pipeline;
+
+    if (normalized.stages.length === 0) {
+        await tx.pipelineStage.createMany({
+            data: DEFAULT_STAGES.map((stage) => ({
+                pipelineId: normalized.id,
+                name: stage.name,
+                color: stage.color,
+                order: stage.order,
+                isWon: stage.isWon,
+                isLost: stage.isLost,
+                automations: { systemReserved: true } as Prisma.InputJsonValue,
+            })),
+        });
+
+        normalized = await tx.pipeline.findUniqueOrThrow({
+            where: { id: normalized.id },
+            include: {
+                stages: {
+                    orderBy: { order: 'asc' },
+                    select: { id: true, name: true, color: true, isWon: true, isLost: true, order: true, automations: true },
+                },
+            },
+        });
+    }
+
+    return normalized;
 }
 
 function buildConfigResponse(params: {
@@ -200,6 +252,7 @@ function buildConfigResponse(params: {
     stages: StageEntity[];
     scoringCriteria: ReturnType<typeof sanitizeCriteria>;
     automationRules: ReturnType<typeof sanitizeRules>;
+    users: Array<{ id: string; name: string | null; role: string }>;
 }) {
     return {
         permissions: {
@@ -219,6 +272,14 @@ function buildConfigResponse(params: {
         },
         scoringCriteria: params.scoringCriteria,
         automationRules: params.automationRules,
+        users: params.users,
+        catalogs: {
+            scoringFields: SCORING_FIELD_OPTIONS,
+            scoringOperators: SCORING_OPERATORS,
+            automationTriggerFields: AUTOMATION_TRIGGER_FIELD_OPTIONS,
+            automationOperators: AUTOMATION_OPERATORS,
+            automationActionTypes: AUTOMATION_ACTION_TYPES,
+        },
     };
 }
 
@@ -239,12 +300,19 @@ export async function GET() {
             const scoringSetting = settings.find((setting) => setting.key === 'config.scoringCriteria.v1');
             const rulesSetting = settings.find((setting) => setting.key === 'config.automationRules.v1');
 
+            const users = await tx.user.findMany({
+                where: { status: 'ACTIVE' },
+                select: { id: true, name: true, role: true },
+                orderBy: { name: 'asc' },
+            });
+
             return buildConfigResponse({
                 canManageConfig: canManage(user.role),
                 pipelineName: pipeline.name,
                 stages: pipeline.stages,
                 scoringCriteria: sanitizeCriteria(scoringSetting?.value),
-                automationRules: sanitizeRules(rulesSetting?.value),
+                automationRules: sanitizeRules(rulesSetting?.value, pipeline.stages),
+                users,
             });
         });
 
@@ -279,6 +347,27 @@ export async function PUT(request: Request) {
                 { error: 'Apenas um estágio pode ser Ganho e um pode ser Perdido' },
                 { status: 400 }
             );
+        }
+
+        for (const rule of parsed.data.automationRules) {
+            if (operatorRequiresValue(rule.operator) && !rule.triggerValue.trim()) {
+                return NextResponse.json(
+                    { error: `Regra "${rule.name}" exige um valor de gatilho para o operador selecionado` },
+                    { status: 400 }
+                );
+            }
+
+            const actionNeedsTarget =
+                rule.actionType === 'move_stage' ||
+                rule.actionType === 'assign_user' ||
+                rule.actionType === 'notify_user' ||
+                rule.actionType === 'add_tag';
+            if (actionNeedsTarget && !rule.actionTarget.trim()) {
+                return NextResponse.json(
+                    { error: `Regra "${rule.name}" exige um alvo para a ação selecionada` },
+                    { status: 400 }
+                );
+            }
         }
 
         const response = await prisma.$transaction(async (tx) => {
@@ -352,12 +441,19 @@ export async function PUT(request: Request) {
                 select: { id: true, name: true, color: true, isWon: true, isLost: true, order: true, automations: true },
             });
 
+            const users = await tx.user.findMany({
+                where: { status: 'ACTIVE' },
+                select: { id: true, name: true, role: true },
+                orderBy: { name: 'asc' },
+            });
+
             return buildConfigResponse({
                 canManageConfig: true,
                 pipelineName: pipeline.name,
                 stages: freshStages,
                 scoringCriteria: parsed.data.scoringCriteria,
                 automationRules: parsed.data.automationRules,
+                users,
             });
         });
 

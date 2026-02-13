@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { LeadGrade, LeadSource, LeadStatus, Prisma, UserRole } from '@prisma/client';
+import { Lead, LeadGrade, LeadSource, LeadStatus, Prisma, UserRole } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 import { leadCreateSchema } from '@/lib/validation';
@@ -8,6 +8,9 @@ import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { buildLeadScope, getManagerScopedUserIds, mergeLeadWhere } from '@/lib/lead-scope';
 import { can, canAny } from '@/lib/permissions';
 import { buildLeadSelect } from '@/lib/lead-select';
+
+import { calculateLeadScore, DynamicScoringCriterion } from '@/lib/scoring';
+import { processAutomationRules, AutomationRule } from '@/lib/automation';
 const LEAD_GRADES: readonly LeadGrade[] = ['A', 'B', 'C', 'D', 'F'];
 const LEAD_SOURCES: readonly LeadSource[] = ['WEBSITE', 'FACEBOOK', 'INSTAGRAM', 'GOOGLE_ADS', 'LINKEDIN', 'EMAIL', 'PHONE', 'REFERRAL', 'EVENT', 'OTHER'];
 
@@ -202,6 +205,49 @@ export async function POST(request: Request) {
             }
         }
 
+
+        // --- SCORING & AUTOMATION ---
+
+        // 1. Load Configuration
+        const settings = await prisma.systemSettings.findMany({
+            where: { key: { in: ['config.scoringCriteria.v1', 'config.automationRules.v1'] } },
+        });
+
+        const scoringCriteria = ((settings.find(s => s.key === 'config.scoringCriteria.v1')?.value) as unknown as DynamicScoringCriterion[]) || [];
+        const automationRules = ((settings.find(s => s.key === 'config.automationRules.v1')?.value) as unknown as AutomationRule[]) || [];
+
+        // 2. Prepare Lead Data for Evaluation
+        const initialLeadData = {
+            ...parsed.data,
+            status: 'NEW' as LeadStatus,
+            pipelineStageId: stageId,
+            assignedUserId,
+        };
+
+        // 3. Calculate Score
+        const scoringInput: Partial<Lead> & { customFields?: unknown } = {
+            ...initialLeadData,
+            phone: typeof initialLeadData.phone === 'string' ? initialLeadData.phone : '',
+            company: initialLeadData.company ?? null,
+        };
+        const score = calculateLeadScore(scoringInput, scoringCriteria);
+
+        // 4. Run Automation
+        const allStages = await prisma.pipelineStage.findMany({ where: { pipelineId: (await prisma.pipeline.findFirst({ where: { isDefault: true } }))?.id } });
+        const automationLeadInput: Partial<Lead> = {
+            ...scoringInput,
+            score,
+        };
+        const automationResult = processAutomationRules(
+            automationLeadInput,
+            automationRules,
+            allStages
+        );
+
+        // 5. Apply Automation Updates
+        const finalStageId = automationResult.updates.pipelineStageId || stageId;
+        // If automation changed stage, we might want to check if it's valid, but we assume automation rules are valid.
+
         const lead = await prisma.lead.create({
             data: {
                 name: parsed.data.name.trim(),
@@ -209,9 +255,10 @@ export async function POST(request: Request) {
                 phone: parsed.data.phone?.trim() || '',
                 company: parsed.data.company?.trim() || null,
                 source: parsed.data.source,
-                status: 'NEW',
+                status: 'NEW', // Automation might change this too if we allowed it, but for now stick to NEW unless stage implies otherwise
+                score, // Persist calculated score
                 assignedUserId,
-                pipelineStageId: stageId,
+                pipelineStageId: finalStageId,
             },
             select: buildLeadSelect({
                 role: user.role,
@@ -219,6 +266,21 @@ export async function POST(request: Request) {
                 includeSensitive: true,
             }),
         });
+
+        // 6. Execute Side Effects (Notifications)
+        if (automationResult.notifications.length > 0) {
+            // For prototype/MVP, just log or create an activity/notification record
+            // In a real app, this would trigger email/push
+            await prisma.activity.create({
+                data: {
+                    leadId: lead.id,
+                    userId: user.id || 'system',
+                    type: 'NOTE',
+                    title: 'Automação executada',
+                    description: automationResult.notifications.map(n => n.message).join('\n'),
+                }
+            });
+        }
 
         if (user.id) {
             await prisma.activity.create({

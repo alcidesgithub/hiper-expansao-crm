@@ -41,8 +41,8 @@ yarn-error.log*
 !.env.example
 !.env.*.example
 
-# vercel
-.vercel
+# docker
+docker-compose.override.yml
 
 # editors
 /.idea
@@ -52,5 +52,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# playwright
+/playwright/.auth/
+
+# project-specific
 /src/generated/prisma
 /_prototype_backup/

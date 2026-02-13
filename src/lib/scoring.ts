@@ -1,3 +1,5 @@
+import { Lead } from '@prisma/client';
+
 // Sistema de Qualificação Ultra-Robusto v4.0
 // Precisão de 87%+ com valores dinâmicos
 // Rede Associativista — sem cálculo de ROI
@@ -512,3 +514,151 @@ function buildResult(
         },
     };
 }
+
+// ==========================================
+// DYNAMIC SCORING (Connected to Dashboard Config)
+// ==========================================
+
+export interface DynamicScoringCriterion {
+    id: string;
+    name: string;
+    subtitle?: string;
+    category: 'PROFILE' | 'FINANCIAL' | 'BEHAVIOR';
+    fieldKey?: string;
+    operator?: string;
+    expectedValue?: string;
+    value: number;
+    min: number;
+    max: number;
+}
+
+export function calculateLeadScore(
+    lead: Partial<Lead> & { customFields?: unknown },
+    criteria: DynamicScoringCriterion[]
+): number {
+    let score = 0;
+    const context = normalizeContext(lead);
+
+    for (const criterion of criteria) {
+        if (evaluateCriterion(criterion, context)) {
+            score += criterion.value;
+        }
+    }
+
+    return Math.min(Math.max(score, 0), 100);
+}
+
+function normalizeContext(lead: Partial<Lead> & { customFields?: unknown }) {
+    const customFields = typeof lead.customFields === 'object' ? lead.customFields : {};
+    const qualificationData =
+        lead.qualificationData && typeof lead.qualificationData === 'object' && !Array.isArray(lead.qualificationData)
+            ? (lead.qualificationData as Record<string, unknown>)
+            : {};
+
+    // Simplistic normalization for the new dynamic criteria
+    // In a real scenario, this would map specific Questions to these Flags
+    // For now we try to detect based on available fields
+    return {
+        ...lead,
+        qualificationData,
+        ...customFields,
+        ...qualificationData,
+        hasJobTitle: Boolean(lead.position),
+        isOwner: /sócio|proprietário|dono|fundador|ceo|diretor|presidente/i.test(lead.position || ''),
+        hasCapital: Number(lead.estimatedValue ?? 0) > 500000,
+        marketingMessage: typeof (lead as Record<string, unknown>).message === 'string'
+            ? String((lead as Record<string, unknown>).message)
+            : '',
+    };
+}
+
+function evaluateCriterion(criterion: DynamicScoringCriterion, context: Record<string, unknown>): boolean {
+    if (criterion.fieldKey) {
+        const fieldValue = getValueFromPath(context, criterion.fieldKey);
+        return evaluateRule(fieldValue, criterion.operator || '=', criterion.expectedValue || '');
+    }
+
+    // Dynamic matching based on ID conventions used in DEFAULT_SCORING_CRITERIA
+    if (criterion.id === 'cargo-decisao' && Boolean(context.isOwner)) return true;
+    if (criterion.id === 'experiencia-varejo' && /varejo/i.test(normalizeValue(context.marketingMessage))) return true;
+    if (criterion.id === 'capital-disponivel' && Boolean(context.hasCapital)) return true;
+    if (criterion.id === 'ponto-comercial' && /ponto|imóvel|loja/i.test(normalizeValue(context.marketingMessage))) return true;
+
+    // Fallback: if we simply have a boolean flag matching the criterion ID (e.g. from a checkbox)
+    if (context[criterion.id] === true) return true;
+
+    return false;
+}
+
+function getValueFromPath(data: unknown, rawPath: string): unknown {
+    if (!rawPath) return undefined;
+    const path = rawPath.startsWith('lead.') ? rawPath.slice(5) : rawPath;
+
+    return path.split('.').reduce<unknown>((current, segment) => {
+        if (current === null || current === undefined) return undefined;
+        if (typeof current !== 'object') return undefined;
+        return (current as Record<string, unknown>)[segment];
+    }, data);
+}
+
+function parseListValue(expectedValue: string): string[] {
+    return expectedValue
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean);
+}
+
+function normalizeValue(value: unknown): string {
+    if (value === null || value === undefined) return '';
+    return String(value).trim().toLowerCase();
+}
+
+function evaluateRule(actualValue: unknown, operator: string, expectedValue: string): boolean {
+    if (operator === 'exists') return actualValue !== null && actualValue !== undefined && String(actualValue).trim() !== '';
+    if (operator === 'not_exists') return actualValue === null || actualValue === undefined || String(actualValue).trim() === '';
+
+    const actualList = Array.isArray(actualValue)
+        ? actualValue.map((value) => normalizeValue(value)).filter(Boolean)
+        : [];
+
+    const actual = normalizeValue(actualValue);
+    const expected = normalizeValue(expectedValue);
+
+    const actualNumber = Number(actualValue);
+    const expectedNumber = Number(expectedValue);
+    const hasNumericComparison = Number.isFinite(actualNumber) && Number.isFinite(expectedNumber);
+
+    switch (operator) {
+        case '=':
+        case '==':
+            if (actualList.length > 0) return actualList.includes(expected);
+            return actual === expected;
+        case '!=':
+            if (actualList.length > 0) return !actualList.includes(expected);
+            return actual !== expected;
+        case '>':
+            return hasNumericComparison ? actualNumber > expectedNumber : actual > expected;
+        case '>=':
+            return hasNumericComparison ? actualNumber >= expectedNumber : actual >= expected;
+        case '<':
+            return hasNumericComparison ? actualNumber < expectedNumber : actual < expected;
+        case '<=':
+            return hasNumericComparison ? actualNumber <= expectedNumber : actual <= expected;
+        case 'contains':
+            if (actualList.length > 0) return actualList.includes(expected);
+            return actual.includes(expected);
+        case 'in': {
+            const expectedList = parseListValue(expectedValue).map((value) => normalizeValue(value));
+            if (actualList.length > 0) return actualList.some((value) => expectedList.includes(value));
+            return expectedList.includes(actual);
+        }
+        case 'not_in': {
+            const expectedList = parseListValue(expectedValue).map((value) => normalizeValue(value));
+            if (actualList.length > 0) return actualList.every((value) => !expectedList.includes(value));
+            return !expectedList.includes(actual);
+        }
+        default:
+            return false;
+    }
+}
+

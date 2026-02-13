@@ -3,12 +3,19 @@
 import { randomUUID } from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { redirect } from 'next/navigation';
-import { LeadSource, LeadStatus } from '@prisma/client';
-import { calcularScore, type QualificationData } from '@/lib/scoring';
+import { Lead, LeadGrade, LeadPriority, LeadSource, LeadStatus } from '@prisma/client';
+import { calculateLeadScore, calcularScore, type DynamicScoringCriterion, type QualificationData } from '@/lib/scoring';
+import { processAutomationRules, type AutomationRule } from '@/lib/automation';
 import { validateLeadContactPayload } from '@/lib/contact-validation';
+import { buildDefaultAutomationRules, DEFAULT_SCORING_CRITERIA } from '@/lib/config-options';
 
 const FUNNEL_TOKEN_KEY = 'funnelToken';
 type GateProfile = 'DECISOR' | 'INFLUENCIADOR' | 'PESQUISADOR';
+type GradeMeta = {
+    label: string;
+    prioridade: string;
+    slaHoras: number | null;
+};
 
 function isRedirectError(error: unknown): error is { digest: string } {
     if (!error || typeof error !== 'object' || !('digest' in error)) return false;
@@ -30,13 +37,46 @@ function buildFunnelUrl(pathname: string, params: Record<string, string>): strin
     return `${pathname}?${query.toString()}`;
 }
 
+function normalizeScoringCriteria(value: unknown): DynamicScoringCriterion[] {
+    if (!Array.isArray(value)) return [];
+    return value as DynamicScoringCriterion[];
+}
+
+function normalizeAutomationRules(value: unknown): AutomationRule[] {
+    if (!Array.isArray(value)) return [];
+    return value as AutomationRule[];
+}
+
+function resolveGradeFromScore(score: number, forceF = false): LeadGrade {
+    if (forceF || score < 35) return 'F';
+    if (score >= 85) return 'A';
+    if (score >= 70) return 'B';
+    if (score >= 55) return 'C';
+    return 'D';
+}
+
+function resolvePriorityFromGrade(grade: LeadGrade): LeadPriority {
+    if (grade === 'A') return 'URGENT';
+    if (grade === 'B') return 'HIGH';
+    if (grade === 'C') return 'MEDIUM';
+    return 'LOW';
+}
+
+function resolveGradeMeta(grade: LeadGrade): GradeMeta {
+    if (grade === 'A') return { label: 'HOT LEAD - Altissimo Potencial', prioridade: 'CRITICA', slaHoras: 2 };
+    if (grade === 'B') return { label: 'WARM LEAD - Alto Potencial', prioridade: 'ALTA', slaHoras: 4 };
+    if (grade === 'C') return { label: 'COLD LEAD - Potencial Medio', prioridade: 'MEDIA', slaHoras: 24 };
+    if (grade === 'D') return { label: 'VERY COLD - Baixo Potencial', prioridade: 'BAIXA', slaHoras: 72 };
+    return { label: 'SEM FIT', prioridade: 'NENHUMA', slaHoras: null };
+}
+
 async function resolvePipelineTargets() {
     const pipeline = await prisma.pipeline.findFirst({
         where: { isActive: true },
         include: {
             stages: {
                 orderBy: { order: 'asc' },
-                select: { id: true, isWon: true, isLost: true },
+                select: { id: true, name: true, order: true, isWon: true, isLost: true },
             },
         },
     });
@@ -46,6 +86,8 @@ async function resolvePipelineTargets() {
     const lostStage = stages.find((stage) => stage.isLost) || null;
 
     return {
+        pipelineId: pipeline?.id || null,
+        stages,
         defaultStageId: openStage?.id || null,
         lostStageId: lostStage?.id || null,
     };
@@ -306,52 +348,116 @@ export async function submitStepFive(
             ...formData,
         };
 
-        const scoringResult = calcularScore(fullData);
-        const { defaultStageId, lostStageId } = await resolvePipelineTargets();
+        const legacyScoringResult = calcularScore(fullData);
+        const pipelineTargets = await resolvePipelineTargets();
 
+        const qualificationDataPayload = {
+            ...existingData,
+            ...formData,
+            [FUNNEL_TOKEN_KEY]: token,
+            step5CompletedAt: new Date().toISOString(),
+        };
+
+        const settings = await prisma.systemSettings.findMany({
+            where: { key: { in: ['config.scoringCriteria.v1', 'config.automationRules.v1'] } },
+        });
+
+        const configuredCriteria = normalizeScoringCriteria(
+            settings.find((setting) => setting.key === 'config.scoringCriteria.v1')?.value
+        );
+        const scoringCriteria = configuredCriteria.length > 0 ? configuredCriteria : DEFAULT_SCORING_CRITERIA;
+
+        const leadForDynamicScore = {
+            ...lead,
+            qualificationData: qualificationDataPayload,
+        };
+
+        const dynamicScore = calculateLeadScore(leadForDynamicScore, scoringCriteria);
+
+        let resolvedGrade = resolveGradeFromScore(dynamicScore, legacyScoringResult.eliminado);
+        let resolvedStatus = resolvedGrade === 'F' ? LeadStatus.LOST : LeadStatus.QUALIFIED;
         let pipelineStageId = lead.pipelineStageId;
-        if (scoringResult.grade === 'F') {
-            pipelineStageId = lostStageId || pipelineStageId;
-        } else if (scoringResult.grade === 'A' || scoringResult.grade === 'B') {
-            pipelineStageId = defaultStageId || pipelineStageId;
+
+        if (resolvedGrade === 'F') {
+            pipelineStageId = pipelineTargets.lostStageId || pipelineStageId;
+        } else if (resolvedGrade === 'A' || resolvedGrade === 'B') {
+            pipelineStageId = pipelineTargets.defaultStageId || pipelineStageId;
         }
+
+        const allStages = pipelineTargets.pipelineId
+            ? await prisma.pipelineStage.findMany({ where: { pipelineId: pipelineTargets.pipelineId } })
+            : [];
+
+        const configuredRules = normalizeAutomationRules(
+            settings.find((setting) => setting.key === 'config.automationRules.v1')?.value
+        );
+        const automationRules =
+            configuredRules.length > 0
+                ? configuredRules
+                : buildDefaultAutomationRules(pipelineTargets.stages);
+
+        const automationResult = processAutomationRules(
+            {
+                ...lead,
+                qualificationData: qualificationDataPayload,
+                score: dynamicScore,
+                grade: resolvedGrade,
+                status: resolvedStatus,
+                pipelineStageId,
+            } as Lead,
+            automationRules,
+            allStages
+        );
+
+        if (automationResult.updates.pipelineStageId) {
+            pipelineStageId = automationResult.updates.pipelineStageId;
+        }
+
+        const targetStage = allStages.find((stage) => stage.id === pipelineStageId);
+        if (targetStage?.isLost) {
+            resolvedStatus = LeadStatus.LOST;
+            resolvedGrade = 'F';
+        } else if (resolvedGrade === 'F') {
+            resolvedStatus = LeadStatus.LOST;
+        }
+
+        const gradeMeta = resolveGradeMeta(resolvedGrade);
+        const resolvedPriority = resolvePriorityFromGrade(resolvedGrade);
 
         await prisma.lead.update({
             where: { id: leadId },
             data: {
-                status: scoringResult.grade === 'F' ? LeadStatus.LOST : LeadStatus.QUALIFIED,
-                score: scoringResult.scoreNormalizado,
-                grade: scoringResult.grade,
+                status: resolvedStatus,
+                score: dynamicScore,
+                grade: resolvedGrade,
                 qualificationData: {
-                    ...existingData,
-                    ...formData,
-                    [FUNNEL_TOKEN_KEY]: token,
-                    step5CompletedAt: new Date().toISOString(),
+                    ...qualificationDataPayload,
                     scoringResult: {
-                        grade: scoringResult.grade,
-                        scoreNormalizado: scoringResult.scoreNormalizado,
-                        label: scoringResult.label,
-                        prioridade: scoringResult.prioridade,
-                        slaHoras: scoringResult.slaHoras,
-                        detalhes: scoringResult.detalhes,
+                        source: 'dynamic-config',
+                        grade: resolvedGrade,
+                        scoreNormalizado: dynamicScore,
+                        label: gradeMeta.label,
+                        prioridade: gradeMeta.prioridade,
+                        slaHoras: gradeMeta.slaHoras,
+                        detalhes: legacyScoringResult.detalhes,
+                        dynamic: {
+                            criteriaCount: scoringCriteria.length,
+                            enabledAutomationRules: automationRules.filter((rule) => rule.enabled).length,
+                            automationActions: automationResult.actions,
+                            automationNotifications: automationResult.notifications,
+                        },
                     },
                 },
                 pipelineStageId,
-                priority:
-                    scoringResult.grade === 'A'
-                        ? 'URGENT'
-                        : scoringResult.grade === 'B'
-                            ? 'HIGH'
-                            : scoringResult.grade === 'C'
-                                ? 'MEDIUM'
-                                : 'LOW',
+                priority: resolvedPriority,
+                assignedUserId: automationResult.updates.assignedUserId || lead.assignedUserId,
             },
         });
 
         redirect(
             buildFunnelUrl('/funnel/resultado', {
                 leadId,
-                grade: scoringResult.grade,
+                grade: resolvedGrade,
                 token,
             })
         );

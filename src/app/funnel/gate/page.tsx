@@ -13,17 +13,17 @@ const OPTIONS: Array<{ value: GateChoice; label: string; description: string }> 
     {
         value: 'DECISOR',
         label: 'Sim, sou decisor',
-        description: 'Proprietario, socio, farmaceutico responsavel ou gerente geral.',
+        description: 'Proprietário, sócio, farmacêutico responsável ou gerente geral.',
     },
     {
         value: 'INFLUENCIADOR',
-        label: 'Nao, mas influencio',
-        description: 'Participo da avaliacao e posso levar a proposta para o decisor.',
+        label: 'Não, mas influencio',
+        description: 'Participo da avaliação e posso levar a proposta para o decisor.',
     },
     {
         value: 'PESQUISADOR',
-        label: 'Nao, estou pesquisando',
-        description: 'Quero entender melhor o modelo antes de envolver a direcao.',
+        label: 'Não, estou pesquisando',
+        description: 'Quero entender melhor o modelo antes de envolver a direção.',
     },
 ];
 
@@ -60,7 +60,7 @@ export default function FunnelGatePage() {
 
     async function handleContinue() {
         if (!selection) {
-            setError('Selecione uma opcao para continuar.');
+            setError('Selecione uma opção para continuar.');
             return;
         }
 
@@ -94,14 +94,11 @@ export default function FunnelGatePage() {
 
             <div className="p-8 md:p-10">
                 <div className="text-center mb-8">
-                    <span className="inline-block px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold uppercase tracking-wider mb-3">
-                        Pre-qualificacao
-                    </span>
                     <h1 className="text-2xl md:text-3xl font-bold text-slate-900 mb-2">
-                        Faca parte da Rede Hiperfarma
+                        Faça parte da Rede Hiperfarma
                     </h1>
                     <p className="text-slate-500">
-                        Antes de comecar, precisamos confirmar seu papel na decisao.
+                        Antes de começar, precisamos confirmar seu papel na decisão.
                     </p>
                 </div>
 
@@ -117,11 +114,10 @@ export default function FunnelGatePage() {
                                     setSelection(option.value);
                                     setError('');
                                 }}
-                                className={`w-full rounded-xl border p-4 text-left transition-all ${
-                                    active
-                                        ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
-                                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                                }`}
+                                className={`w-full rounded-xl border p-4 text-left transition-all ${active
+                                    ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
+                                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                                    }`}
                             >
                                 <p className={`text-sm font-semibold ${active ? 'text-primary' : 'text-slate-800'}`}>
                                     {option.label}

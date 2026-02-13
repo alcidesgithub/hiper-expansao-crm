@@ -1,5 +1,6 @@
-import { PrismaClient, UserRole, UserStatus } from '@prisma/client';
+import { Prisma, PrismaClient, UserRole, UserStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { buildDefaultAutomationRules, DEFAULT_SCORING_CRITERIA } from '../src/lib/config-options';
 
 const prisma = new PrismaClient();
 
@@ -97,10 +98,22 @@ async function main() {
     });
     console.log('  ok Pricing:', pricing.name, '- R$', pricing.totalMonthly.toString(), '/mes');
 
-    // 3. Create default pipeline
+    // 3. Create and normalize default pipeline (single active/default)
+    await prisma.pipeline.updateMany({
+        data: {
+            isActive: false,
+            isDefault: false,
+        },
+    });
+
     const pipeline = await prisma.pipeline.upsert({
         where: { id: 'pipeline-default' },
-        update: {},
+        update: {
+            name: 'Funil de Expansao',
+            description: 'Pipeline padrao para novos associados',
+            isDefault: true,
+            isActive: true,
+        },
         create: {
             id: 'pipeline-default',
             name: 'Funil de Expansao',
@@ -124,7 +137,14 @@ async function main() {
     for (const stage of stages) {
         await prisma.pipelineStage.upsert({
             where: { id: stage.id },
-            update: { name: stage.name, color: stage.color, order: stage.order },
+            update: {
+                name: stage.name,
+                color: stage.color,
+                order: stage.order,
+                isWon: stage.isWon || false,
+                isLost: stage.isLost || false,
+                automations: { systemReserved: true } as Prisma.InputJsonValue,
+            },
             create: {
                 id: stage.id,
                 pipelineId: pipeline.id,
@@ -133,10 +153,35 @@ async function main() {
                 order: stage.order,
                 isWon: stage.isWon || false,
                 isLost: stage.isLost || false,
+                automations: { systemReserved: true } as Prisma.InputJsonValue,
             },
         });
     }
     console.log('  ok Pipeline com', stages.length, 'etapas');
+
+    // 4. Seed dynamic scoring matrix and automation rules aligned to current qualification funnel
+    await prisma.systemSettings.upsert({
+        where: { key: 'config.scoringCriteria.v1' },
+        update: { value: DEFAULT_SCORING_CRITERIA as unknown as Prisma.InputJsonValue },
+        create: { key: 'config.scoringCriteria.v1', value: DEFAULT_SCORING_CRITERIA as unknown as Prisma.InputJsonValue },
+    });
+
+    const defaultAutomationRules = buildDefaultAutomationRules(
+        stages.map((stage) => ({
+            id: stage.id,
+            name: stage.name,
+            order: stage.order,
+            isWon: Boolean(stage.isWon),
+            isLost: Boolean(stage.isLost),
+        }))
+    );
+
+    await prisma.systemSettings.upsert({
+        where: { key: 'config.automationRules.v1' },
+        update: { value: defaultAutomationRules as unknown as Prisma.InputJsonValue },
+        create: { key: 'config.automationRules.v1', value: defaultAutomationRules as unknown as Prisma.InputJsonValue },
+    });
+    console.log('  ok Configurações de score e automação alinhadas ao funil atual');
 
     console.log('');
     console.log('Seed completed.');
