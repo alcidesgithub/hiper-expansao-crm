@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { submitStepFive } from '../actions';
+import { toast } from 'sonner';
 
 interface Pricing {
     marketingMonthly: number;
@@ -113,6 +114,7 @@ function InvestimentoPageContent() {
 
         if (result?.error) {
             setError(result.error);
+            toast.error(result.error);
             setLoading(false);
         }
     };

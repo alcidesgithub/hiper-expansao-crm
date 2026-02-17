@@ -1,3 +1,4 @@
+import React, { Suspense } from 'react';
 import { getMeetings, getLeadsForSelect } from '../actions';
 import AgendaBoard from './AgendaBoard';
 import { startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
@@ -33,10 +34,12 @@ export default async function AgendaPage() {
     }));
 
     return (
-        <AgendaBoard
-            initialMeetings={serializedMeetings}
-            leads={leads}
-        />
+        <Suspense fallback={<div>Carregando agenda...</div>}>
+            <AgendaBoard
+                initialMeetings={serializedMeetings}
+                leads={leads}
+            />
+        </Suspense>
     );
 }
 

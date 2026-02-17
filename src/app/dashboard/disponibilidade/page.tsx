@@ -3,8 +3,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, Plus, Save, Trash2 } from 'lucide-react';
 
+// Helper to generate temporary IDs for frontend tracking
+const generateId = () => Math.random().toString(36).substr(2, 9);
+
 type AvailabilitySlot = {
     id?: string;
+    _tempId?: string; // Internal ID for frontend tracking (sorting stability)
     dayOfWeek: number;
     startTime: string;
     endTime: string;
@@ -13,6 +17,7 @@ type AvailabilitySlot = {
 
 type AvailabilityBlock = {
     id?: string;
+    _tempId?: string;
     startDate: string;
     endDate: string;
     reason: string;
@@ -34,17 +39,17 @@ const WEEK_DAYS: Array<{ value: number; label: string }> = [
     { value: 6, label: 'Sabado' },
 ];
 
-const DEFAULT_SLOTS: AvailabilitySlot[] = [
-    { dayOfWeek: 1, startTime: '09:00', endTime: '12:00', isActive: true },
-    { dayOfWeek: 1, startTime: '14:00', endTime: '18:00', isActive: true },
-    { dayOfWeek: 2, startTime: '09:00', endTime: '12:00', isActive: true },
-    { dayOfWeek: 2, startTime: '14:00', endTime: '18:00', isActive: true },
-    { dayOfWeek: 3, startTime: '09:00', endTime: '12:00', isActive: true },
-    { dayOfWeek: 3, startTime: '14:00', endTime: '18:00', isActive: true },
-    { dayOfWeek: 4, startTime: '09:00', endTime: '12:00', isActive: true },
-    { dayOfWeek: 4, startTime: '14:00', endTime: '18:00', isActive: true },
-    { dayOfWeek: 5, startTime: '09:00', endTime: '12:00', isActive: true },
-    { dayOfWeek: 5, startTime: '14:00', endTime: '18:00', isActive: true },
+const createDefaultSlots = (): AvailabilitySlot[] => [
+    { _tempId: generateId(), dayOfWeek: 1, startTime: '09:00', endTime: '12:00', isActive: true },
+    { _tempId: generateId(), dayOfWeek: 1, startTime: '14:00', endTime: '18:00', isActive: true },
+    { _tempId: generateId(), dayOfWeek: 2, startTime: '09:00', endTime: '12:00', isActive: true },
+    { _tempId: generateId(), dayOfWeek: 2, startTime: '14:00', endTime: '18:00', isActive: true },
+    { _tempId: generateId(), dayOfWeek: 3, startTime: '09:00', endTime: '12:00', isActive: true },
+    { _tempId: generateId(), dayOfWeek: 3, startTime: '14:00', endTime: '18:00', isActive: true },
+    { _tempId: generateId(), dayOfWeek: 4, startTime: '09:00', endTime: '12:00', isActive: true },
+    { _tempId: generateId(), dayOfWeek: 4, startTime: '14:00', endTime: '18:00', isActive: true },
+    { _tempId: generateId(), dayOfWeek: 5, startTime: '09:00', endTime: '12:00', isActive: true },
+    { _tempId: generateId(), dayOfWeek: 5, startTime: '14:00', endTime: '18:00', isActive: true },
 ];
 
 function toLocalDateTimeInput(iso: string): string {
@@ -97,15 +102,19 @@ export default function DisponibilidadePage() {
 
             setSlots(loadedSlots.length > 0
                 ? loadedSlots.map((slot: AvailabilitySlot) => ({
+                    id: slot.id,
+                    _tempId: slot.id || generateId(), // Ensure we always have a tracking ID
                     dayOfWeek: slot.dayOfWeek,
                     startTime: slot.startTime,
                     endTime: slot.endTime,
                     isActive: slot.isActive,
                 }))
-                : DEFAULT_SLOTS
+                : createDefaultSlots()
             );
 
             setBlocks(loadedBlocks.map((block: AvailabilityBlock) => ({
+                id: block.id,
+                _tempId: block.id || generateId(),
                 startDate: toLocalDateTimeInput(block.startDate),
                 endDate: toLocalDateTimeInput(block.endDate),
                 reason: block.reason || '',
@@ -122,6 +131,36 @@ export default function DisponibilidadePage() {
         void loadAvailability();
     }, [loadAvailability]);
 
+    const updateSlot = (idOrTempId: string, updates: Partial<AvailabilitySlot> | null) => {
+        setSlots(prev => {
+            if (updates === null) {
+                // Delete
+                return prev.filter(s => (s.id === idOrTempId || s._tempId === idOrTempId) === false);
+            }
+            // Update
+            return prev.map(s => {
+                if (s.id === idOrTempId || s._tempId === idOrTempId) {
+                    return { ...s, ...updates };
+                }
+                return s;
+            });
+        });
+    };
+
+    const updateBlock = (idOrTempId: string, updates: Partial<AvailabilityBlock> | null) => {
+        setBlocks(prev => {
+            if (updates === null) {
+                return prev.filter(b => (b.id === idOrTempId || b._tempId === idOrTempId) === false);
+            }
+            return prev.map(b => {
+                if (b.id === idOrTempId || b._tempId === idOrTempId) {
+                    return { ...b, ...updates };
+                }
+                return b;
+            });
+        });
+    };
+
     const handleSave = async () => {
         setSaving(true);
         setError('');
@@ -131,17 +170,27 @@ export default function DisponibilidadePage() {
             const hasInvalidBlockDate = blocks.some((block) => !block.startDate || !block.endDate);
             if (hasInvalidBlockDate) {
                 setError('Preencha data inicial e final de todos os bloqueios');
+                setSaving(false);
+                return;
+            }
+
+            // Basic validation
+            const hasInvalidSlots = slots.some(s => s.startTime >= s.endTime);
+            if (hasInvalidSlots) {
+                setError('Existem slots com horario inicial maior ou igual ao final');
+                setSaving(false);
                 return;
             }
 
             const payload = {
                 userId: canManageOthers ? targetUserId : undefined,
-                slots,
-                blocks: blocks.map((block) => ({
+                slots: slots.map(({ _tempId, ...slot }) => slot), // Remove _tempId
+                blocks: blocks.map(({ _tempId, ...block }) => ({
+                    ...block,
                     startDate: toIsoDateTime(block.startDate),
                     endDate: toIsoDateTime(block.endDate),
                     reason: block.reason || null,
-                })),
+                })), // Remove _tempId and format dates
             };
 
             const response = await fetch('/api/crm/availability', {
@@ -230,7 +279,7 @@ export default function DisponibilidadePage() {
                     <h2 className="font-semibold text-gray-900">Slots recorrentes</h2>
                     <button
                         type="button"
-                        onClick={() => setSlots((prev) => [...prev, { dayOfWeek: 1, startTime: '09:00', endTime: '10:00', isActive: true }])}
+                        onClick={() => setSlots((prev) => [...prev, { _tempId: generateId(), dayOfWeek: 1, startTime: '09:00', endTime: '10:00', isActive: true }])}
                         className="text-sm text-primary font-medium inline-flex items-center gap-1"
                     >
                         <Plus size={14} /> Adicionar slot
@@ -238,58 +287,49 @@ export default function DisponibilidadePage() {
                 </div>
 
                 <div className="p-4 space-y-3">
-                    {sortedSlots.map((slot, index) => (
-                        <div key={`${slot.dayOfWeek}-${slot.startTime}-${slot.endTime}-${index}`} className="grid grid-cols-1 md:grid-cols-5 gap-2 items-center">
-                            <select
-                                value={slot.dayOfWeek}
-                                onChange={(event) => {
-                                    const dayOfWeek = Number.parseInt(event.target.value, 10);
-                                    setSlots((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, dayOfWeek } : item));
-                                }}
-                                className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                            >
-                                {WEEK_DAYS.map((day) => (
-                                    <option key={day.value} value={day.value}>{day.label}</option>
-                                ))}
-                            </select>
-                            <input
-                                type="time"
-                                value={slot.startTime}
-                                onChange={(event) => {
-                                    const startTime = event.target.value;
-                                    setSlots((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, startTime } : item));
-                                }}
-                                className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                            />
-                            <input
-                                type="time"
-                                value={slot.endTime}
-                                onChange={(event) => {
-                                    const endTime = event.target.value;
-                                    setSlots((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, endTime } : item));
-                                }}
-                                className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                            />
-                            <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                    {sortedSlots.map((slot) => {
+                        const uniqueKey = slot.id || slot._tempId || `${slot.dayOfWeek}-${slot.startTime}`;
+                        return (
+                            <div key={uniqueKey} className="grid grid-cols-1 md:grid-cols-5 gap-2 items-center">
+                                <select
+                                    value={slot.dayOfWeek}
+                                    onChange={(event) => updateSlot(uniqueKey, { dayOfWeek: Number.parseInt(event.target.value, 10) })}
+                                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                                >
+                                    {WEEK_DAYS.map((day) => (
+                                        <option key={day.value} value={day.value}>{day.label}</option>
+                                    ))}
+                                </select>
                                 <input
-                                    type="checkbox"
-                                    checked={slot.isActive}
-                                    onChange={(event) => {
-                                        const isActive = event.target.checked;
-                                        setSlots((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, isActive } : item));
-                                    }}
+                                    type="time"
+                                    value={slot.startTime}
+                                    onChange={(event) => updateSlot(uniqueKey, { startTime: event.target.value })}
+                                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
                                 />
-                                Ativo
-                            </label>
-                            <button
-                                type="button"
-                                onClick={() => setSlots((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
-                                className="px-3 py-2 border border-gray-200 rounded-lg text-gray-500 hover:text-red-600 hover:border-red-200 inline-flex items-center justify-center gap-1"
-                            >
-                                <Trash2 size={14} /> Remover
-                            </button>
-                        </div>
-                    ))}
+                                <input
+                                    type="time"
+                                    value={slot.endTime}
+                                    onChange={(event) => updateSlot(uniqueKey, { endTime: event.target.value })}
+                                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                                />
+                                <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                                    <input
+                                        type="checkbox"
+                                        checked={slot.isActive}
+                                        onChange={(event) => updateSlot(uniqueKey, { isActive: event.target.checked })}
+                                    />
+                                    Ativo
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => updateSlot(uniqueKey, null)}
+                                    className="px-3 py-2 border border-gray-200 rounded-lg text-gray-500 hover:text-red-600 hover:border-red-200 inline-flex items-center justify-center gap-1"
+                                >
+                                    <Trash2 size={14} /> Remover
+                                </button>
+                            </div>
+                        );
+                    })}
                 </div>
             </section>
 
@@ -298,7 +338,7 @@ export default function DisponibilidadePage() {
                     <h2 className="font-semibold text-gray-900">Bloqueios especificos</h2>
                     <button
                         type="button"
-                        onClick={() => setBlocks((prev) => [...prev, { startDate: '', endDate: '', reason: '' }])}
+                        onClick={() => setBlocks((prev) => [...prev, { _tempId: generateId(), startDate: '', endDate: '', reason: '' }])}
                         className="text-sm text-primary font-medium inline-flex items-center gap-1"
                     >
                         <Plus size={14} /> Adicionar bloqueio
@@ -309,45 +349,39 @@ export default function DisponibilidadePage() {
                     {blocks.length === 0 && (
                         <p className="text-sm text-gray-500">Nenhum bloqueio cadastrado.</p>
                     )}
-                    {blocks.map((block, index) => (
-                        <div key={`${block.startDate}-${block.endDate}-${index}`} className="grid grid-cols-1 md:grid-cols-4 gap-2 items-center">
-                            <input
-                                type="datetime-local"
-                                value={block.startDate}
-                                onChange={(event) => {
-                                    const startDate = event.target.value;
-                                    setBlocks((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, startDate } : item));
-                                }}
-                                className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                            />
-                            <input
-                                type="datetime-local"
-                                value={block.endDate}
-                                onChange={(event) => {
-                                    const endDate = event.target.value;
-                                    setBlocks((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, endDate } : item));
-                                }}
-                                className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                            />
-                            <input
-                                type="text"
-                                value={block.reason}
-                                onChange={(event) => {
-                                    const reason = event.target.value;
-                                    setBlocks((prev) => prev.map((item, itemIndex) => itemIndex === index ? { ...item, reason } : item));
-                                }}
-                                placeholder="Motivo (opcional)"
-                                className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
-                            />
-                            <button
-                                type="button"
-                                onClick={() => setBlocks((prev) => prev.filter((_, itemIndex) => itemIndex !== index))}
-                                className="px-3 py-2 border border-gray-200 rounded-lg text-gray-500 hover:text-red-600 hover:border-red-200 inline-flex items-center justify-center gap-1"
-                            >
-                                <Trash2 size={14} /> Remover
-                            </button>
-                        </div>
-                    ))}
+                    {blocks.map((block) => {
+                        const uniqueKey = block.id || block._tempId || `${block.startDate}-${block.endDate}`;
+                        return (
+                            <div key={uniqueKey} className="grid grid-cols-1 md:grid-cols-4 gap-2 items-center">
+                                <input
+                                    type="datetime-local"
+                                    value={block.startDate}
+                                    onChange={(event) => updateBlock(uniqueKey, { startDate: event.target.value })}
+                                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                                />
+                                <input
+                                    type="datetime-local"
+                                    value={block.endDate}
+                                    onChange={(event) => updateBlock(uniqueKey, { endDate: event.target.value })}
+                                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                                />
+                                <input
+                                    type="text"
+                                    value={block.reason}
+                                    onChange={(event) => updateBlock(uniqueKey, { reason: event.target.value })}
+                                    placeholder="Motivo (opcional)"
+                                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => updateBlock(uniqueKey, null)}
+                                    className="px-3 py-2 border border-gray-200 rounded-lg text-gray-500 hover:text-red-600 hover:border-red-200 inline-flex items-center justify-center gap-1"
+                                >
+                                    <Trash2 size={14} /> Remover
+                                </button>
+                            </div>
+                        );
+                    })}
                 </div>
             </section>
         </div>

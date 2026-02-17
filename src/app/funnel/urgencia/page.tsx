@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { submitStepFour } from '../actions';
 import { loadDraft, saveDraft } from '../_utils/draft';
+import { toast } from 'sonner';
 
 const URGENCIA_OPTIONS = [
     { value: 'imediato', label: 'Imediatamente (próximos 15 dias)', tag: 'HOT' },
@@ -75,6 +76,7 @@ function UrgenciaPageContent() {
         });
         if (result?.error) {
             setError(result.error);
+            toast.error(result.error);
             setLoading(false);
         }
     };

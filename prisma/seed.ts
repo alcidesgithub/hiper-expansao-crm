@@ -169,6 +169,34 @@ async function main() {
     });
     console.log('  ok Configurações de score e automação alinhadas ao funil atual');
 
+    // 5. Seed role permissions matrix
+    const rolePermissionsMatrix = {
+        ADMIN: [
+            'leads:read:all', 'leads:read:team', 'leads:read:own', 'leads:write:own', 'leads:delete', 'leads:assign', 'leads:score:read',
+            'pipeline:advance', 'pipeline:configure', 'pricing:read', 'pricing:write', 'users:manage', 'availability:manage',
+            'dashboard:executive', 'dashboard:operational', 'integrations:manage', 'audit:read', 'system:configure',
+        ],
+        DIRECTOR: [
+            'leads:read:all', 'leads:read:team', 'leads:read:own', 'leads:score:read', 'pricing:read',
+            'dashboard:executive', 'dashboard:operational',
+        ],
+        MANAGER: [
+            'leads:read:all', 'leads:read:team', 'leads:read:own', 'leads:write:own', 'leads:delete', 'leads:assign', 'leads:score:read',
+            'pipeline:advance', 'pricing:read', 'availability:manage', 'dashboard:executive', 'dashboard:operational',
+        ],
+        CONSULTANT: [
+            'leads:read:own', 'leads:write:own', 'leads:score:read', 'pipeline:advance', 'pricing:read', 'availability:manage',
+            'dashboard:operational',
+        ],
+    };
+
+    await prisma.systemSettings.upsert({
+        where: { key: 'role_permissions_matrix' },
+        update: { value: rolePermissionsMatrix as unknown as Prisma.InputJsonValue },
+        create: { key: 'role_permissions_matrix', value: rolePermissionsMatrix as unknown as Prisma.InputJsonValue },
+    });
+    console.log('  ok Matriz de permissões padronizada com sucesso');
+
     console.log('');
     console.log('Seed completed.');
     console.log('');

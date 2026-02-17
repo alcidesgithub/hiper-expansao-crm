@@ -15,6 +15,7 @@ import {
     X,
     XCircle,
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 type UserRole = 'ADMIN' | 'DIRECTOR' | 'MANAGER' | 'CONSULTANT';
 type UserStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
@@ -203,9 +204,10 @@ export default function UsersPage() {
             setEditingUser(null);
             setForm(EMPTY_FORM);
             await loadUsers(true);
+            toast.success(isEditing ? 'Usuário atualizado com sucesso' : 'Usuário criado com sucesso');
         } catch (saveError) {
             console.error(saveError);
-            setFormError('Erro inesperado ao salvar usuário');
+            toast.error('Erro inesperado ao salvar usuário');
         } finally {
             setSaving(false);
         }
@@ -213,29 +215,48 @@ export default function UsersPage() {
 
     async function toggleStatus(user: ManagedUser) {
         const nextStatus: UserStatus = user.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
-        const response = await fetch(`/api/users/${user.id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: nextStatus }),
-        });
-        const payload = await response.json();
-        if (!response.ok) {
-            setError(payload?.error || 'Falha ao alterar status');
-            return;
+        try {
+            const response = await fetch(`/api/users/${user.id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: nextStatus }),
+            });
+            const payload = await response.json();
+            if (!response.ok) {
+                toast.error(payload?.error || 'Falha ao alterar status');
+                return;
+            }
+            await loadUsers(true);
+            toast.success(`Usuário ${nextStatus === 'ACTIVE' ? 'ativado' : 'inativado'} com sucesso`);
+        } catch (error) {
+            console.error(error);
+            toast.error('Erro ao alterar status');
         }
-        await loadUsers(true);
     }
 
-    async function softDelete(user: ManagedUser) {
-        const confirmed = confirm(`Suspender o usuário ${user.name}?`);
+    async function handleDeleteUser(user: ManagedUser) {
+        const confirmed = confirm(`Tem certeza que deseja EXCLUIR PERMANENTEMENTE o usuário ${user.name}? Esta ação não pode ser desfeita.`);
         if (!confirmed) return;
-        const response = await fetch(`/api/users/${user.id}`, { method: 'DELETE' });
-        const payload = await response.json();
-        if (!response.ok) {
-            setError(payload?.error || 'Falha ao suspender usuário');
-            return;
+
+        try {
+            const response = await fetch(`/api/users/${user.id}`, { method: 'DELETE' });
+            const payload = await response.json();
+
+            if (!response.ok) {
+                if (payload.code === 'CONSTRAINT_VIOLATION') {
+                    toast.error(payload.error, { duration: 5000 });
+                } else {
+                    toast.error(payload?.error || 'Falha ao excluir usuário');
+                }
+                return;
+            }
+
+            await loadUsers(true);
+            toast.success('Usuário excluído com sucesso');
+        } catch (error) {
+            console.error(error);
+            toast.error('Erro ao excluir usuário');
         }
-        await loadUsers(true);
     }
 
     return (
@@ -312,9 +333,14 @@ export default function UsersPage() {
                                         <td className="px-4 py-3 text-sm text-gray-500">{formatLastAccess(user.lastLoginAt)}</td>
                                         <td className="px-4 py-3">
                                             <div className="flex justify-end gap-2">
-                                                <button onClick={() => openEditModal(user)} disabled={!canManage} className="px-2 py-1 text-xs border rounded-lg disabled:opacity-40 inline-flex items-center gap-1"><Pencil size={12} />Editar</button>
-                                                <button onClick={() => void toggleStatus(user)} disabled={!canManage || isSelf} className="px-2 py-1 text-xs border rounded-lg disabled:opacity-40 inline-flex items-center gap-1"><Ban size={12} />{user.status === 'ACTIVE' ? 'Inativar' : 'Ativar'}</button>
-                                                <button onClick={() => void softDelete(user)} disabled={!canManage || isSelf || isSuspended} className="px-2 py-1 text-xs border border-red-200 text-red-700 rounded-lg disabled:opacity-40 inline-flex items-center gap-1"><Trash2 size={12} />Excluir lógico</button>
+                                                <button onClick={() => openEditModal(user)} disabled={!canManage} className="px-2 py-1 text-xs border rounded-lg disabled:opacity-40 inline-flex items-center gap-1 hover:bg-gray-50"><Pencil size={12} />Editar</button>
+
+                                                <button onClick={() => void toggleStatus(user)} disabled={!canManage || isSelf} className={`px-2 py-1 text-xs border rounded-lg disabled:opacity-40 inline-flex items-center gap-1 ${user.status === 'ACTIVE' ? 'text-amber-700 border-amber-200 hover:bg-amber-50' : 'text-green-700 border-green-200 hover:bg-green-50'}`}>
+                                                    {user.status === 'ACTIVE' ? <Ban size={12} /> : <CheckCircle2 size={12} />}
+                                                    {user.status === 'ACTIVE' ? 'Inativar' : 'Ativar'}
+                                                </button>
+
+                                                <button onClick={() => void handleDeleteUser(user)} disabled={!canManage || isSelf} className="px-2 py-1 text-xs border border-red-200 text-red-700 rounded-lg disabled:opacity-40 inline-flex items-center gap-1 hover:bg-red-50"><Trash2 size={12} />Excluir</button>
                                             </div>
                                         </td>
                                     </tr>

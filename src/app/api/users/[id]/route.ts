@@ -162,7 +162,7 @@ export async function PATCH(
     }
 }
 
-// DELETE /api/users/[id] - Soft delete (suspend user)
+// DELETE /api/users/[id] - Hard delete user
 export async function DELETE(
     request: Request,
     { params }: { params: Promise<{ id: string }> }
@@ -172,7 +172,7 @@ export async function DELETE(
     if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
     if (!canManageUsers(user)) {
-        return NextResponse.json({ error: 'Sem permissão para suspender usuários' }, { status: 403 });
+        return NextResponse.json({ error: 'Sem permissão para excluir usuários' }, { status: 403 });
     }
 
     const { id } = await params;
@@ -189,7 +189,7 @@ export async function DELETE(
 
         if (user.id && user.id === id) {
             return NextResponse.json(
-                { error: 'Você não pode suspender o próprio usuário' },
+                { error: 'Você não pode excluir o próprio usuário' },
                 { status: 400 }
             );
         }
@@ -198,42 +198,49 @@ export async function DELETE(
             const canProceed = await hasAnotherActiveAdmin(existing.id);
             if (!canProceed) {
                 return NextResponse.json(
-                    { error: 'Não é possível suspender o último administrador ativo' },
+                    { error: 'Não é possível excluir o último administrador ativo' },
                     { status: 400 }
                 );
             }
         }
 
-        const updated = await prisma.user.update({
+        // Tentar excluir fisicamente
+        const deleted = await prisma.user.delete({
             where: { id },
-            data: { status: 'SUSPENDED' },
             select: {
                 id: true,
                 name: true,
                 email: true,
                 role: true,
-                status: true,
-                department: true,
-                phone: true,
-                createdAt: true,
-                lastLoginAt: true,
             },
         });
 
         await logAudit({
             userId: user.id || undefined,
-            action: 'SOFT_DELETE',
+            action: 'DELETE',
             entity: 'User',
             entityId: id,
             changes: {
-                previousStatus: existing.status,
-                newStatus: 'SUSPENDED',
+                deletedUser: {
+                    name: deleted.name,
+                    email: deleted.email,
+                    role: deleted.role
+                }
             },
         });
 
-        return NextResponse.json(updated);
+        return NextResponse.json(deleted);
     } catch (error) {
-        console.error('Error soft deleting user:', error);
-        return NextResponse.json({ error: 'Erro ao suspender usuário' }, { status: 500 });
+        console.error('Error deleting user:', error);
+
+        // Verificar erro de chave estrangeira (P2003 no Prisma)
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+            return NextResponse.json({
+                error: 'Não é possível excluir este usuário pois ele possui registros vinculados (leads, atividades, etc). Considere inativá-lo.',
+                code: 'CONSTRAINT_VIOLATION'
+            }, { status: 409 });
+        }
+
+        return NextResponse.json({ error: 'Erro ao excluir usuário' }, { status: 500 });
     }
 }

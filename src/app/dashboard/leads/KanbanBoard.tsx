@@ -41,11 +41,32 @@ interface NewLeadForm {
     email: string;
     whatsapp: string;
     pharmacyName: string;
+    // Perfil
+    position: string;
+    cargoSub?: string;
+    tempoMercado: string;
     stores: string;
+    lojasSub?: string;
     revenue: string;
-    role: string;
+    // Address
     state: string;
+    city: string;
+    // Funnel Qual
+    desafios: string[];
+    motivacao: string;
+    urgencia: string;
+    historicoRedes: string;
+    // Financial
+    conscienciaInvestimento: string;
+    reacaoValores: string;
+    capacidadeMarketing: string;
+    capacidadeAdmin: string;
+    capacidadePagamentoTotal: string;
+    compromisso: string;
+    // Metadata
     source: string;
+    priority: string;
+    expectedCloseDate: string;
 }
 
 const EMPTY_NEW_LEAD: NewLeadForm = {
@@ -53,12 +74,83 @@ const EMPTY_NEW_LEAD: NewLeadForm = {
     email: '',
     whatsapp: '',
     pharmacyName: '',
-    stores: '',
-    revenue: '',
-    role: '',
+    position: '',
+    cargoSub: '',
+    tempoMercado: '',
+    stores: '1',
+    lojasSub: '',
+    revenue: '0-50k',
     state: '',
-    source: 'WEBSITE',
+    city: '',
+    desafios: [],
+    motivacao: '',
+    urgencia: 'sem-prazo',
+    historicoRedes: 'nunca',
+    conscienciaInvestimento: 'quero-conhecer',
+    reacaoValores: 'alto-saber-mais',
+    capacidadeMarketing: 'planejamento',
+    capacidadeAdmin: 'planejamento',
+    capacidadePagamentoTotal: 'precisaria-ajustes',
+    compromisso: 'curiosidade',
+    source: 'PHONE',
+    priority: 'MEDIUM',
+    expectedCloseDate: '',
 };
+
+const CARGOS_OPTIONS = [
+    { value: 'proprietario', label: 'Proprietário' },
+    { value: 'farmaceutico_rt', label: 'Farmacêutico RT / Sócio' },
+    { value: 'gerente_geral', label: 'Gerente Geral' },
+    { value: 'gerente_comercial', label: 'Gerente Comercial' },
+    { value: 'farmaceutico', label: 'Farmacêutico (não sócio)' },
+    { value: 'outro', label: 'Outro' },
+];
+
+const TEMPO_OPTIONS = [
+    { value: '<1a', label: 'Menos de 1 ano' },
+    { value: '1-3a', label: '1 a 3 anos' },
+    { value: '3-5a', label: '3 a 5 anos' },
+    { value: '5-10a', label: '5 a 10 anos' },
+    { value: '10a+', label: 'Mais de 10 anos' },
+];
+
+const LOJAS_OPTIONS = [
+    { value: '1', label: '1 loja' },
+    { value: '2-3', label: '2 a 3 lojas' },
+    { value: '4-5', label: '4 a 5 lojas' },
+    { value: '6-10', label: '6 a 10 lojas' },
+    { value: '11+', label: '11 ou mais lojas' },
+];
+
+const FATURAMENTO_OPTIONS = [
+    { value: '0-50k', label: 'Até R$ 50k' },
+    { value: '50-100k', label: 'R$ 50k - R$ 100k' },
+    { value: '100-200k', label: 'R$ 100k - R$ 200k' },
+    { value: '200-500k', label: 'R$ 200k - R$ 500k' },
+    { value: '500k+', label: 'Acima de R$ 500k' },
+];
+
+const MOTIVACAO_OPTIONS = [
+    { value: 'poder-compra', label: 'Poder de Compra' },
+    { value: 'reduzir-custos', label: 'Reduzir Custos' },
+    { value: 'suporte', label: 'Suporte de Gestão' },
+    { value: 'marca', label: 'Fortalecer Marca' },
+];
+
+const URGENCIA_OPTIONS = [
+    { value: 'imediato', label: 'Imediato' },
+    { value: 'este-mes', label: 'Este mês' },
+    { value: 'proximo-mes', label: 'Próximo mês' },
+    { value: 'sem-prazo', label: 'Sem prazo' },
+];
+
+const CAPACIDADE_TOTAL_OPTIONS = [
+    { value: 'sim-tranquilo', label: 'Sim, tranquilo' },
+    { value: 'sim-planejamento', label: 'Sim, com planejamento' },
+    { value: 'apertado-possivel', label: 'Apertado, mas possível' },
+    { value: 'precisaria-ajustes', label: 'Precisaria de ajustes' },
+    { value: 'nao-consigo', label: 'Não consigo agora' },
+];
 
 const SOURCE_OPTIONS = [
     { value: 'WEBSITE', label: 'Website' },
@@ -72,6 +164,12 @@ const SOURCE_OPTIONS = [
     { value: 'EVENT', label: 'Evento' },
     { value: 'OTHER', label: 'Outro' },
 ] as const;
+
+
+const UF_OPTIONS = [
+    'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA',
+    'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
+];
 
 function formatLeadDate(value: string | Date): string {
     const date = new Date(value);
@@ -91,6 +189,11 @@ export default function KanbanBoard({ initialStages, initialLeads, permissions }
     const [boardError, setBoardError] = useState<string | null>(null);
     const [formError, setFormError] = useState<string | null>(null);
     const [newLead, setNewLead] = useState<NewLeadForm>(EMPTY_NEW_LEAD);
+    const [isReady, setIsReady] = useState(false);
+
+    React.useEffect(() => {
+        setIsReady(true);
+    }, []);
 
     const filteredLeads = useMemo(() => {
         const query = search.trim().toLowerCase();
@@ -113,6 +216,8 @@ export default function KanbanBoard({ initialStages, initialLeads, permissions }
 
         setBoardError(null);
         const previous = leads;
+
+        // Optimismo na atualização da UI
         const next = leads.map((lead) => {
             if (lead.id !== draggableId) return lead;
             return { ...lead, pipelineStageId: destination.droppableId };
@@ -128,6 +233,8 @@ export default function KanbanBoard({ initialStages, initialLeads, permissions }
 
         router.refresh();
     };
+
+    if (!isReady) return null;
 
     const handleAddLead = async (event: React.FormEvent) => {
         event.preventDefault();
@@ -190,7 +297,10 @@ export default function KanbanBoard({ initialStages, initialLeads, permissions }
                     />
                     <button
                         className="ml-2 flex items-center gap-2 bg-primary hover:bg-primary-hover text-white px-4 py-2 rounded-lg text-sm font-medium shadow-lg shadow-primary/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                        onClick={() => setIsModalOpen(true)}
+                        onClick={() => {
+                            setNewLead(EMPTY_NEW_LEAD);
+                            setIsModalOpen(true);
+                        }}
                         disabled={!canCreateLead}
                     >
                         <Plus size={18} />
@@ -226,48 +336,56 @@ export default function KanbanBoard({ initialStages, initialLeads, permissions }
                                             <div
                                                 {...provided.droppableProps}
                                                 ref={provided.innerRef}
-                                                className={`flex-1 rounded-xl p-2 overflow-y-auto space-y-3 border transition-colors
-                                                    ${snapshot.isDraggingOver ? 'bg-blue-50 border-blue-200' : 'bg-[#f0efef] border-gray-200'}
+                                                className={`flex-1 rounded-xl p-2 overflow-y-auto space-y-3 border transition-all duration-200
+                                                    ${snapshot.isDraggingOver ? 'bg-blue-50/50 border-blue-200 ring-4 ring-blue-500/5' : 'bg-[#f0efef] border-gray-200'}
                                                     ${stage.isWon ? 'bg-green-50/50 border-green-200 border-dashed' : ''}
                                                     ${stage.isLost ? 'bg-gray-50/80 border-gray-200 border-dashed opacity-75' : ''}
                                                 `}
                                             >
                                                 {stageLeads.map((lead, index) => (
-                                                    <Draggable key={lead.id} draggableId={lead.id} index={index}>
+                                                    <Draggable key={lead.id} draggableId={lead.id} index={index} isDragDisabled={!canAdvancePipeline}>
                                                         {(dragProvided, dragSnapshot) => (
-                                                            <button
-                                                                type="button"
+                                                            <div
                                                                 ref={dragProvided.innerRef}
                                                                 {...dragProvided.draggableProps}
-                                                                {...(canAdvancePipeline ? dragProvided.dragHandleProps : {})}
+                                                                {...dragProvided.dragHandleProps}
                                                                 style={dragProvided.draggableProps.style}
-                                                                onClick={() => {
-                                                                    if (!dragSnapshot.isDragging) {
-                                                                        router.push(`/dashboard/leads/${lead.id}`);
-                                                                    }
-                                                                }}
-                                                                className={`w-full text-left bg-white p-4 rounded-lg shadow-sm border border-gray-200/60 hover:border-primary/50 ${canAdvancePipeline ? 'cursor-grab' : 'cursor-pointer'} group transition-colors relative
-                                                                    ${dragSnapshot.isDragging ? 'shadow-lg rotate-2 scale-105 z-50' : ''}
-                                                                `}
+                                                                className="relative"
                                                             >
-                                                                <div className="flex justify-between items-start mb-2">
-                                                                    {lead.grade ? (
-                                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${lead.grade === 'A' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
-                                                                            {lead.score} ({lead.grade})
-                                                                        </span>
-                                                                    ) : (
-                                                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider bg-gray-100 text-gray-600">
-                                                                            Novo
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                                <h4 className="font-semibold text-gray-800 mb-0.5">{lead.name}</h4>
-                                                                <p className="text-xs text-gray-500 mb-3 font-medium">{lead.company || 'Empresa não informada'}</p>
-                                                                <div className="flex items-center gap-1.5 text-xs text-gray-400 border-t border-gray-100 pt-3">
-                                                                    <Clock size={14} />
-                                                                    <span>{formatLeadDate(lead.createdAt)}</span>
-                                                                </div>
-                                                            </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        if (!dragSnapshot.isDragging) {
+                                                                            router.push(`/dashboard/leads/${lead.id}`);
+                                                                        }
+                                                                    }}
+                                                                    className={`w-full text-left bg-white p-4 rounded-lg shadow-sm border transition-all duration-200 group relative
+                                                                        ${dragSnapshot.isDragging
+                                                                            ? 'shadow-2xl border-primary ring-2 ring-primary/20 rotate-1 scale-[1.02] z-[100] cursor-grabbing'
+                                                                            : 'border-gray-200/60 hover:border-primary/50 hover:shadow-md cursor-grab active:cursor-grabbing'
+                                                                        }
+                                                                        ${!canAdvancePipeline ? 'cursor-pointer active:cursor-pointer' : ''}
+                                                                    `}
+                                                                >
+                                                                    <div className="flex justify-between items-start mb-2">
+                                                                        {lead.grade ? (
+                                                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${lead.grade === 'A' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                                                                                {lead.score} ({lead.grade})
+                                                                            </span>
+                                                                        ) : (
+                                                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider bg-gray-100 text-gray-600">
+                                                                                Novo
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <h4 className="font-semibold text-gray-800 mb-0.5">{lead.name}</h4>
+                                                                    <p className="text-xs text-gray-500 mb-3 font-medium">{lead.company || 'Empresa não informada'}</p>
+                                                                    <div className="flex items-center gap-1.5 text-xs text-gray-400 border-t border-gray-100 pt-3">
+                                                                        <Clock size={14} />
+                                                                        <span>{formatLeadDate(lead.createdAt)}</span>
+                                                                    </div>
+                                                                </button>
+                                                            </div>
                                                         )}
                                                     </Draggable>
                                                 ))}
@@ -293,15 +411,154 @@ export default function KanbanBoard({ initialStages, initialLeads, permissions }
                         <form onSubmit={handleAddLead} className="p-6 space-y-4">
                             {formError && <div className="rounded-md bg-red-50 border border-red-100 px-3 py-2 text-sm text-red-700">{formError}</div>}
 
-                            <input placeholder="Nome completo" className="w-full p-2 border rounded" value={newLead.name} onChange={(e) => setNewLead({ ...newLead, name: e.target.value })} />
-                            <input placeholder="Email" className="w-full p-2 border rounded" value={newLead.email} onChange={(e) => setNewLead({ ...newLead, email: e.target.value })} />
-                            <input placeholder="WhatsApp" className="w-full p-2 border rounded" value={newLead.whatsapp} onChange={(e) => setNewLead({ ...newLead, whatsapp: e.target.value })} />
-                            <input placeholder="Nome da farmácia" className="w-full p-2 border rounded" value={newLead.pharmacyName} onChange={(e) => setNewLead({ ...newLead, pharmacyName: e.target.value })} />
-                            <select className="w-full p-2 border rounded" value={newLead.source} onChange={(e) => setNewLead({ ...newLead, source: e.target.value })}>
-                                {SOURCE_OPTIONS.map((source) => (
-                                    <option key={source.value} value={source.value}>{source.label}</option>
-                                ))}
-                            </select>
+                            <div className="bg-gray-50 -mx-6 -mt-6 p-6 mb-6 border-b border-gray-100">
+                                <h2 className="text-sm font-bold text-gray-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                                    Informações de Contato
+                                </h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Nome Completo</label>
+                                        <input className="w-full p-2 border rounded text-sm" value={newLead.name} onChange={(e) => setNewLead({ ...newLead, name: e.target.value })} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Email</label>
+                                        <input className="w-full p-2 border rounded text-sm" value={newLead.email} onChange={(e) => setNewLead({ ...newLead, email: e.target.value })} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase">WhatsApp</label>
+                                        <input className="w-full p-2 border rounded text-sm" value={newLead.whatsapp} onChange={(e) => setNewLead({ ...newLead, whatsapp: e.target.value })} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-gray-500 uppercase">Empresa/Farmácia</label>
+                                        <input className="w-full p-2 border rounded text-sm" value={newLead.pharmacyName} onChange={(e) => setNewLead({ ...newLead, pharmacyName: e.target.value })} />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                <div className="space-y-4">
+                                    <h3 className="text-xs font-bold text-gray-700 uppercase flex items-center gap-2">
+                                        <div className="w-1 h-1 rounded-full bg-blue-500" />
+                                        Perfil do Decisor
+                                    </h3>
+                                    <div className="space-y-3">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-gray-500 uppercase">Cargo</label>
+                                            <select className="w-full p-2 border rounded text-sm" value={newLead.position} onChange={(e) => setNewLead({ ...newLead, position: e.target.value })}>
+                                                <option value="">Selecione...</option>
+                                                {CARGOS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-gray-500 uppercase">Tempo de Mercado</label>
+                                            <select className="w-full p-2 border rounded text-sm" value={newLead.tempoMercado} onChange={(e) => setNewLead({ ...newLead, tempoMercado: e.target.value })}>
+                                                {TEMPO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <h3 className="text-xs font-bold text-gray-700 uppercase flex items-center gap-2">
+                                        <div className="w-1 h-1 rounded-full bg-blue-500" />
+                                        Perfil da Empresa
+                                    </h3>
+                                    <div className="space-y-3">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-gray-500 uppercase">Número de Lojas</label>
+                                            <select className="w-full p-2 border rounded text-sm" value={newLead.stores} onChange={(e) => setNewLead({ ...newLead, stores: e.target.value })}>
+                                                {LOJAS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-gray-500 uppercase">Faturamento Mensal</label>
+                                            <select className="w-full p-2 border rounded text-sm" value={newLead.revenue} onChange={(e) => setNewLead({ ...newLead, revenue: e.target.value })}>
+                                                {FATURAMENTO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <div className="w-2/3 space-y-1">
+                                                <label className="text-[10px] font-bold text-gray-500 uppercase">Cidade</label>
+                                                <input className="w-full p-2 border rounded text-sm" value={newLead.city} onChange={(e) => setNewLead({ ...newLead, city: e.target.value })} />
+                                            </div>
+                                            <div className="w-1/3 space-y-1">
+                                                <label className="text-[10px] font-bold text-gray-500 uppercase">UF</label>
+                                                <select className="w-full p-2 border rounded text-sm" value={newLead.state} onChange={(e) => setNewLead({ ...newLead, state: e.target.value })}>
+                                                    <option value="">UF</option>
+                                                    {UF_OPTIONS.map(uf => <option key={uf} value={uf}>{uf}</option>)}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <h3 className="text-xs font-bold text-gray-700 uppercase flex items-center gap-2">
+                                        <div className="w-1 h-1 rounded-full bg-blue-500" />
+                                        Necessidades e Prazos
+                                    </h3>
+                                    <div className="space-y-3">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-gray-500 uppercase">Motivação Principal</label>
+                                            <select className="w-full p-2 border rounded text-sm" value={newLead.motivacao} onChange={(e) => setNewLead({ ...newLead, motivacao: e.target.value })}>
+                                                <option value="">Selecione...</option>
+                                                {MOTIVACAO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-gray-500 uppercase">Urgência</label>
+                                            <select className="w-full p-2 border rounded text-sm" value={newLead.urgencia} onChange={(e) => setNewLead({ ...newLead, urgencia: e.target.value })}>
+                                                {URGENCIA_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-gray-500 uppercase">Previsão Fechamento</label>
+                                            <input type="date" className="w-full p-2 border rounded text-sm" value={newLead.expectedCloseDate} onChange={(e) => setNewLead({ ...newLead, expectedCloseDate: e.target.value })} />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="lg:col-span-2 space-y-4">
+                                    <h3 className="text-xs font-bold text-gray-700 uppercase flex items-center gap-2">
+                                        <div className="w-1 h-1 rounded-full bg-blue-500" />
+                                        Capacidade Financeira e Compromisso
+                                    </h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-gray-500 uppercase">Capacidade Total Mensal</label>
+                                            <select className="w-full p-2 border rounded text-sm" value={newLead.capacidadePagamentoTotal} onChange={(e) => setNewLead({ ...newLead, capacidadePagamentoTotal: e.target.value })}>
+                                                {CAPACIDADE_TOTAL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-gray-500 uppercase">Nível de Compromisso</label>
+                                            <select className="w-full p-2 border rounded text-sm" value={newLead.compromisso} onChange={(e) => setNewLead({ ...newLead, compromisso: e.target.value })}>
+                                                <option value="faz-sentido">Faz total sentido</option>
+                                                <option value="interessante">Achei interessante</option>
+                                                <option value="curiosidade">Apenas curiosidade</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <h3 className="text-xs font-bold text-gray-700 uppercase flex items-center gap-2">
+                                        <div className="w-1 h-1 rounded-full bg-blue-500" />
+                                        Origem e Prioridade Manual
+                                    </h3>
+                                    <div className="grid grid-cols-1 gap-3">
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-gray-500 uppercase">Origem do Lead</label>
+                                            <select className="w-full p-2 border rounded text-sm" value={newLead.source} onChange={(e) => setNewLead({ ...newLead, source: e.target.value })}>
+                                                {SOURCE_OPTIONS.map((source) => (
+                                                    <option key={source.value} value={source.value}>{source.label}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
 
                             <div className="flex justify-end gap-2 pt-4">
                                 <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 border rounded">Cancelar</button>

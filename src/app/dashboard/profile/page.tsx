@@ -10,16 +10,13 @@ import {
     Lock,
     Save,
     Loader2,
-    CheckCircle2,
-    AlertCircle
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
+import { toast } from 'sonner';
 
 export default function ProfilePage() {
     const { data: session, update } = useSession();
     const [loading, setLoading] = useState(false);
-    const [success, setSuccess] = useState<string | null>(null);
-    const [error, setError] = useState<string | null>(null);
 
     const [form, setForm] = useState({
         name: '',
@@ -46,11 +43,9 @@ export default function ProfilePage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
-        setSuccess(null);
-        setError(null);
 
         if (form.newPassword && form.newPassword !== form.confirmPassword) {
-            setError('As novas senhas não coincidem');
+            toast.error('As novas senhas não coincidem');
             setLoading(false);
             return;
         }
@@ -80,13 +75,13 @@ export default function ProfilePage() {
                 throw new Error(data.error || 'Erro ao atualizar perfil');
             }
 
-            setSuccess('Perfil atualizado com sucesso!');
+            toast.success('Perfil atualizado com sucesso!');
             setForm(prev => ({ ...prev, currentPassword: '', newPassword: '', confirmPassword: '' }));
 
             // Refetch session
             await update();
         } catch (err: any) {
-            setError(err.message);
+            toast.error(err.message);
         } finally {
             setLoading(false);
         }
@@ -116,20 +111,6 @@ export default function ProfilePage() {
                     <p className="text-gray-500">Gerencie suas informações pessoais e segurança da conta.</p>
                 </div>
             </div>
-
-            {success && (
-                <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
-                    <CheckCircle2 size={18} />
-                    <span className="text-sm font-medium">{success}</span>
-                </div>
-            )}
-
-            {error && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
-                    <AlertCircle size={18} />
-                    <span className="text-sm font-medium">{error}</span>
-                </div>
-            )}
 
             <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Profile Card */}

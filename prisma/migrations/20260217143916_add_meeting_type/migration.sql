@@ -1,0 +1,5 @@
+-- CreateEnum
+CREATE TYPE "MeetingType" AS ENUM ('DIAGNOSTICO', 'APRESENTACAO', 'FECHAMENTO', 'FOLLOWUP', 'OUTRO');
+
+-- AlterTable
+ALTER TABLE "Meeting" ADD COLUMN     "meetingType" "MeetingType" NOT NULL DEFAULT 'DIAGNOSTICO';

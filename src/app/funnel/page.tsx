@@ -8,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { ArrowRight, User, Phone, Mail, Building2 } from 'lucide-react';
 import { loadDraft, saveDraft } from './_utils/draft';
+import { toast } from 'sonner';
 
 const STEP_ONE_DRAFT_KEY = 'funnel:step1';
 const GATE_APPROVED_KEY = 'funnel:gate:approved';
@@ -120,10 +121,12 @@ function FunnelStepOneContent() {
             });
             if (result?.error) {
                 setFormError(result.error);
+                toast.error(result.error);
             }
         } catch (error) {
             console.error(error);
             setFormError('Não foi possível continuar. Tente novamente.');
+            toast.error('Não foi possível continuar. Tente novamente.');
         } finally {
             setIsSubmitting(false);
         }

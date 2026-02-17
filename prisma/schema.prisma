@@ -298,6 +298,15 @@ enum MeetingStatus {
   RESCHEDULED
 }
 
+
+enum MeetingType {
+  DIAGNOSTICO
+  APRESENTACAO
+  FECHAMENTO
+  FOLLOWUP
+  OUTRO
+}
+
 model Meeting {
   id              String        @id @default(cuid())
   leadId          String
@@ -305,6 +314,7 @@ model Meeting {
   userId          String
   user            User          @relation(fields: [userId], references: [id])
   
+  meetingType     MeetingType   @default(DIAGNOSTICO)
   title           String
   description     String?
   

@@ -52,20 +52,32 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
             if (user) {
                 token.id = user.id;
                 token.role = (user as any).role;
+                console.log('[Auth JWT] Initial sign in for user:', { email: user.email, role: token.role });
+            }
 
-                // Fetch permissions
-                if (token.role) {
+            // Aggressively fetch/sync permissions if role exists
+            if (token.role) {
+                try {
                     const allPermissions = await getRolePermissions();
                     const role = token.role as AppRole;
-                    // Safely get permissions for the role
-                    // Type assertion because we know the service returns Permission[]
                     token.permissions = (allPermissions[role] || []) as string[];
+                    // console.log('[Auth JWT] Aggressive sync for role:', role, 'count:', token.permissions.length);
+                } catch (error) {
+                    console.error('[Auth JWT] Failed to sync permissions:', error);
                 }
             }
 
             // Update session trigger
-            if (trigger === "update" && session?.permissions) {
-                token.permissions = session.permissions;
+            if (trigger === "update") {
+                if (session?.user?.permissions) {
+                    token.permissions = session.user.permissions;
+                } else if (session?.permissions) {
+                    token.permissions = session.permissions;
+                }
+                if (session?.user?.role) {
+                    token.role = session.user.role;
+                }
+                console.log('[Auth JWT] Update trigger. New role:', token.role, 'Perm count:', (token.permissions as string[])?.length);
             }
 
             return token;

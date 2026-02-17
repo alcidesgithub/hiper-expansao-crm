@@ -1,15 +1,22 @@
 'use client';
 
 import React from 'react';
-import { useActionState } from 'react';
+import { useActionState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Mail, Lock, Eye, LogIn, LockKeyhole } from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
 import { authenticate } from '@/app/lib/actions';
+import { toast } from 'sonner';
 
 export default function LoginPage() {
     const [errorMessage, dispatch, isPending] = useActionState(authenticate, undefined);
+
+    useEffect(() => {
+        if (errorMessage) {
+            toast.error(errorMessage);
+        }
+    }, [errorMessage]);
 
     return (
         <div className="h-screen w-full flex overflow-hidden bg-background-light font-sans">

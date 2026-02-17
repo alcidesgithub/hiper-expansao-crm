@@ -22,8 +22,21 @@ export type Permission =
     | 'system:configure';
 
 export interface PermissionUser {
+    id?: string | null;
     role?: string | null;
     permissions?: string[] | null;
+}
+
+export function getLeadPermissions(user: PermissionUser | null | undefined, lead: any) {
+    if (!user) return { canEditLead: false, canAdvancePipeline: false, canDeleteLead: false };
+
+    // In current implementation, if lead is in scope (found by findFirst with scope), 
+    // these permissions define what can be done.
+    return {
+        canEditLead: can(user, 'leads:write:own'),
+        canAdvancePipeline: can(user, 'pipeline:advance'),
+        canDeleteLead: can(user, 'leads:delete'),
+    };
 }
 
 export function isAppRole(role: string): role is AppRole {

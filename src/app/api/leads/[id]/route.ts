@@ -5,7 +5,7 @@ import { auth } from '@/auth';
 import { leadUpdateSchema } from '@/lib/validation';
 import { logAudit } from '@/lib/audit';
 import { buildLeadScope, getManagerScopedUserIds, mergeLeadWhere } from '@/lib/lead-scope';
-import { can, canAny } from '@/lib/permissions';
+import { can, canAny, getLeadPermissions } from '@/lib/permissions';
 import { buildLeadSelect } from '@/lib/lead-select';
 import { calculateLeadScore, DynamicScoringCriterion } from '@/lib/scoring';
 import { processAutomationRules, AutomationRule } from '@/lib/automation';
@@ -95,13 +95,18 @@ export async function GET(
     if (!canView(user)) return NextResponse.json({ error: 'Sem permissão para visualizar leads' }, { status: 403 });
 
     const { id } = await params;
+    console.log('[API Lead GET] Requesting lead ID:', id, 'User:', user.id);
 
     try {
         const leadScope = await buildLeadScope(user);
         const lead = await getLeadDetails(id, leadScope, user);
+        console.log('[API Lead GET] Lead details result:', { id, found: !!lead });
         if (!lead) return NextResponse.json({ error: 'Lead não encontrado' }, { status: 404 });
 
-        return NextResponse.json(lead);
+        return NextResponse.json({
+            ...lead,
+            permissions: getLeadPermissions(user, lead),
+        });
     } catch (error) {
         console.error('Error fetching lead:', error);
         return NextResponse.json({ error: 'Erro ao buscar lead' }, { status: 500 });

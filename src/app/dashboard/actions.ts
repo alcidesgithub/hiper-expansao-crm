@@ -2,10 +2,13 @@
 
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { Prisma } from '@prisma/client';
+import { Prisma, LeadSource, LeadPriority, LeadStatus, Lead } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
-import { canAny } from '@/lib/permissions';
-import { subDays, startOfDay } from 'date-fns';
+import { canAny, getLeadPermissions } from '@/lib/permissions';
+import { buildLeadScope, mergeLeadWhere } from '@/lib/lead-scope';
+import { subDays } from 'date-fns';
+import { calculateLeadScore, calcularScore, type QualificationData, type DynamicScoringCriterion } from '@/lib/scoring';
+import { DEFAULT_SCORING_CRITERIA } from '@/lib/config-options';
 
 export async function searchLeads(query: string) {
     const session = await auth();
@@ -203,8 +206,10 @@ export async function getLeadById(id: string) {
     const session = await auth();
     if (!session?.user) return null;
 
-    return prisma.lead.findUnique({
-        where: { id },
+    const leadScope = await buildLeadScope(session.user);
+
+    const lead = await prisma.lead.findFirst({
+        where: mergeLeadWhere({ id }, leadScope),
         include: {
             pipelineStage: true,
             assignedUser: {
@@ -246,6 +251,28 @@ export async function getLeadById(id: string) {
             },
         },
     });
+
+    console.log('[getLeadById] Lead finding result:', { id, found: !!lead });
+    if (!lead) return null;
+
+    // Get available stages for the initial render
+    const pipelineId = lead.pipelineStage?.pipelineId || null;
+    const availableStages = pipelineId
+        ? await prisma.pipelineStage.findMany({
+            where: { pipelineId },
+            orderBy: { order: 'asc' },
+            select: { id: true, name: true, order: true, color: true, isWon: true, isLost: true },
+        })
+        : [];
+
+    const result = {
+        ...lead,
+        availableStages,
+        permissions: getLeadPermissions(session.user, lead),
+    };
+
+    // Ensure serialization for Decimal and Date fields
+    return JSON.parse(JSON.stringify(result));
 }
 
 export async function getFunnelMetrics(period: string = '30d') {
@@ -330,7 +357,7 @@ export async function getFunnelGateAnalytics(period: string = '30d') {
     };
 
     leads.forEach(lead => {
-        const data = lead.qualificationData as any;
+        const data = lead.qualificationData as { role?: string };
         const role = data?.role?.toLowerCase();
         if (role === 'decisor' || role === 'proprietário' || role === 'socio') totals.decisor++;
         else if (role === 'influenciador' || role === 'gerente') totals.influenciador++;
@@ -351,35 +378,121 @@ export async function getKanbanData() {
     const session = await auth();
     if (!session?.user) throw new Error('Unauthorized');
 
-    const role = (session.user as any).role;
+    const leadScope = await buildLeadScope(session.user);
 
     const [stages, leads] = await Promise.all([
         prisma.pipelineStage.findMany({
             orderBy: { order: 'asc' }
         }),
         prisma.lead.findMany({
-            where: { status: { notIn: ['ARCHIVED'] } },
+            where: mergeLeadWhere({ status: { notIn: ['ARCHIVED'] } }, leadScope),
             orderBy: { updatedAt: 'desc' }
         })
     ]);
 
     const permissions = {
-        canCreateLead: canAny(session.user, ['dashboard:executive', 'dashboard:operational']),
-        canAdvancePipeline: canAny(session.user, ['dashboard:executive', 'dashboard:operational'])
+        canCreateLead: canAny(session.user, ['dashboard:executive', 'dashboard:operational', 'leads:write:own']),
+        canAdvancePipeline: canAny(session.user, ['dashboard:executive', 'dashboard:operational', 'pipeline:advance'])
     };
 
     return { stages, leads, permissions };
 }
 
-export async function createLead(data: any) {
+interface CreateLeadData {
+    name: string;
+    email: string;
+    whatsapp: string;
+    pharmacyName: string;
+    position: string;
+    source: string;
+    priority: string;
+    // Qual Fields
+    tempoMercado: string;
+    stores: string;
+    revenue: string;
+    city: string;
+    state: string;
+    motivacao: string;
+    urgencia: string;
+    capacidadePagamentoTotal: string;
+    compromisso: string;
+    // Metadata
+    expectedCloseDate: string;
+}
+
+export async function createLead(data: CreateLeadData) {
     const session = await auth();
     if (!session?.user) return { success: false, error: 'Não autorizado' };
 
     try {
-        // Encontra o primeiro estágio do pipeline
-        const firstStage = await prisma.pipelineStage.findFirst({
-            orderBy: { order: 'asc' }
+        const pipeline = await prisma.pipeline.findFirst({
+            where: { isActive: true },
+            include: {
+                stages: { orderBy: { order: 'asc' } }
+            }
         });
+
+        const stages = pipeline?.stages || [];
+        const firstStage = stages.find(s => !s.isWon && !s.isLost) || stages[0];
+        const lostStage = stages.find(s => s.isLost);
+
+        // Prepare Qualification Data for scoring
+        const fullQualData: QualificationData = {
+            isDecisionMaker: true,
+            nome: data.name,
+            email: data.email,
+            telefone: data.whatsapp,
+            empresa: data.pharmacyName,
+            cargo: data.position,
+            tempoMercado: data.tempoMercado,
+            numeroLojas: data.stores,
+            faturamento: data.revenue,
+            localizacao: data.state,
+            motivacao: data.motivacao,
+            urgencia: data.urgencia,
+            capacidadePagamentoTotal: data.capacidadePagamentoTotal,
+            compromisso: data.compromisso,
+            desafios: [],
+            historicoRedes: 'nunca',
+            conscienciaInvestimento: 'quero-conhecer',
+            reacaoValores: 'alto-saber-mais',
+            capacidadeMarketing: 'planejamento',
+            capacidadeAdmin: 'planejamento',
+        };
+
+        // Calculate Scores
+        const legacyResult = calcularScore(fullQualData);
+
+        // Try to get dynamic scoring settings if they exist
+        const settings = await prisma.systemSettings.findFirst({
+            where: { key: 'config.scoringCriteria.v1' }
+        });
+        const scoringCriteria = (settings?.value as unknown as DynamicScoringCriterion[]) || DEFAULT_SCORING_CRITERIA;
+
+        // Mock lead for dynamic score calculation
+        const mockLead = { qualificationData: fullQualData } as unknown as Lead;
+        const dynamicScore = calculateLeadScore(mockLead, scoringCriteria);
+
+        // Resolve Grade
+        let grade: 'A' | 'B' | 'C' | 'D' | 'F' = 'D';
+        if (legacyResult.eliminado || dynamicScore < 35) grade = 'F';
+        else if (dynamicScore >= 85) grade = 'A';
+        else if (dynamicScore >= 70) grade = 'B';
+        else if (dynamicScore >= 55) grade = 'C';
+
+        // Status and Stage Logic
+        const status = grade === 'F' ? LeadStatus.LOST : LeadStatus.NEW;
+        const pipelineStageId = (grade === 'F' && lostStage) ? lostStage.id : firstStage?.id;
+
+        // Priority Logic
+        const priorityMap: Record<string, LeadPriority> = {
+            'A': LeadPriority.URGENT,
+            'B': LeadPriority.HIGH,
+            'C': LeadPriority.MEDIUM,
+            'D': LeadPriority.LOW,
+            'F': LeadPriority.LOW,
+        };
+        const resolvedPriority = priorityMap[grade] || LeadPriority.MEDIUM;
 
         const lead = await prisma.lead.create({
             data: {
@@ -387,14 +500,24 @@ export async function createLead(data: any) {
                 email: data.email,
                 phone: data.whatsapp,
                 company: data.pharmacyName,
-                source: data.source as any,
-                status: 'NEW',
-                pipelineStageId: firstStage?.id,
+                position: data.position,
+                source: (data.source as LeadSource) || LeadSource.OTHER,
+                priority: resolvedPriority,
+                status: status,
+                pipelineStageId: pipelineStageId,
+                score: dynamicScore,
+                grade: grade,
+                expectedCloseDate: data.expectedCloseDate ? new Date(data.expectedCloseDate) : null,
                 qualificationData: {
-                    stores: data.stores,
-                    revenue: data.revenue,
-                    role: data.role,
-                    state: data.state
+                    ...fullQualData,
+                    city: data.city,
+                    state: data.state,
+                    scoringResult: {
+                        source: 'manual-entry',
+                        grade,
+                        scoreNormalizado: dynamicScore,
+                        detalhes: legacyResult.detalhes
+                    }
                 }
             }
         });
@@ -485,17 +608,27 @@ export async function createMeeting(data: {
         const durationMinutes = parseInt(data.duration) || 60;
         const end = new Date(start.getTime() + durationMinutes * 60000);
 
+        const meetingTypeMap: Record<string, 'DIAGNOSTICO' | 'APRESENTACAO' | 'FECHAMENTO' | 'FOLLOWUP'> = {
+            'diagnostico': 'DIAGNOSTICO',
+            'apresentacao': 'APRESENTACAO',
+            'fechamento': 'FECHAMENTO',
+            'followup': 'FOLLOWUP'
+        };
+
+        const meetingType = meetingTypeMap[data.type] || 'DIAGNOSTICO';
+
         const meeting = await prisma.meeting.create({
             data: {
                 title: `${data.type.charAt(0).toUpperCase() + data.type.slice(1)} - Meeting`,
                 startTime: start,
                 endTime: end,
                 leadId: data.leadId,
-                userId: (session.user as any).id,
+                userId: (session.user as { id: string }).id,
                 description: data.notes,
                 status: 'SCHEDULED',
                 teamsJoinUrl: data.autoLink ? `https://teams.microsoft.com/l/meetup-join/mock-${Math.random().toString(36).substring(7)}` : null,
-                provider: data.autoLink ? 'TEAMS' : null
+                provider: data.autoLink ? 'TEAMS' : null,
+                meetingType: meetingType
             }
         });
 

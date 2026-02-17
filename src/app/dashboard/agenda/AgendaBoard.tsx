@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import MiniCalendar from './MiniCalendar';
 import {
     ChevronLeft,
     ChevronRight,
@@ -17,6 +18,7 @@ import {
     ExternalLink
 } from 'lucide-react';
 import { format, addDays, startOfWeek, addWeeks, subWeeks, startOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isToday, addMonths, subMonths, getHours, getMinutes } from 'date-fns';
+import { useSearchParams } from 'next/navigation';
 import { ptBR } from 'date-fns/locale';
 import { createMeeting, deleteMeeting } from '../actions';
 
@@ -29,6 +31,7 @@ interface Meeting {
     endTime: string | Date;
     leadId: string;
     description?: string | null;
+    meetingType?: string; // Prisma enum comes as string in JSON usually, or we can type it strictly
     lead?: {
         name: string;
         company: string | null;
@@ -55,7 +58,17 @@ export default function AgendaBoard({ initialMeetings, leads }: AgendaBoardProps
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [isLoadingMeetings, setIsLoadingMeetings] = useState(false);
+    const searchParams = useSearchParams();
     const [searchTerm, setSearchTerm] = useState('');
+
+    // Check for leadId in URL to open modal automatically
+    useEffect(() => {
+        const leadIdParam = searchParams.get('leadId');
+        if (leadIdParam) {
+            setNewEvent(prev => ({ ...prev, leadId: leadIdParam }));
+            setIsModalOpen(true);
+        }
+    }, [searchParams]);
 
     // Filters State
     const [filters, setFilters] = useState({
@@ -243,26 +256,24 @@ export default function AgendaBoard({ initialMeetings, leads }: AgendaBoardProps
         return meetings.filter(meeting => {
             if (meeting.status === 'CANCELLED') return false;
 
-            const titleLower = meeting.title.toLowerCase();
-            const normalized = titleLower
-                .normalize('NFD')
-                .replace(/\p{Diacritic}/gu, '');
+            // Normalize type checking
+            const type = meeting.meetingType || 'DIAGNOSTICO'; // Default for old records
 
-            const isDiagnostico = normalized.includes('diagnostico');
-            const isApresentacao = normalized.includes('apresentacao');
-            const isFechamento = normalized.includes('fechamento');
-            const isFollowup = normalized.includes('follow-up') || normalized.includes('followup');
+            const isDiagnostico = type === 'DIAGNOSTICO';
+            const isApresentacao = type === 'APRESENTACAO';
+            const isFechamento = type === 'FECHAMENTO';
+            const isFollowup = type === 'FOLLOWUP';
 
             const typeAllowed =
                 (filters.diagnostico && isDiagnostico) ||
                 (filters.apresentacao && isApresentacao) ||
                 (filters.fechamento && isFechamento) ||
-                (filters.followup && isFollowup) ||
-                (!isDiagnostico && !isApresentacao && !isFechamento && !isFollowup);
+                (filters.followup && isFollowup);
 
             if (!typeAllowed) return false;
             if (!search) return true;
 
+            const titleLower = meeting.title.toLowerCase();
             const leadName = meeting.lead?.name?.toLowerCase() || '';
             const leadCompany = meeting.lead?.company?.toLowerCase() || '';
             return titleLower.includes(search) || leadName.includes(search) || leadCompany.includes(search);
@@ -294,22 +305,15 @@ export default function AgendaBoard({ initialMeetings, leads }: AgendaBoardProps
                     Nova Reunião
                 </button>
 
-                {/* Mini Calendar Widget (Static for now, could be interactive) */}
-                <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="font-semibold text-sm text-gray-900 capitalize">{format(currentDate, 'MMMM yyyy', { locale: ptBR })}</h3>
-                        <div className="flex gap-1">
-                            <button onClick={handlePrevious} className="p-1 hover:bg-gray-200 rounded text-gray-500"><ChevronLeft size={16} /></button>
-                            <button onClick={handleNext} className="p-1 hover:bg-gray-200 rounded text-gray-500"><ChevronRight size={16} /></button>
-                        </div>
-                    </div>
-                    {/* Simplified mini grid */}
-                    <div className="grid grid-cols-7 gap-1 text-center text-xs mb-2 text-gray-400 font-medium">
-                        <div>D</div><div>S</div><div>T</div><div>Q</div><div>Q</div><div>S</div><div>S</div>
-                    </div>
-                    {/* We can reproduce the month grid logic here cleanly later */}
-                    <div className="text-xs text-center text-gray-400 py-4">Mini Calendário (Visual)</div>
-                </div>
+                {/* Mini Calendar Widget */}
+                <MiniCalendar
+                    currentDate={currentDate}
+                    onDateChange={(date) => {
+                        setCurrentDate(date);
+                        // Optional: Switch to day view if user clicks a specific day in month view?
+                        // For now, keep current view but update date.
+                    }}
+                />
 
                 {/* Calendars Filter */}
                 <div>

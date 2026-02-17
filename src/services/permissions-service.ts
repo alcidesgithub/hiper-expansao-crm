@@ -18,31 +18,34 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
         'pricing:read',
         'pricing:write',
         'users:manage',
+        'availability:manage',
         'dashboard:executive',
         'dashboard:operational',
-
         'integrations:manage',
         'audit:read',
-        'availability:manage',
         'system:configure',
     ],
     DIRECTOR: [
         'leads:read:all',
+        'leads:read:team',
+        'leads:read:own',
         'leads:score:read',
         'pricing:read',
         'dashboard:executive',
         'dashboard:operational',
-        'system:configure',
     ],
     MANAGER: [
+        'leads:read:all',
         'leads:read:team',
         'leads:read:own',
         'leads:write:own',
+        'leads:delete',
         'leads:assign',
         'leads:score:read',
         'pipeline:advance',
         'pricing:read',
-        'dashboard:operational',
+        'availability:manage',
+        'dashboard:executive',
         'dashboard:operational',
     ],
     CONSULTANT: [
@@ -50,8 +53,9 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
         'leads:write:own',
         'leads:score:read',
         'pipeline:advance',
-        'pipeline:advance',
+        'pricing:read',
         'availability:manage',
+        'dashboard:operational',
     ],
 };
 
@@ -78,7 +82,7 @@ export const ALL_PERMISSIONS: Permission[] = [
 ];
 
 export const PERMISSIONS_BY_RESOURCE: Record<string, Permission[]> = {
-    'Leads': [
+    'Gestão de Leads': [
         'leads:read:all',
         'leads:read:team',
         'leads:read:own',
@@ -87,26 +91,25 @@ export const PERMISSIONS_BY_RESOURCE: Record<string, Permission[]> = {
         'leads:assign',
         'leads:score:read',
     ],
-    'Pipeline': [
+    'Pipeline e Vendas': [
         'pipeline:advance',
         'pipeline:configure',
     ],
-    'Precificação': [
+    'Financeiro e Preços': [
         'pricing:read',
         'pricing:write',
     ],
-    'Usuários': [
+    'Equipe e Usuários': [
         'users:manage',
+        'availability:manage',
     ],
-    'Dashboards': [
+    'Relatórios': [
         'dashboard:executive',
         'dashboard:operational',
-
     ],
-    'Sistema': [
+    'Configurações de Sistema': [
         'integrations:manage',
         'audit:read',
-        'availability:manage',
         'system:configure',
     ],
 };
