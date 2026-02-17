@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useActionState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { Mail, Lock, Eye, LogIn, LockKeyhole } from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
@@ -20,7 +21,14 @@ export default function LoginPage() {
                 <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-80 h-80 rounded-full bg-blue-400/20 blur-3xl"></div>
 
                 <div className="relative z-10">
-                    <Logo height={36} />
+                    <Image
+                        src="/logo-branca.png"
+                        alt="Expansão Hiperfarma"
+                        width={180}
+                        height={50}
+                        className="h-10 w-auto"
+                        priority
+                    />
                 </div>
 
                 <div className="relative z-10 max-w-lg mb-20">
