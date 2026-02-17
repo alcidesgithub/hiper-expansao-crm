@@ -34,6 +34,8 @@ FROM deps AS migrator
 WORKDIR /app
 COPY prisma ./prisma
 COPY prisma.config.ts ./
+COPY tsconfig.json ./
+COPY src ./src
 COPY scripts/migrate-and-seed.sh /usr/local/bin/migrate-and-seed.sh
 RUN sed -i 's/\r$//' /usr/local/bin/migrate-and-seed.sh \
   && chmod +x /usr/local/bin/migrate-and-seed.sh \
