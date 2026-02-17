@@ -26,9 +26,17 @@ describe('Permissions Logic', () => {
             assert.strictEqual(can(user, 'leads:write:own'), false);
         });
 
-        it('should return false if user has no permissions array', () => {
+        it('should fallback to role matrix when permissions are missing', () => {
             const user = {
                 role: 'MANAGER',
+            };
+            assert.strictEqual(can(user, 'leads:read:all'), true);
+            assert.strictEqual(can(user, 'pipeline:configure'), false);
+        });
+
+        it('should return false when role is invalid and permissions are missing', () => {
+            const user = {
+                role: 'UNKNOWN',
             };
             assert.strictEqual(can(user, 'leads:read:all'), false);
         });

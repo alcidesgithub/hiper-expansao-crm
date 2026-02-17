@@ -1,29 +1,30 @@
 import type { NextAuthConfig } from 'next-auth';
+import { can, canAny, getDefaultPermissionsForRole } from '@/lib/permissions';
 
-type AppRole = 'ADMIN' | 'DIRECTOR' | 'MANAGER' | 'CONSULTANT';
-type TokenUser = { id?: string; role?: string };
+type TokenUser = { id?: string; role?: string; permissions?: string[] };
 type SessionUser = { id?: string; role?: string; permissions?: string[] };
 
 function canAccessDashboardPath(pathname: string, user: SessionUser): boolean {
-    const role = user.role as AppRole;
-    // ADMIN has bypass for everything
-    if (role === 'ADMIN') return true;
-
-    const permissions = user.permissions || [];
+    const scopedUser: SessionUser = {
+        ...user,
+        permissions: Array.isArray(user.permissions)
+            ? user.permissions
+            : [...getDefaultPermissionsForRole(user.role)],
+    };
 
     if (pathname === '/dashboard') {
-        return permissions.includes('dashboard:operational') || permissions.includes('dashboard:executive') || permissions.includes('dashboard:sdr');
+        return canAny(scopedUser, ['dashboard:operational', 'dashboard:executive']);
     }
-    if (pathname.startsWith('/dashboard/usuarios')) return permissions.includes('users:manage');
-    if (pathname.startsWith('/dashboard/config')) return permissions.includes('system:configure');
-    if (pathname.startsWith('/dashboard/admin/settings/permissions')) return true; // Already checked for ADMIN bypass above
-    if (pathname.startsWith('/dashboard/pricing')) return permissions.includes('pricing:read');
+    if (pathname.startsWith('/dashboard/usuarios')) return can(scopedUser, 'users:manage');
+    if (pathname.startsWith('/dashboard/config')) return can(scopedUser, 'system:configure');
+    if (pathname.startsWith('/dashboard/admin/settings/permissions')) return can(scopedUser, 'system:configure');
+    if (pathname.startsWith('/dashboard/pricing')) return can(scopedUser, 'pricing:read');
     if (pathname.startsWith('/dashboard/relatorios')) {
-        return permissions.includes('dashboard:operational') || permissions.includes('dashboard:executive');
+        return canAny(scopedUser, ['dashboard:operational', 'dashboard:executive']);
     }
-    if (pathname.startsWith('/dashboard/disponibilidade')) return permissions.includes('availability:manage');
+    if (pathname.startsWith('/dashboard/disponibilidade')) return can(scopedUser, 'availability:manage');
     if (pathname.startsWith('/dashboard/leads')) {
-        return permissions.includes('leads:read:own') || permissions.includes('leads:read:team') || permissions.includes('leads:read:all');
+        return canAny(scopedUser, ['leads:read:own', 'leads:read:team', 'leads:read:all']);
     }
 
     return true;
@@ -59,12 +60,34 @@ export const authConfig = {
             }
             return true;
         },
-        jwt({ token, user }) {
+        jwt({ token, user, trigger, session }) {
             if (user) {
                 const tokenUser = user as TokenUser;
                 token.id = tokenUser.id;
                 token.role = tokenUser.role;
+                if (Array.isArray(tokenUser.permissions)) {
+                    token.permissions = tokenUser.permissions;
+                }
             }
+
+            if (trigger === 'update' && session) {
+                const sessionUser = (session as { user?: SessionUser; permissions?: string[] }).user;
+                if (sessionUser?.role) {
+                    token.role = sessionUser.role;
+                }
+                if (Array.isArray(sessionUser?.permissions)) {
+                    token.permissions = sessionUser.permissions;
+                }
+                const rootPermissions = (session as { permissions?: string[] }).permissions;
+                if (Array.isArray(rootPermissions)) {
+                    token.permissions = rootPermissions;
+                }
+            }
+
+            if (!Array.isArray(token.permissions)) {
+                token.permissions = [...getDefaultPermissionsForRole(token.role as string)];
+            }
+
             return token;
         },
         session({ session, token }) {
@@ -72,6 +95,9 @@ export const authConfig = {
                 const sessionUser = session.user as SessionUser;
                 sessionUser.id = token.id as string;
                 sessionUser.role = token.role as string;
+                sessionUser.permissions = Array.isArray(token.permissions)
+                    ? (token.permissions as string[])
+                    : [...getDefaultPermissionsForRole(token.role as string)];
             }
             return session;
         },

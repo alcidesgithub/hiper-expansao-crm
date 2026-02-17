@@ -1,85 +1,52 @@
 import { prisma } from '@/lib/prisma';
-import { AppRole, Permission } from '@/lib/permissions';
+import { ALL_PERMISSIONS, AppRole, Permission, ROLE_PERMISSIONS } from '@/lib/permissions';
 
 const SYSTEM_SETTINGS_KEY = 'role_permissions_matrix';
 
-// Default permissions (fallback)
-export const DEFAULT_ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
-    ADMIN: [
-        'leads:read:all',
-        'leads:read:team',
-        'leads:read:own',
-        'leads:write:own',
-        'leads:delete',
-        'leads:assign',
-        'leads:score:read',
-        'pipeline:advance',
-        'pipeline:configure',
-        'pricing:read',
-        'pricing:write',
-        'users:manage',
-        'availability:manage',
-        'dashboard:executive',
-        'dashboard:operational',
-        'integrations:manage',
-        'audit:read',
-        'system:configure',
-    ],
-    DIRECTOR: [
-        'leads:read:all',
-        'leads:read:team',
-        'leads:read:own',
-        'leads:score:read',
-        'pricing:read',
-        'dashboard:executive',
-        'dashboard:operational',
-    ],
-    MANAGER: [
-        'leads:read:all',
-        'leads:read:team',
-        'leads:read:own',
-        'leads:write:own',
-        'leads:delete',
-        'leads:assign',
-        'leads:score:read',
-        'pipeline:advance',
-        'pricing:read',
-        'availability:manage',
-        'dashboard:executive',
-        'dashboard:operational',
-    ],
-    CONSULTANT: [
-        'leads:read:own',
-        'leads:write:own',
-        'leads:score:read',
-        'pipeline:advance',
-        'pricing:read',
-        'availability:manage',
-        'dashboard:operational',
-    ],
-};
+function toMutableRolePermissions(source: Record<AppRole, readonly Permission[]>): Record<AppRole, Permission[]> {
+    return {
+        ADMIN: [...source.ADMIN],
+        DIRECTOR: [...source.DIRECTOR],
+        MANAGER: [...source.MANAGER],
+        CONSULTANT: [...source.CONSULTANT],
+    };
+}
 
-export const ALL_PERMISSIONS: Permission[] = [
-    'leads:read:all',
-    'leads:read:team',
-    'leads:read:own',
-    'leads:write:own',
-    'leads:delete',
-    'leads:assign',
-    'leads:score:read',
-    'pipeline:advance',
-    'pipeline:configure',
-    'pricing:read',
-    'pricing:write',
-    'users:manage',
-    'dashboard:executive',
-    'dashboard:operational',
+export const DEFAULT_ROLE_PERMISSIONS: Record<AppRole, Permission[]> = toMutableRolePermissions(ROLE_PERMISSIONS);
 
-    'integrations:manage',
-    'audit:read',
-    'availability:manage',
-    'system:configure',
-];
+const ALL_PERMISSION_SET = new Set<Permission>(ALL_PERMISSIONS);
+
+function normalizePermissions(raw: unknown): Permission[] {
+    if (!Array.isArray(raw)) return [];
+
+    const unique = new Set<Permission>();
+    for (const value of raw) {
+        if (typeof value !== 'string') continue;
+        const permission = value as Permission;
+        if (ALL_PERMISSION_SET.has(permission)) {
+            unique.add(permission);
+        }
+    }
+
+    return [...ALL_PERMISSIONS].filter((permission) => unique.has(permission));
+}
+
+function normalizeMatrix(raw: unknown): Record<AppRole, Permission[]> {
+    const matrix = toMutableRolePermissions(ROLE_PERMISSIONS);
+
+    if (!raw || typeof raw !== 'object') {
+        return matrix;
+    }
+
+    const source = raw as Partial<Record<AppRole, unknown>>;
+    (Object.keys(matrix) as AppRole[]).forEach((role) => {
+        if (source[role] !== undefined) {
+            matrix[role] = normalizePermissions(source[role]);
+        }
+    });
+
+    return matrix;
+}
 
 export const PERMISSIONS_BY_RESOURCE: Record<string, Permission[]> = {
     'Gestão de Leads': [
@@ -121,33 +88,24 @@ export async function getRolePermissions(): Promise<Record<AppRole, Permission[]
         });
 
         if (setting?.value) {
-            // Validate structure (sencillo)
-            const matrix = setting.value as Record<string, string[]>;
-            // Ensure all roles exist
-            const finalMatrix = { ...DEFAULT_ROLE_PERMISSIONS };
-
-            (Object.keys(DEFAULT_ROLE_PERMISSIONS) as AppRole[]).forEach(role => {
-                if (matrix[role] && Array.isArray(matrix[role])) {
-                    finalMatrix[role] = matrix[role] as Permission[];
-                }
-            });
-
-            return finalMatrix;
+            return normalizeMatrix(setting.value);
         }
     } catch (error) {
         console.error('Failed to fetch permission matrix, using defaults', error);
     }
 
-    return DEFAULT_ROLE_PERMISSIONS;
+    return toMutableRolePermissions(ROLE_PERMISSIONS);
 }
 
 export async function updateRolePermissions(matrix: Record<AppRole, Permission[]>) {
+    const normalized = normalizeMatrix(matrix);
+
     await prisma.systemSettings.upsert({
         where: { key: SYSTEM_SETTINGS_KEY },
-        update: { value: matrix },
+        update: { value: normalized },
         create: {
             key: SYSTEM_SETTINGS_KEY,
-            value: matrix,
+            value: normalized,
         },
     });
 }
@@ -156,7 +114,7 @@ export async function updateSingleRolePermissions(role: AppRole, permissions: Pe
     const currentMatrix = await getRolePermissions();
     const newMatrix = {
         ...currentMatrix,
-        [role]: permissions,
+        [role]: normalizePermissions(permissions),
     };
     await updateRolePermissions(newMatrix);
 }
@@ -166,6 +124,6 @@ export const PermissionService = {
     updateRolePermissions,
     updateSingleRolePermissions,
     DEFAULT_ROLE_PERMISSIONS,
-    ALL_PERMISSIONS,
+    ALL_PERMISSIONS: [...ALL_PERMISSIONS],
     PERMISSIONS_BY_RESOURCE,
 };

@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 import { User } from '@prisma/client';
 import { getRolePermissions } from '@/services/permissions-service';
-import { AppRole, Permission } from '@/lib/permissions';
+import { AppRole, getDefaultPermissionsForRole } from '@/lib/permissions';
 
 async function getUser(email: string): Promise<User | null> {
     try {
@@ -66,6 +66,9 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                     console.error('[Auth JWT] Failed to sync permissions:', error);
                 }
             }
+            if (!Array.isArray(token.permissions)) {
+                token.permissions = [...getDefaultPermissionsForRole(token.role as string)];
+            }
 
             // Update session trigger
             if (trigger === "update") {
@@ -86,7 +89,9 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
             if (session.user && token.id) {
                 session.user.id = token.id as string;
                 session.user.role = token.role as string;
-                session.user.permissions = (token.permissions as string[]) || [];
+                session.user.permissions = Array.isArray(token.permissions)
+                    ? (token.permissions as string[])
+                    : [...getDefaultPermissionsForRole(token.role as string)];
             }
             return session;
         },

@@ -27,11 +27,90 @@ export interface PermissionUser {
     permissions?: string[] | null;
 }
 
-export function getLeadPermissions(user: PermissionUser | null | undefined, lead: any) {
+export const ROLE_PERMISSIONS: Record<AppRole, readonly Permission[]> = {
+    ADMIN: [
+        'leads:read:all',
+        'leads:read:team',
+        'leads:read:own',
+        'leads:write:own',
+        'leads:delete',
+        'leads:assign',
+        'leads:score:read',
+        'pipeline:advance',
+        'pipeline:configure',
+        'pricing:read',
+        'pricing:write',
+        'users:manage',
+        'availability:manage',
+        'dashboard:executive',
+        'dashboard:operational',
+        'integrations:manage',
+        'audit:read',
+        'system:configure',
+    ],
+    DIRECTOR: [
+        'leads:read:all',
+        'leads:read:team',
+        'leads:read:own',
+        'leads:score:read',
+        'pricing:read',
+        'dashboard:executive',
+        'dashboard:operational',
+    ],
+    MANAGER: [
+        'leads:read:all',
+        'leads:read:team',
+        'leads:read:own',
+        'leads:write:own',
+        'leads:delete',
+        'leads:assign',
+        'leads:score:read',
+        'pipeline:advance',
+        'pricing:read',
+        'availability:manage',
+        'dashboard:executive',
+        'dashboard:operational',
+    ],
+    CONSULTANT: [
+        'leads:read:own',
+        'leads:write:own',
+        'leads:score:read',
+        'pipeline:advance',
+        'pricing:read',
+        'availability:manage',
+        'dashboard:operational',
+    ],
+};
+
+export const ALL_PERMISSIONS: readonly Permission[] = [
+    'leads:read:all',
+    'leads:read:team',
+    'leads:read:own',
+    'leads:write:own',
+    'leads:delete',
+    'leads:assign',
+    'leads:score:read',
+    'pipeline:advance',
+    'pipeline:configure',
+    'pricing:read',
+    'pricing:write',
+    'users:manage',
+    'dashboard:executive',
+    'dashboard:operational',
+    'integrations:manage',
+    'audit:read',
+    'availability:manage',
+    'system:configure',
+];
+
+export function getDefaultPermissionsForRole(role: string | null | undefined): readonly Permission[] {
+    if (!role || !isAppRole(role)) return [];
+    return ROLE_PERMISSIONS[role];
+}
+
+export function getLeadPermissions(user: PermissionUser | null | undefined, _lead: unknown) {
     if (!user) return { canEditLead: false, canAdvancePipeline: false, canDeleteLead: false };
 
-    // In current implementation, if lead is in scope (found by findFirst with scope), 
-    // these permissions define what can be done.
     return {
         canEditLead: can(user, 'leads:write:own'),
         canAdvancePipeline: can(user, 'pipeline:advance'),
@@ -46,23 +125,11 @@ export function isAppRole(role: string): role is AppRole {
 export function can(user: PermissionUser | null | undefined, permission: Permission): boolean {
     if (!user) return false;
 
-    // Check injected permissions first
     if (user.permissions && Array.isArray(user.permissions)) {
         return user.permissions.includes(permission);
     }
 
-    // Fallback? Ideally we shouldn't fallback here if we want strict config.
-    // But for safety during migration/errors, maybe?
-    // No, if permissions are missing from session, access should be denied or we re-fetch (too slow).
-    // Let's assume if permissions array is present, it is authoritative.
-    // If it is missing (undefined), maybe fallback to role?
-    // But we removed ROLE_PERMISSIONS constant from here. 
-    // So we CANNOT fallback unless we import default permissions from service.
-    // But importing service here might cause circular deps if service imports types from here.
-    // Service imports AppRole, Permission from here.
-    // So we can't import service here.
-
-    return false;
+    return getDefaultPermissionsForRole(user.role).includes(permission);
 }
 
 export function canAny(user: PermissionUser | null | undefined, permissions: readonly Permission[]): boolean {

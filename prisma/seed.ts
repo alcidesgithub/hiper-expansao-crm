@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient, UserRole, UserStatus } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { buildDefaultAutomationRules, DEFAULT_SCORING_CRITERIA } from '../src/lib/config-options';
+import { ROLE_PERMISSIONS } from '../src/lib/permissions';
 
 const prisma = new PrismaClient();
 
@@ -171,23 +172,10 @@ async function main() {
 
     // 5. Seed role permissions matrix
     const rolePermissionsMatrix = {
-        ADMIN: [
-            'leads:read:all', 'leads:read:team', 'leads:read:own', 'leads:write:own', 'leads:delete', 'leads:assign', 'leads:score:read',
-            'pipeline:advance', 'pipeline:configure', 'pricing:read', 'pricing:write', 'users:manage', 'availability:manage',
-            'dashboard:executive', 'dashboard:operational', 'integrations:manage', 'audit:read', 'system:configure',
-        ],
-        DIRECTOR: [
-            'leads:read:all', 'leads:read:team', 'leads:read:own', 'leads:score:read', 'pricing:read',
-            'dashboard:executive', 'dashboard:operational',
-        ],
-        MANAGER: [
-            'leads:read:all', 'leads:read:team', 'leads:read:own', 'leads:write:own', 'leads:delete', 'leads:assign', 'leads:score:read',
-            'pipeline:advance', 'pricing:read', 'availability:manage', 'dashboard:executive', 'dashboard:operational',
-        ],
-        CONSULTANT: [
-            'leads:read:own', 'leads:write:own', 'leads:score:read', 'pipeline:advance', 'pricing:read', 'availability:manage',
-            'dashboard:operational',
-        ],
+        ADMIN: [...ROLE_PERMISSIONS.ADMIN],
+        DIRECTOR: [...ROLE_PERMISSIONS.DIRECTOR],
+        MANAGER: [...ROLE_PERMISSIONS.MANAGER],
+        CONSULTANT: [...ROLE_PERMISSIONS.CONSULTANT],
     };
 
     await prisma.systemSettings.upsert({
