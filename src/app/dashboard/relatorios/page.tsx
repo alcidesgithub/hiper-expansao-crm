@@ -275,7 +275,7 @@ export default function ReportsPage() {
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
                             <h3 className="text-lg font-bold text-gray-800 mb-6">Volume de Leads</h3>
                             <div className="h-80 w-full">
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                                     <AreaChart data={leadsOverTime}>
                                         <defs>
                                             <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
@@ -318,7 +318,7 @@ export default function ReportsPage() {
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                             <h3 className="text-lg font-bold text-gray-800 mb-6">Origem dos Leads</h3>
                             <div className="h-80 w-full">
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                                     <PieChart>
                                         <Pie
                                             data={sourceData}
@@ -351,7 +351,7 @@ export default function ReportsPage() {
                                 </div>
                             </div>
                             <div className="h-80 w-full">
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0}>
                                     <BarChart data={funnelData?.funnel ?? []} layout="horizontal">
                                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                                         <XAxis dataKey="step" stroke="#9CA3AF" tick={{ fontSize: 12 }} />
