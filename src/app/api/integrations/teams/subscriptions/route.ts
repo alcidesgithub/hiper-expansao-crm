@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { UserRole } from '@prisma/client';
 import { auth } from '@/auth';
 import { can } from '@/lib/permissions';
 import { logAudit } from '@/lib/audit';

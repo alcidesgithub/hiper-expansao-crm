@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { UserRole } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 import { logAudit } from '@/lib/audit';
@@ -70,7 +69,7 @@ export function __resetUploadFsHandlersForTests(): void {
 // POST /api/upload - Upload a file
 export async function POST(request: Request) {
     const session = await authHandler();
-    const user = session?.user;
+    const user = getSessionUser(session);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!can(user, 'leads:write:own')) {
         return NextResponse.json({ error: 'Sem permissão para enviar arquivos' }, { status: 403 });

@@ -312,7 +312,6 @@ export default function UsersPage() {
                         <tbody>
                             {users.map((user) => {
                                 const isSelf = currentUserId === user.id;
-                                const isSuspended = user.status === 'SUSPENDED';
                                 return (
                                     <tr key={user.id} className="border-b last:border-b-0">
                                         <td className="px-4 py-3">

@@ -156,14 +156,38 @@ async function apiRequest<T = unknown>(url: string, init?: RequestInit): Promise
     return payload as T;
 }
 
+function sortNotesByPinnedAndDate(notes: LeadData['notes']): LeadData['notes'] {
+    return [...notes].sort((a, b) => {
+        if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+        return (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0);
+    });
+}
+
+function sortTasksByStatusAndDate(tasks: LeadData['tasks']): LeadData['tasks'] {
+    return [...tasks].sort((a, b) => {
+        if (a.status !== b.status) return a.status.localeCompare(b.status);
+        return (toDate(a.dueDate)?.getTime() || Number.MAX_SAFE_INTEGER) - (toDate(b.dueDate)?.getTime() || Number.MAX_SAFE_INTEGER);
+    });
+}
+
+function mergeLeadPatch(current: LeadData, patch: Partial<LeadData>): LeadData {
+    return {
+        ...current,
+        ...patch,
+        activities: current.activities,
+        notes: current.notes,
+        tasks: current.tasks,
+        meetings: current.meetings,
+    };
+}
+
 export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
     const router = useRouter();
     const [leadState, setLeadState] = useState<LeadData>(lead);
     const [activeTab, setActiveTab] = useState<LeadTab>('timeline');
     const [feedback, setFeedback] = useState<FeedbackState | null>(null);
-    const [loadingLead, setLoadingLead] = useState(false);
 
-    const [availableStages, setAvailableStages] = useState<StageOption[]>(lead.availableStages || []);
+    const availableStages = useMemo(() => lead.availableStages ?? [], [lead.availableStages]);
     const [selectedStageId, setSelectedStageId] = useState(lead.pipelineStageId || '');
     const [savingStage, setSavingStage] = useState(false);
 
@@ -189,27 +213,6 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
 
     const canEditLead = Boolean(leadState.permissions?.canEditLead);
     const canAdvancePipeline = Boolean(leadState.permissions?.canAdvancePipeline);
-
-    const loadLead = async () => {
-        setLoadingLead(true);
-        try {
-            const refreshed = await apiRequest<LeadData>(`/api/leads/${leadState.id}`);
-            setLeadState(refreshed);
-            setSelectedStageId(refreshed.pipelineStageId || '');
-            if (Array.isArray(refreshed.availableStages)) {
-                setAvailableStages(refreshed.availableStages);
-            }
-        } catch (error) {
-            setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Não foi possível atualizar o lead.' });
-        } finally {
-            setLoadingLead(false);
-        }
-    };
-
-    useEffect(() => {
-        void loadLead();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
 
     useEffect(() => {
         if (!editingData) {
@@ -249,11 +252,14 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
         if (!selectedStageId || selectedStageId === leadState.pipelineStageId) return;
         setSavingStage(true);
         try {
-            await apiRequest(`/api/leads/${leadState.id}`, {
+            const updated = await apiRequest<Partial<LeadData>>(`/api/leads/${leadState.id}`, {
                 method: 'PATCH',
                 body: JSON.stringify({ pipelineStageId: selectedStageId }),
             });
-            await loadLead();
+            setLeadState((current) => mergeLeadPatch(current, updated));
+            if (updated.pipelineStageId) {
+                setSelectedStageId(updated.pipelineStageId);
+            }
             setFeedback({ type: 'success', message: 'Etapa atualizada com sucesso.' });
         } catch (error) {
             setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Não foi possível atualizar a etapa.' });
@@ -266,11 +272,14 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
         if (!canAdvancePipeline) return;
         setSavingStage(true);
         try {
-            await apiRequest(`/api/leads/${leadState.id}`, {
+            const updated = await apiRequest<Partial<LeadData>>(`/api/leads/${leadState.id}`, {
                 method: 'PATCH',
                 body: JSON.stringify({ status: 'LOST' }),
             });
-            await loadLead();
+            setLeadState((current) => mergeLeadPatch(current, updated));
+            if (updated.pipelineStageId !== undefined) {
+                setSelectedStageId(updated.pipelineStageId || '');
+            }
             setFeedback({ type: 'success', message: 'Lead marcado como perdido.' });
         } catch (error) {
             setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Não foi possível marcar o lead como perdido.' });
@@ -288,7 +297,7 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
 
         setSavingData(true);
         try {
-            await apiRequest(`/api/leads/${leadState.id}`, {
+            const updated = await apiRequest<Partial<LeadData>>(`/api/leads/${leadState.id}`, {
                 method: 'PATCH',
                 body: JSON.stringify({
                     name: dataForm.name.trim(),
@@ -298,8 +307,8 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
                     position: dataForm.position.trim() || null,
                 }),
             });
+            setLeadState((current) => mergeLeadPatch(current, updated));
             setEditingData(false);
-            await loadLead();
             setFeedback({ type: 'success', message: 'Dados atualizados.' });
         } catch (error) {
             setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Não foi possível salvar os dados.' });
@@ -313,12 +322,15 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
         if (!noteContent.trim()) return;
         setSavingNote(true);
         try {
-            await apiRequest(`/api/leads/${leadState.id}/notes`, {
+            const createdNote = await apiRequest<LeadData['notes'][number]>(`/api/leads/${leadState.id}/notes`, {
                 method: 'POST',
                 body: JSON.stringify({ content: noteContent.trim() }),
             });
+            setLeadState((current) => ({
+                ...current,
+                notes: sortNotesByPinnedAndDate([createdNote, ...current.notes]),
+            }));
             setNoteContent('');
-            await loadLead();
             setFeedback({ type: 'success', message: 'Nota adicionada.' });
         } catch (error) {
             setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Não foi possível adicionar a nota.' });
@@ -331,11 +343,14 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
         if (!canEditLead) return;
         setEditingNoteId(noteId);
         try {
-            await apiRequest(`/api/leads/${leadState.id}/notes?noteId=${noteId}`, {
+            const updatedNote = await apiRequest<LeadData['notes'][number]>(`/api/leads/${leadState.id}/notes?noteId=${noteId}`, {
                 method: 'PATCH',
                 body: JSON.stringify({ isPinned: !isPinned }),
             });
-            await loadLead();
+            setLeadState((current) => ({
+                ...current,
+                notes: sortNotesByPinnedAndDate(current.notes.map((note) => (note.id === noteId ? updatedNote : note))),
+            }));
         } catch (error) {
             setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Não foi possível atualizar a nota.' });
         } finally {
@@ -348,7 +363,10 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
         setEditingNoteId(noteId);
         try {
             await apiRequest(`/api/leads/${leadState.id}/notes?noteId=${noteId}`, { method: 'DELETE' });
-            await loadLead();
+            setLeadState((current) => ({
+                ...current,
+                notes: current.notes.filter((note) => note.id !== noteId),
+            }));
             setFeedback({ type: 'success', message: 'Nota removida.' });
         } catch (error) {
             setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Não foi possível remover a nota.' });
@@ -367,14 +385,17 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
         setSavingTask(true);
         try {
             const dueDateIso = taskDueDate ? new Date(`${taskDueDate}T09:00:00`).toISOString() : null;
-            await apiRequest(`/api/leads/${leadState.id}/tasks`, {
+            const createdTask = await apiRequest<LeadData['tasks'][number]>(`/api/leads/${leadState.id}/tasks`, {
                 method: 'POST',
                 body: JSON.stringify({ title: taskTitle.trim(), priority: taskPriority, dueDate: dueDateIso }),
             });
+            setLeadState((current) => ({
+                ...current,
+                tasks: sortTasksByStatusAndDate([createdTask, ...current.tasks]),
+            }));
             setTaskTitle('');
             setTaskPriority('MEDIUM');
             setTaskDueDate('');
-            await loadLead();
             setFeedback({ type: 'success', message: 'Tarefa criada.' });
         } catch (error) {
             setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Não foi possível criar a tarefa.' });
@@ -387,11 +408,14 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
         if (!canEditLead) return;
         setEditingTaskId(taskId);
         try {
-            await apiRequest(`/api/leads/${leadState.id}/tasks?taskId=${taskId}`, {
+            const updatedTask = await apiRequest<LeadData['tasks'][number]>(`/api/leads/${leadState.id}/tasks?taskId=${taskId}`, {
                 method: 'PATCH',
                 body: JSON.stringify({ status }),
             });
-            await loadLead();
+            setLeadState((current) => ({
+                ...current,
+                tasks: sortTasksByStatusAndDate(current.tasks.map((task) => (task.id === taskId ? updatedTask : task))),
+            }));
         } catch (error) {
             setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Não foi possível atualizar a tarefa.' });
         } finally {
@@ -403,8 +427,11 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
         if (!canEditLead) return;
         setEditingTaskId(taskId);
         try {
-            await apiRequest(`/api/leads/${leadState.id}/tasks?taskId=${taskId}`, { method: 'DELETE' });
-            await loadLead();
+            const cancelledTask = await apiRequest<LeadData['tasks'][number]>(`/api/leads/${leadState.id}/tasks?taskId=${taskId}`, { method: 'DELETE' });
+            setLeadState((current) => ({
+                ...current,
+                tasks: sortTasksByStatusAndDate(current.tasks.map((task) => (task.id === taskId ? cancelledTask : task))),
+            }));
             setFeedback({ type: 'success', message: 'Tarefa cancelada.' });
         } catch (error) {
             setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Não foi possível cancelar a tarefa.' });
@@ -486,10 +513,10 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
                         <p className="text-xs text-right mt-1 text-gray-500 py-1">Etapa atual: <strong className="text-primary">{stageProgress.currentName}</strong></p>
                     </div>
                     <div className="w-full md:w-auto flex flex-col md:flex-row items-stretch md:items-center gap-2 shrink-0">
-                        <select value={selectedStageId} onChange={(e) => setSelectedStageId(e.target.value)} className="bg-white border border-gray-200 text-gray-700 px-3 py-2 rounded-lg text-sm min-w-[220px]" disabled={!canAdvancePipeline || savingStage || loadingLead || availableStages.length === 0}>
+                        <select value={selectedStageId} onChange={(e) => setSelectedStageId(e.target.value)} className="bg-white border border-gray-200 text-gray-700 px-3 py-2 rounded-lg text-sm min-w-[220px]" disabled={!canAdvancePipeline || savingStage || availableStages.length === 0}>
                             {availableStages.map((stage) => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
                         </select>
-                        <button type="button" onClick={() => void saveStage()} disabled={!canAdvancePipeline || savingStage || loadingLead || !selectedStageId || selectedStageId === leadState.pipelineStageId} className="bg-primary hover:bg-red-700 text-white px-5 py-2 rounded-lg text-sm font-medium shadow-sm shadow-primary/30 transition-all flex items-center justify-center gap-2 disabled:opacity-60">
+                        <button type="button" onClick={() => void saveStage()} disabled={!canAdvancePipeline || savingStage || !selectedStageId || selectedStageId === leadState.pipelineStageId} className="bg-primary hover:bg-red-700 text-white px-5 py-2 rounded-lg text-sm font-medium shadow-sm shadow-primary/30 transition-all flex items-center justify-center gap-2 disabled:opacity-60">
                             {savingStage ? <Loader2 className="animate-spin" size={16} /> : <ArrowRight size={16} />} Mudar etapa
                         </button>
                         <button type="button" onClick={() => void markAsLost()} disabled={!canAdvancePipeline || savingStage || leadState.status === 'LOST'} className="bg-white border border-gray-200 hover:border-primary/50 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-60">Marcar perdido</button>

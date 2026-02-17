@@ -3,6 +3,7 @@ import { graphService } from './microsoft-graph.service';
 import { sendEmail } from '@/lib/email';
 import { addMinutes } from 'date-fns';
 import { logAudit } from '@/lib/audit';
+import { Lead, Meeting, Prisma, User } from '@prisma/client';
 
 export interface CreateMeetingParams {
     leadId: string;
@@ -34,7 +35,7 @@ export class MeetingService {
         }
 
         // Validação financeira (campo qualificationData no schema)
-        const qualData = lead.qualificationData as any;
+        const qualData = (lead.qualificationData ?? null) as { hasFinancialCapacity?: boolean } | null;
         // Nota: O guia menciona hasFinancialCapacity, vamos verificar se existe no JSON
         if (qualData && qualData.hasFinancialCapacity === false) {
             throw new Error('Lead sem capacidade financeira validada para agendamento');
@@ -97,7 +98,7 @@ export class MeetingService {
         }
 
         // 7. Salvar no banco (Novo Schema v1.0)
-        const meetingData: any = {
+        const meetingData: Prisma.MeetingUncheckedCreateInput = {
             leadId: params.leadId,
             userId: params.consultantId,
             title: subject,
@@ -245,9 +246,9 @@ export class MeetingService {
      * Envia emails de confirmação (Abstração sobre o email.ts existente)
      */
     private async sendConfirmationEmails(params: {
-        meeting: any;
-        lead: any;
-        consultant: any;
+        meeting: Pick<Meeting, 'startTime'>;
+        lead: Pick<Lead, 'email' | 'name' | 'company'>;
+        consultant: Pick<User, 'email' | 'name'>;
         joinUrl?: string;
     }) {
         // Nota: Usando a função genérica sendEmail ou as específicas se existirem no lib/email.ts

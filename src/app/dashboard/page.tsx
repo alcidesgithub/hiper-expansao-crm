@@ -50,13 +50,13 @@ export default async function DashboardPage({ searchParams }: { searchParams?: D
     const period = normalizePeriod(resolvedSearch?.period);
     const periodLabel = getPeriodLabel(period);
 
-    const [metrics, recentLeads, funnelData, upcomingMeetings] = await Promise.all([
+    const [metrics, recentLeads, funnelData, upcomingMeetings, gateAnalytics] = await Promise.all([
         getDashboardMetrics(period),
         getRecentLeads(),
         getFunnelMetrics(period),
         getUpcomingMeetings(5),
+        getFunnelGateAnalytics(period),
     ]);
-    const gateAnalytics = await getFunnelGateAnalytics(period);
 
     const gradeColors: Record<string, string> = {
         A: 'bg-green-500',

@@ -1,11 +1,17 @@
 'use server';
 
 import { auth } from '@/auth';
-import { can } from '@/lib/permissions';
+import { ALL_PERMISSIONS, can, isAppRole, Permission } from '@/lib/permissions';
 import { PermissionService } from '@/services/permissions-service';
 import { revalidatePath } from 'next/cache';
 
-export async function updateRolePermissions(role: string, permissions: string[]) {
+export interface UpdateRolePermissionsResult {
+    success: boolean;
+    error?: string;
+    updatedPermissions?: Permission[];
+}
+
+export async function updateRolePermissions(role: string, permissions: Permission[]): Promise<UpdateRolePermissionsResult> {
     const session = await auth();
 
     console.log('[updateRolePermissions] Session user:', {
@@ -29,9 +35,17 @@ export async function updateRolePermissions(role: string, permissions: string[])
             return { success: false, error: 'A função ADMIN deve manter a permissão system:configure' };
         }
 
-        await PermissionService.updateSingleRolePermissions(role as any, permissions as any);
+        if (!isAppRole(role)) {
+            return { success: false, error: 'FunÃ§Ã£o invÃ¡lida' };
+        }
+
+        const normalizedPermissions = permissions.filter((permission) =>
+            (ALL_PERMISSIONS as readonly string[]).includes(permission)
+        );
+
+        await PermissionService.updateSingleRolePermissions(role, normalizedPermissions);
         revalidatePath('/dashboard/admin/settings/permissions');
-        return { success: true, updatedPermissions: permissions };
+        return { success: true, updatedPermissions: normalizedPermissions };
     } catch (error) {
         console.error('Error updating permissions:', error);
         return { success: false, error: 'Erro ao atualizar permissões' };

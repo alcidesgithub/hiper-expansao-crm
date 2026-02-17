@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { UserRole } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 import { meetingUpdateSchema } from '@/lib/validation';

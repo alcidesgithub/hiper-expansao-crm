@@ -82,7 +82,7 @@ export default function MiniCalendar({ currentDate, onDateChange }: MiniCalendar
 
             {/* Days Grid */}
             <div className="grid grid-cols-7 gap-1 text-center">
-                {calendarDays.map((day, idx) => {
+                {calendarDays.map((day) => {
                     const isSelected = isSameDay(day, currentDate);
                     const isCurrentMonth = isSameMonth(day, viewDate);
                     const isTodayDate = isToday(day);

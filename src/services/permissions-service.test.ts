@@ -1,7 +1,6 @@
-import { describe, it, beforeEach, mock } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert';
 import { PermissionService } from './permissions-service';
-import { DEFAULT_ROLE_PERMISSIONS } from './permissions-service';
 
 // We need to mock prisma.
 // Since tsx handles modules for us, we can try to intercept the import or just depend on the service behavior if it uses dependency injection (it doesn't).

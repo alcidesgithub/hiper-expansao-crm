@@ -2,7 +2,6 @@
 
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
-import { UserRole } from '@prisma/client';
 import { buildLeadScope, mergeLeadWhere } from '@/lib/lead-scope';
 import { can } from '@/lib/permissions';
 

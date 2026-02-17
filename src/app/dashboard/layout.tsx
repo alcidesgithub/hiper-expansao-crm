@@ -1,6 +1,7 @@
 import { DashboardShell } from "@/components/layout/DashboardShell";
-import { getCurrentUser, getNotifications } from "./actions";
+import { getDashboardLayoutData } from "./actions";
 import type { Metadata } from "next";
+import { AuthProvider } from "@/components/providers/AuthProvider";
 
 export const metadata: Metadata = {
     title: "HiperFarma CRM - Expansão",
@@ -12,17 +13,18 @@ export default async function DashboardLayout({
 }: {
     children: React.ReactNode;
 }) {
-    const user = await getCurrentUser();
-    const notifications = await getNotifications();
+    const { user, notifications } = await getDashboardLayoutData();
     const userRole = (user as { role?: string } | undefined)?.role ?? null;
 
     return (
-        <DashboardShell
-            userRole={userRole}
-            user={user}
-            initialNotifications={notifications}
-        >
-            {children}
-        </DashboardShell>
+        <AuthProvider>
+            <DashboardShell
+                userRole={userRole}
+                user={user}
+                initialNotifications={notifications}
+            >
+                {children}
+            </DashboardShell>
+        </AuthProvider>
     );
 }

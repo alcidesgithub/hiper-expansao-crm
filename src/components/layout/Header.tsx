@@ -1,27 +1,45 @@
 ﻿'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Menu, Search, Bell, ChevronDown, LogOut, User as UserIcon, X, Check } from 'lucide-react';
-import { usePathname, useRouter } from 'next/navigation';
+import { Menu, Search, Bell, ChevronDown, LogOut, User as UserIcon, Check } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 import { searchLeads, markNotificationAsRead, signOutAction } from '@/app/dashboard/actions';
+
+type SearchLeadResult = Awaited<ReturnType<typeof searchLeads>>;
+
+interface HeaderUser {
+    name?: string | null;
+    email?: string | null;
+    avatar?: string | null;
+}
+
+export interface HeaderNotification {
+    id: string;
+    title: string;
+    message: string;
+    createdAt: string | Date;
+}
 
 interface HeaderProps {
     onMenuClick: () => void;
-    user?: any;
-    initialNotifications?: any[];
+    user?: HeaderUser;
+    initialNotifications?: HeaderNotification[];
 }
 
 export function Header({ onMenuClick, user, initialNotifications = [] }: HeaderProps) {
     const pathname = usePathname();
-    const router = useRouter();
     const [searchQuery, setSearchQuery] = useState('');
-    const [searchResults, setSearchResults] = useState<any[]>([]);
+    const [searchResults, setSearchResults] = useState<SearchLeadResult>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [isSearchOpen, setIsSearchOpen] = useState(false);
 
-    const [notifications, setNotifications] = useState(initialNotifications);
+    const [dismissedNotificationIds, setDismissedNotificationIds] = useState<Set<string>>(new Set());
+    const notifications = useMemo(
+        () => initialNotifications.filter((notification) => !dismissedNotificationIds.has(notification.id)),
+        [dismissedNotificationIds, initialNotifications]
+    );
     const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -30,13 +48,6 @@ export function Header({ onMenuClick, user, initialNotifications = [] }: HeaderP
     const searchContainerRef = useRef<HTMLDivElement>(null);
     const notificationsRef = useRef<HTMLDivElement>(null);
     const userMenuRef = useRef<HTMLDivElement>(null);
-
-    // Initial notifications sync
-    useEffect(() => {
-        if (initialNotifications) {
-            setNotifications(initialNotifications);
-        }
-    }, [initialNotifications]);
 
     // Click outside handler
     useEffect(() => {
@@ -52,7 +63,12 @@ export function Header({ onMenuClick, user, initialNotifications = [] }: HeaderP
             }
         }
         document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+            if (searchTimeoutRef.current) {
+                clearTimeout(searchTimeoutRef.current);
+            }
+        };
     }, []);
 
     const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -81,7 +97,11 @@ export function Header({ onMenuClick, user, initialNotifications = [] }: HeaderP
     const handleMarkAsRead = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
         // Optimistic update
-        setNotifications(prev => prev.filter(n => n.id !== id));
+        setDismissedNotificationIds((previous) => {
+            const next = new Set(previous);
+            next.add(id);
+            return next;
+        });
         await markNotificationAsRead(id);
     };
 
@@ -283,4 +303,3 @@ export function Header({ onMenuClick, user, initialNotifications = [] }: HeaderP
         </header>
     );
 }
-

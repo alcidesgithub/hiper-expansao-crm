@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { Lead, LeadStatus, Prisma, UserRole } from '@prisma/client';
+import { Lead, LeadStatus, Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 import { leadUpdateSchema } from '@/lib/validation';
@@ -61,10 +61,10 @@ async function getLeadDetails(id: string, scope: Prisma.LeadWhereInput, user: Se
             ...leadSelect,
             pipelineStage: true,
             assignedUser: { select: { id: true, name: true, email: true } },
-            activities: { orderBy: { createdAt: 'desc' }, take: 50, include: { user: { select: { id: true, name: true } } } },
-            notes: { orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }], take: 100, include: { user: { select: { id: true, name: true } } } },
-            meetings: { orderBy: { startTime: 'desc' }, take: 30 },
-            tasks: { orderBy: [{ status: 'asc' }, { dueDate: 'asc' }, { createdAt: 'desc' }], take: 100, include: { user: { select: { id: true, name: true } } } },
+            activities: { orderBy: { createdAt: 'desc' }, take: 20, include: { user: { select: { id: true, name: true } } } },
+            notes: { orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }], take: 40, include: { user: { select: { id: true, name: true } } } },
+            meetings: { orderBy: { startTime: 'desc' }, take: 15 },
+            tasks: { orderBy: [{ status: 'asc' }, { dueDate: 'asc' }, { createdAt: 'desc' }], take: 40, include: { user: { select: { id: true, name: true } } } },
         },
     });
 
@@ -95,12 +95,10 @@ export async function GET(
     if (!canView(user)) return NextResponse.json({ error: 'Sem permissão para visualizar leads' }, { status: 403 });
 
     const { id } = await params;
-    console.log('[API Lead GET] Requesting lead ID:', id, 'User:', user.id);
 
     try {
         const leadScope = await buildLeadScope(user);
         const lead = await getLeadDetails(id, leadScope, user);
-        console.log('[API Lead GET] Lead details result:', { id, found: !!lead });
         if (!lead) return NextResponse.json({ error: 'Lead não encontrado' }, { status: 404 });
 
         return NextResponse.json({
@@ -221,7 +219,6 @@ export async function PATCH(
         if (data.company !== undefined) updateData.company = data.company;
         if (data.position !== undefined) updateData.position = data.position;
         if (data.priority !== undefined) updateData.priority = data.priority;
-        if (data.pipelineStageId !== undefined) updateData.pipelineStageId = data.pipelineStageId;
         if (data.pipelineStageId !== undefined) updateData.pipelineStageId = data.pipelineStageId;
         if (data.assignedUserId !== undefined) updateData.assignedUserId = data.assignedUserId;
 

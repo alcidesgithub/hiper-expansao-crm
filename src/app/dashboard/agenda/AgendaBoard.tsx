@@ -17,7 +17,7 @@ import {
     Trash2,
     ExternalLink
 } from 'lucide-react';
-import { format, addDays, startOfWeek, addWeeks, subWeeks, startOfMonth, eachDayOfInterval, isSameMonth, isSameDay, isToday, addMonths, subMonths, getHours, getMinutes } from 'date-fns';
+import { format, addDays, startOfWeek, addWeeks, subWeeks, startOfMonth, eachDayOfInterval, isSameMonth, isToday, addMonths, subMonths, getHours, getMinutes } from 'date-fns';
 import { useSearchParams } from 'next/navigation';
 import { ptBR } from 'date-fns/locale';
 import { createMeeting, deleteMeeting } from '../actions';
@@ -44,12 +44,55 @@ interface Meeting {
 interface AgendaBoardProps {
     initialMeetings: Meeting[];
     leads: { id: string, name: string, company: string | null }[];
+    initialRangeStart: string;
+    initialRangeEnd: string;
 }
 
-export default function AgendaBoard({ initialMeetings, leads }: AgendaBoardProps) {
+interface DateRange {
+    from: Date;
+    to: Date;
+}
+
+function normalizeMeeting(meeting: Meeting): Meeting {
+    return {
+        ...meeting,
+        startTime: new Date(meeting.startTime),
+        endTime: new Date(meeting.endTime),
+    };
+}
+
+function localDateKey(value: string | Date): string {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function isRangeCovered(loaded: DateRange, requested: DateRange): boolean {
+    return requested.from >= loaded.from && requested.to <= loaded.to;
+}
+
+function buildMeetingsByDay(list: Meeting[]): Record<string, Meeting[]> {
+    const groups: Record<string, Meeting[]> = {};
+    for (const meeting of list) {
+        const key = localDateKey(meeting.startTime);
+        if (!key) continue;
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(meeting);
+    }
+    return groups;
+}
+
+export default function AgendaBoard({ initialMeetings, leads, initialRangeStart, initialRangeEnd }: AgendaBoardProps) {
     const [currentView, setCurrentView] = useState<ViewMode>('week');
     const [currentDate, setCurrentDate] = useState(new Date());
-    const [meetings, setMeetings] = useState<Meeting[]>(initialMeetings);
+    const [meetings, setMeetings] = useState<Meeting[]>(() => initialMeetings.map(normalizeMeeting));
+    const [loadedRange, setLoadedRange] = useState<DateRange>(() => ({
+        from: new Date(initialRangeStart),
+        to: new Date(initialRangeEnd),
+    }));
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -80,8 +123,12 @@ export default function AgendaBoard({ initialMeetings, leads }: AgendaBoardProps
 
     // Update local state when server props change (e.g. after router.refresh)
     useEffect(() => {
-        setMeetings(initialMeetings);
-    }, [initialMeetings]);
+        setMeetings(initialMeetings.map(normalizeMeeting));
+        setLoadedRange({
+            from: new Date(initialRangeStart),
+            to: new Date(initialRangeEnd),
+        });
+    }, [initialMeetings, initialRangeStart, initialRangeEnd]);
 
     const getRangeForView = useCallback((date: Date, view: ViewMode): { from: Date; to: Date } => {
         if (view === 'day') {
@@ -105,12 +152,16 @@ export default function AgendaBoard({ initialMeetings, leads }: AgendaBoardProps
         let cancelled = false;
 
         async function fetchMeetingsForRange() {
+            const requestedRange = getRangeForView(currentDate, currentView);
+            if (isRangeCovered(loadedRange, requestedRange)) {
+                return;
+            }
+
             setIsLoadingMeetings(true);
             try {
-                const { from, to } = getRangeForView(currentDate, currentView);
                 const params = new URLSearchParams({
-                    from: from.toISOString(),
-                    to: to.toISOString(),
+                    from: requestedRange.from.toISOString(),
+                    to: requestedRange.to.toISOString(),
                 });
                 const response = await fetch(`/api/meetings?${params.toString()}`, { cache: 'no-store' });
                 const payload = await response.json();
@@ -118,13 +169,10 @@ export default function AgendaBoard({ initialMeetings, leads }: AgendaBoardProps
 
                 const normalized = (payload as Meeting[])
                     .filter((meeting) => meeting.status !== 'CANCELLED')
-                    .map((meeting) => ({
-                        ...meeting,
-                        startTime: new Date(meeting.startTime),
-                        endTime: new Date(meeting.endTime),
-                    }));
+                    .map(normalizeMeeting);
 
                 setMeetings(normalized);
+                setLoadedRange(requestedRange);
             } catch (error) {
                 console.error('Error loading meetings:', error);
             } finally {
@@ -136,7 +184,7 @@ export default function AgendaBoard({ initialMeetings, leads }: AgendaBoardProps
         return () => {
             cancelled = true;
         };
-    }, [currentDate, currentView, getRangeForView]);
+    }, [currentDate, currentView, getRangeForView, loadedRange]);
 
     const [newEvent, setNewEvent] = useState({
         leadId: '',
@@ -249,7 +297,8 @@ export default function AgendaBoard({ initialMeetings, leads }: AgendaBoardProps
     const handleMeetingClick = (meeting: Meeting) => {
         setSelectedMeeting(meeting);
         setIsDetailsOpen(true);
-    };    // Filter Logic
+    };
+
     const filteredMeetings = useMemo(() => {
         const search = searchTerm.trim().toLowerCase();
 
@@ -280,14 +329,24 @@ export default function AgendaBoard({ initialMeetings, leads }: AgendaBoardProps
         });
     }, [filters, meetings, searchTerm]);
 
+    const meetingsByDay = useMemo(
+        () => buildMeetingsByDay(filteredMeetings),
+        [filteredMeetings]
+    );
+
+    const todayMeetings = useMemo(
+        () => meetingsByDay[localDateKey(new Date())] || [],
+        [meetingsByDay]
+    );
+
     const renderContent = () => {
         switch (currentView) {
             case 'month':
-                return <MonthGrid currentDate={currentDate} meetings={filteredMeetings} onMeetingClick={handleMeetingClick} />;
+                return <MonthGrid currentDate={currentDate} meetingsByDay={meetingsByDay} onMeetingClick={handleMeetingClick} />;
             case 'day':
-                return <DayGrid currentDate={currentDate} meetings={filteredMeetings} onMeetingClick={handleMeetingClick} />;
+                return <DayGrid currentDate={currentDate} meetingsByDay={meetingsByDay} onMeetingClick={handleMeetingClick} />;
             default:
-                return <WeekGrid currentDate={currentDate} meetings={filteredMeetings} onMeetingClick={handleMeetingClick} />;
+                return <WeekGrid currentDate={currentDate} meetingsByDay={meetingsByDay} onMeetingClick={handleMeetingClick} />;
         }
     };
 
@@ -420,7 +479,7 @@ export default function AgendaBoard({ initialMeetings, leads }: AgendaBoardProps
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                    {filteredMeetings.filter(m => isToday(new Date(m.startTime))).map(meeting => (
+                    {todayMeetings.map(meeting => (
                         <div key={meeting.id} className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 hover:border-primary/50 transition-colors">
                             <div className="flex justify-between items-start mb-1">
                                 <span className="text-[10px] font-semibold text-gray-400 uppercase">{format(new Date(meeting.startTime), 'HH:mm')}</span>
@@ -429,7 +488,7 @@ export default function AgendaBoard({ initialMeetings, leads }: AgendaBoardProps
                             <p className="text-xs text-gray-500 mb-3">{meeting.lead?.name} - {meeting.lead?.company}</p>
                         </div>
                     ))}
-                    {filteredMeetings.filter(m => isToday(new Date(m.startTime))).length === 0 && (
+                    {todayMeetings.length === 0 && (
                         <p className="text-sm text-gray-500 text-center py-4">Nenhuma reunião hoje.</p>
                     )}
                 </div>
@@ -697,7 +756,7 @@ export default function AgendaBoard({ initialMeetings, leads }: AgendaBoardProps
 
 // --- VIEW COMPONENTS ---
 
-const WeekGrid = ({ currentDate, meetings, onMeetingClick }: { currentDate: Date, meetings: Meeting[], onMeetingClick: (m: Meeting) => void }) => {
+const WeekGrid = ({ currentDate, meetingsByDay, onMeetingClick }: { currentDate: Date, meetingsByDay: Record<string, Meeting[]>, onMeetingClick: (m: Meeting) => void }) => {
     const start = startOfWeek(currentDate, { weekStartsOn: 0 }); // Sunday
     const weekDays = eachDayOfInterval({
         start: start,
@@ -743,7 +802,7 @@ const WeekGrid = ({ currentDate, meetings, onMeetingClick }: { currentDate: Date
                         ))}
 
                         {/* Events for this day */}
-                        {meetings.filter(m => isSameDay(new Date(m.startTime), day)).map(meeting => {
+                        {(meetingsByDay[localDateKey(day)] || []).map(meeting => {
                             const start = new Date(meeting.startTime);
                             const end = new Date(meeting.endTime);
                             const startHour = getHours(start);
@@ -775,7 +834,7 @@ const WeekGrid = ({ currentDate, meetings, onMeetingClick }: { currentDate: Date
     );
 };
 
-const MonthGrid = ({ currentDate, meetings, onMeetingClick }: { currentDate: Date, meetings: Meeting[], onMeetingClick: (m: Meeting) => void }) => {
+const MonthGrid = ({ currentDate, meetingsByDay, onMeetingClick }: { currentDate: Date, meetingsByDay: Record<string, Meeting[]>, onMeetingClick: (m: Meeting) => void }) => {
     const start = startOfWeek(startOfMonth(currentDate));
     const days = eachDayOfInterval({ start, end: addDays(start, 41) });
 
@@ -791,7 +850,7 @@ const MonthGrid = ({ currentDate, meetings, onMeetingClick }: { currentDate: Dat
             <div className="flex-1 grid grid-cols-7 grid-rows-6">
                 {days.map((d, i) => {
                     const isCurrentMonth = isSameMonth(d, currentDate);
-                    const dayEvents = meetings.filter(m => isSameDay(new Date(m.startTime), d));
+                    const dayEvents = meetingsByDay[localDateKey(d)] || [];
 
                     return (
                         <div key={i} className={`min-h-[80px] border-b border-r border-gray-100 p-2 relative group hover:bg-gray-50 transition-colors ${!isCurrentMonth ? 'bg-gray-50/50' : 'bg-white'}`}>
@@ -822,8 +881,9 @@ const MonthGrid = ({ currentDate, meetings, onMeetingClick }: { currentDate: Dat
     );
 };
 
-const DayGrid = ({ currentDate, meetings, onMeetingClick }: { currentDate: Date, meetings: Meeting[], onMeetingClick: (m: Meeting) => void }) => {
+const DayGrid = ({ currentDate, meetingsByDay, onMeetingClick }: { currentDate: Date, meetingsByDay: Record<string, Meeting[]>, onMeetingClick: (m: Meeting) => void }) => {
     const hours = Array.from({ length: 11 }, (_, i) => i + 8);
+    const dayMeetings = meetingsByDay[localDateKey(currentDate)] || [];
 
     return (
         <div className="min-w-[600px] h-full flex">
@@ -850,7 +910,7 @@ const DayGrid = ({ currentDate, meetings, onMeetingClick }: { currentDate: Date,
                         <div key={i} className="h-32 border-b border-gray-100 w-full"></div>
                     ))}
 
-                    {meetings.filter(m => isSameDay(new Date(m.startTime), currentDate)).map(meeting => {
+                    {dayMeetings.map(meeting => {
                         const start = new Date(meeting.startTime);
                         const end = new Date(meeting.endTime);
                         const startHour = getHours(start);

@@ -60,3 +60,6 @@ next-env.d.ts
 .eslintcache
 /.turbo
 /_prototype_backup/
+
+#skills
+/.agent

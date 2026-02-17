@@ -52,7 +52,7 @@ export function PermissionTable({ rolePermissions, roles, permissionsByResource 
                     // If the updated role is the current user's role, refresh the session
                     if (session?.user?.role === role) {
                         try {
-                            const updatedPermissions = (result as any).updatedPermissions || newPermissions;
+                            const updatedPermissions = result.updatedPermissions ?? newPermissions;
                             await update({
                                 ...session,
                                 user: {
@@ -67,7 +67,7 @@ export function PermissionTable({ rolePermissions, roles, permissionsByResource 
                 } else {
                     toast.error(result.error || 'Erro ao atualizar permissão');
                 }
-            } catch (error) {
+            } catch {
                 toast.error('Erro de conexão ao atualizar permissão');
             }
         });

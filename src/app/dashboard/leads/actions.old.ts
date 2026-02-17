@@ -1,6 +1,5 @@
 'use server';
 
-import { UserRole } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 import { buildLeadScope, mergeLeadWhere } from '@/lib/lead-scope';

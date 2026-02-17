@@ -2,7 +2,7 @@
 
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
-import { Prisma, LeadSource, LeadPriority, LeadStatus, Lead } from '@prisma/client';
+import { LeadSource, LeadPriority, LeadStatus, Lead } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { canAny, getLeadPermissions } from '@/lib/permissions';
 import { buildLeadScope, mergeLeadWhere } from '@/lib/lead-scope';
@@ -112,6 +112,32 @@ export async function markAllNotificationsAsRead() {
 export async function getCurrentUser() {
     const session = await auth();
     return session?.user;
+}
+
+export async function getDashboardLayoutData() {
+    const session = await auth();
+    const user = session?.user;
+    if (!user?.id) {
+        return { user, notifications: [] };
+    }
+
+    try {
+        const notifications = await prisma.notification.findMany({
+            where: {
+                userId: user.id,
+                read: false,
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
+            take: 10,
+        });
+
+        return { user, notifications };
+    } catch (error) {
+        console.error('Error fetching dashboard layout data:', error);
+        return { user, notifications: [] };
+    }
 }
 
 export async function signOutAction() {
@@ -252,7 +278,6 @@ export async function getLeadById(id: string) {
         },
     });
 
-    console.log('[getLeadById] Lead finding result:', { id, found: !!lead });
     if (!lead) return null;
 
     // Get available stages for the initial render
@@ -343,25 +368,27 @@ export async function getUpcomingMeetings(limit: number = 5) {
 export async function getFunnelGateAnalytics(period: string = '30d') {
     const startDate = getStartDate(period);
 
-    // Na nossa lógica, o gate de decisão está nos qualificationData (role do contato)
-    const leads = await prisma.lead.findMany({
-        where: { createdAt: { gte: startDate }, qualificationData: { not: Prisma.DbNull } },
-        select: { qualificationData: true }
-    });
+    const roleRows = await prisma.$queryRaw<Array<{ role: string; count: number }>>`
+        SELECT LOWER(COALESCE("qualificationData"->>'role', '')) AS role, COUNT(*)::int AS count
+        FROM "Lead"
+        WHERE "createdAt" >= ${startDate}
+          AND "qualificationData" IS NOT NULL
+          AND "qualificationData" <> 'null'::jsonb
+        GROUP BY 1
+    `;
 
     const totals = {
-        total: leads.length,
+        total: 0,
         decisor: 0,
         influenciador: 0,
         pesquisador: 0
     };
 
-    leads.forEach(lead => {
-        const data = lead.qualificationData as { role?: string };
-        const role = data?.role?.toLowerCase();
-        if (role === 'decisor' || role === 'proprietário' || role === 'socio') totals.decisor++;
-        else if (role === 'influenciador' || role === 'gerente') totals.influenciador++;
-        else totals.pesquisador++;
+    roleRows.forEach(({ role, count }) => {
+        totals.total += Number(count);
+        if (role === 'decisor' || role === 'proprietário' || role === 'socio') totals.decisor += Number(count);
+        else if (role === 'influenciador' || role === 'gerente') totals.influenciador += Number(count);
+        else totals.pesquisador += Number(count);
     });
 
     const decisorRate = totals.total > 0 ? Math.round((totals.decisor / totals.total) * 100) : 0;
@@ -382,11 +409,30 @@ export async function getKanbanData() {
 
     const [stages, leads] = await Promise.all([
         prisma.pipelineStage.findMany({
-            orderBy: { order: 'asc' }
+            orderBy: { order: 'asc' },
+            select: {
+                id: true,
+                name: true,
+                color: true,
+                order: true,
+                isWon: true,
+                isLost: true,
+            },
         }),
         prisma.lead.findMany({
             where: mergeLeadWhere({ status: { notIn: ['ARCHIVED'] } }, leadScope),
-            orderBy: { updatedAt: 'desc' }
+            orderBy: { updatedAt: 'desc' },
+            select: {
+                id: true,
+                name: true,
+                company: true,
+                score: true,
+                grade: true,
+                pipelineStageId: true,
+                createdAt: true,
+                updatedAt: true,
+                status: true,
+            },
         })
     ]);
 
@@ -425,12 +471,17 @@ export async function createLead(data: CreateLeadData) {
     if (!session?.user) return { success: false, error: 'Não autorizado' };
 
     try {
-        const pipeline = await prisma.pipeline.findFirst({
-            where: { isActive: true },
-            include: {
-                stages: { orderBy: { order: 'asc' } }
-            }
-        });
+        const [pipeline, settings] = await Promise.all([
+            prisma.pipeline.findFirst({
+                where: { isActive: true },
+                include: {
+                    stages: { orderBy: { order: 'asc' } }
+                }
+            }),
+            prisma.systemSettings.findFirst({
+                where: { key: 'config.scoringCriteria.v1' }
+            }),
+        ]);
 
         const stages = pipeline?.stages || [];
         const firstStage = stages.find(s => !s.isWon && !s.isLost) || stages[0];
@@ -464,9 +515,6 @@ export async function createLead(data: CreateLeadData) {
         const legacyResult = calcularScore(fullQualData);
 
         // Try to get dynamic scoring settings if they exist
-        const settings = await prisma.systemSettings.findFirst({
-            where: { key: 'config.scoringCriteria.v1' }
-        });
         const scoringCriteria = (settings?.value as unknown as DynamicScoringCriterion[]) || DEFAULT_SCORING_CRITERIA;
 
         // Mock lead for dynamic score calculation
@@ -562,7 +610,17 @@ export async function getMeetings(from?: Date, to?: Date) {
             },
             status: { not: 'CANCELLED' }
         },
-        include: {
+        select: {
+            id: true,
+            title: true,
+            startTime: true,
+            endTime: true,
+            leadId: true,
+            description: true,
+            meetingType: true,
+            provider: true,
+            teamsJoinUrl: true,
+            status: true,
             lead: {
                 select: {
                     name: true,
@@ -587,6 +645,53 @@ export async function getLeadsForSelect() {
         },
         orderBy: { name: 'asc' }
     });
+}
+
+export async function getAgendaInitialData(from?: Date, to?: Date) {
+    const session = await auth();
+    if (!session?.user) return { meetings: [], leads: [] };
+
+    const [meetings, leads] = await Promise.all([
+        prisma.meeting.findMany({
+            where: {
+                startTime: {
+                    gte: from || subDays(new Date(), 30),
+                    lte: to || subDays(new Date(), -30)
+                },
+                status: { not: 'CANCELLED' }
+            },
+            select: {
+                id: true,
+                title: true,
+                startTime: true,
+                endTime: true,
+                leadId: true,
+                description: true,
+                meetingType: true,
+                provider: true,
+                teamsJoinUrl: true,
+                status: true,
+                lead: {
+                    select: {
+                        name: true,
+                        company: true
+                    }
+                }
+            },
+            orderBy: { startTime: 'asc' }
+        }),
+        prisma.lead.findMany({
+            where: { status: { not: 'ARCHIVED' } },
+            select: {
+                id: true,
+                name: true,
+                company: true
+            },
+            orderBy: { name: 'asc' }
+        })
+    ]);
+
+    return { meetings, leads };
 }
 
 export async function createMeeting(data: {
@@ -659,12 +764,12 @@ export async function deleteMeeting(id: string) {
 
 // --- Relatórios (Reports) Actions ---
 
-export async function getFinancialMetrics(period: string = '30d') {
+async function ensureReportsAccess() {
     const session = await auth();
     if (!session?.user) throw new Error('Unauthorized');
+}
 
-    const startDate = getStartDate(period);
-
+async function getFinancialMetricsData(startDate: Date) {
     const [totalLeads, wonLeads, revenueData] = await Promise.all([
         prisma.lead.count({ where: { createdAt: { gte: startDate } } }),
         prisma.lead.count({ where: { status: 'WON', convertedAt: { gte: startDate } } }),
@@ -686,37 +791,22 @@ export async function getFinancialMetrics(period: string = '30d') {
     };
 }
 
-export async function getLeadsOverTime(period: string = '30d') {
-    const session = await auth();
-    if (!session?.user) throw new Error('Unauthorized');
+async function getLeadsOverTimeData(startDate: Date) {
+    const rows = await prisma.$queryRaw<Array<{ date: Date; count: number }>>`
+        SELECT DATE("createdAt") AS date, COUNT(*)::int AS count
+        FROM "Lead"
+        WHERE "createdAt" >= ${startDate}
+        GROUP BY DATE("createdAt")
+        ORDER BY DATE("createdAt") ASC
+    `;
 
-    const startDate = getStartDate(period);
-
-    const leads = await prisma.lead.findMany({
-        where: { createdAt: { gte: startDate } },
-        select: { createdAt: true },
-        orderBy: { createdAt: 'asc' }
-    });
-
-    // Grouping by date in JS
-    const grouped = leads.reduce((acc: Record<string, number>, lead) => {
-        const date = lead.createdAt.toISOString().split('T')[0];
-        acc[date] = (acc[date] || 0) + 1;
-        return acc;
-    }, {});
-
-    return Object.entries(grouped).map(([date, count]) => ({
-        date,
-        count
+    return rows.map((row) => ({
+        date: row.date.toISOString().split('T')[0],
+        count: Number(row.count),
     }));
 }
 
-export async function getSourceDistribution(period: string = '30d') {
-    const session = await auth();
-    if (!session?.user) throw new Error('Unauthorized');
-
-    const startDate = getStartDate(period);
-
+async function getSourceDistributionData(startDate: Date) {
     const groups = await prisma.lead.groupBy({
         by: ['source'],
         where: { createdAt: { gte: startDate } },
@@ -729,10 +819,45 @@ export async function getSourceDistribution(period: string = '30d') {
     }));
 }
 
-export async function getExportData(period: string = '30d') {
-    const session = await auth();
-    if (!session?.user) throw new Error('Unauthorized');
+export async function getReportsOverview(period: string = '30d') {
+    await ensureReportsAccess();
 
+    const startDate = getStartDate(period);
+    const [financial, leadsOverTime, funnel, source] = await Promise.all([
+        getFinancialMetricsData(startDate),
+        getLeadsOverTimeData(startDate),
+        getFunnelMetrics(period),
+        getSourceDistributionData(startDate),
+    ]);
+
+    return {
+        financial,
+        leadsOverTime,
+        funnel,
+        source,
+    };
+}
+
+export async function getFinancialMetrics(period: string = '30d') {
+    await ensureReportsAccess();
+    const startDate = getStartDate(period);
+    return getFinancialMetricsData(startDate);
+}
+
+export async function getLeadsOverTime(period: string = '30d') {
+    await ensureReportsAccess();
+    const startDate = getStartDate(period);
+    return getLeadsOverTimeData(startDate);
+}
+
+export async function getSourceDistribution(period: string = '30d') {
+    await ensureReportsAccess();
+    const startDate = getStartDate(period);
+    return getSourceDistributionData(startDate);
+}
+
+export async function getExportData(period: string = '30d') {
+    await ensureReportsAccess();
     const startDate = getStartDate(period);
 
     const leads = await prisma.lead.findMany({

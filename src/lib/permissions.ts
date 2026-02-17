@@ -108,7 +108,8 @@ export function getDefaultPermissionsForRole(role: string | null | undefined): r
     return ROLE_PERMISSIONS[role];
 }
 
-export function getLeadPermissions(user: PermissionUser | null | undefined, _lead: unknown) {
+export function getLeadPermissions(user: PermissionUser | null | undefined, lead: unknown) {
+    void lead;
     if (!user) return { canEditLead: false, canAdvancePipeline: false, canDeleteLead: false };
 
     return {

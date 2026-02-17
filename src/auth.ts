@@ -51,7 +51,9 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
             // Initial sign in
             if (user) {
                 token.id = user.id;
-                token.role = (user as any).role;
+                if ('role' in user && typeof user.role === 'string') {
+                    token.role = user.role;
+                }
                 console.log('[Auth JWT] Initial sign in for user:', { email: user.email, role: token.role });
             }
 

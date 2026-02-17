@@ -8,8 +8,7 @@ import {
   Menu, ArrowRight, PlayCircle, Handshake, Store, Megaphone,
   TrendingUp, CreditCard, Building2, Tag, ChevronDown, Rocket,
   Phone, Mail, Facebook, Instagram, Linkedin, CheckCircle2,
-  Users, ShoppingBag, Pill, BarChart3, HelpCircle, X,
-  LayoutDashboard, Calendar, Settings, FileText, ShieldCheck, Video
+  ShoppingBag, Pill, HelpCircle, X
 } from 'lucide-react';
 
 export default function LandingPage() {
@@ -190,6 +189,9 @@ export default function LandingPage() {
                   src="/expansao-hiperfarma-hero.png"
                   width={1200}
                   height={900}
+                  priority
+                  fetchPriority="high"
+                  sizes="(max-width: 1024px) 100vw, 50vw"
                 />
               </div>
               <div className="absolute -bottom-6 -left-6 bg-white p-4 rounded-xl shadow-xl border border-gray-100 flex items-center gap-3 z-20 animate-bounce" style={{ animationDuration: '3s' }}>
@@ -325,6 +327,7 @@ export default function LandingPage() {
                   src="/expansao-hiperfarma-conv-club.png"
                   width={1200}
                   height={900}
+                  sizes="(max-width: 1024px) 100vw, 50vw"
                 />
               </div>
             </div>
@@ -479,6 +482,7 @@ export default function LandingPage() {
                 src="/expansao-hiperfarma-depo.png"
                 width={1200}
                 height={900}
+                sizes="(max-width: 1024px) 100vw, 40vw"
               />
               <div className="absolute bottom-0 left-0 w-full p-10 z-20 bg-gradient-to-t from-black/90 to-transparent">
                 <div className="bg-white/10 backdrop-blur-md p-6 rounded-xl border border-white/20">

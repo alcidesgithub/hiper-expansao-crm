@@ -184,9 +184,15 @@ export default function DisponibilidadePage() {
 
             const payload = {
                 userId: canManageOthers ? targetUserId : undefined,
-                slots: slots.map(({ _tempId, ...slot }) => slot), // Remove _tempId
-                blocks: blocks.map(({ _tempId, ...block }) => ({
-                    ...block,
+                slots: slots.map((slot) => ({
+                    id: slot.id,
+                    dayOfWeek: slot.dayOfWeek,
+                    startTime: slot.startTime,
+                    endTime: slot.endTime,
+                    isActive: slot.isActive,
+                })),
+                blocks: blocks.map((block) => ({
+                    id: block.id,
                     startDate: toIsoDateTime(block.startDate),
                     endDate: toIsoDateTime(block.endDate),
                     reason: block.reason || null,

@@ -1,6 +1,6 @@
 import React from 'react';
 import { getKanbanData } from '../actions';
-import KanbanBoard from './KanbanBoard';
+import KanbanBoard from './KanbanBoardLoader';
 
 export const dynamic = 'force-dynamic';
 

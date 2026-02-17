@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server';
-import { Prisma, UserRole } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 import { meetingCreateSchema } from '@/lib/validation';
-import { logAudit } from '@/lib/audit';
 import { buildLeadScope, mergeLeadWhere } from '@/lib/lead-scope';
 import { can } from '@/lib/permissions';
-import { createTeamsMeeting, isTeamsConfigured, type TeamsMeetingPayload } from '@/lib/teams';
-import { buildLeadSelect } from '@/lib/lead-select';
+import { createTeamsMeeting, isTeamsConfigured } from '@/lib/teams';
+
 const MEETING_STATUSES = ['SCHEDULED', 'COMPLETED', 'CANCELLED', 'NO_SHOW', 'RESCHEDULED'] as const;
 
 interface SessionUser {
@@ -48,45 +47,25 @@ export function __setTeamsHandlersForTests(handlers: {
 }): void {
     if (handlers.isTeamsConfigured) isTeamsConfiguredHandler = handlers.isTeamsConfigured;
     if (handlers.createTeamsMeeting) createTeamsMeetingHandler = handlers.createTeamsMeeting;
+    void isTeamsConfiguredHandler;
+    void createTeamsMeetingHandler;
 }
 
 export function __resetTeamsHandlersForTests(): void {
     isTeamsConfiguredHandler = isTeamsConfigured;
     createTeamsMeetingHandler = createTeamsMeeting;
+    void isTeamsConfiguredHandler;
+    void createTeamsMeetingHandler;
 }
 
 function isPrivileged(role?: string): boolean {
     return role === 'ADMIN' || role === 'DIRECTOR' || role === 'MANAGER';
 }
 
-async function resolveMeetingProgression(leadId: string) {
-    const lead = await prisma.lead.findUnique({
-        where: { id: leadId },
-        select: {
-            pipelineStageId: true,
-            pipelineStage: { select: { pipelineId: true, order: true } },
-        },
-    });
-
-    let nextStageId = lead?.pipelineStageId ?? null;
-    if (lead?.pipelineStage?.pipelineId) {
-        const nextStage = await prisma.pipelineStage.findFirst({
-            where: {
-                pipelineId: lead.pipelineStage.pipelineId,
-                order: { gt: lead.pipelineStage.order },
-                isWon: false,
-                isLost: false,
-            },
-            orderBy: { order: 'asc' },
-            select: { id: true },
-        });
-        if (nextStage) nextStageId = nextStage.id;
-    }
-
-    return {
-        status: 'CONTACTED' as const,
-        pipelineStageId: nextStageId,
-    };
+function parseLimit(value: string | null, fallback: number): number {
+    const parsed = Number.parseInt(value || '', 10);
+    if (Number.isNaN(parsed)) return fallback;
+    return Math.min(Math.max(parsed, 1), 1000);
 }
 
 // GET /api/meetings - List meetings
@@ -100,6 +79,7 @@ export async function GET(request: Request) {
     const userId = searchParams.get('userId');
     const from = searchParams.get('from');
     const to = searchParams.get('to');
+    const limit = parseLimit(searchParams.get('limit'), 300);
 
     const sessionUserId = user.id;
     const sessionRole = user.role;
@@ -129,15 +109,39 @@ export async function GET(request: Request) {
             where.startTime = {};
             if (from) (where.startTime as Prisma.DateTimeFilter).gte = new Date(from);
             if (to) (where.startTime as Prisma.DateTimeFilter).lte = new Date(to);
+        } else {
+            const now = new Date();
+            where.startTime = {
+                gte: new Date(now.getFullYear(), now.getMonth() - 1, now.getDate()),
+                lte: new Date(now.getFullYear(), now.getMonth() + 3, now.getDate()),
+            };
         }
 
         const meetings = await prisma.meeting.findMany({
             where,
-            include: {
-                lead: { select: buildLeadSelect({ user, includeSensitive: true }) },
+            select: {
+                id: true,
+                title: true,
+                startTime: true,
+                endTime: true,
+                leadId: true,
+                description: true,
+                meetingType: true,
+                provider: true,
+                teamsJoinUrl: true,
+                status: true,
+                selfScheduled: true,
+                location: true,
+                attendees: true,
+                createdAt: true,
+                updatedAt: true,
+                completedAt: true,
+                cancelledAt: true,
+                lead: { select: { id: true, name: true, company: true, grade: true } },
                 user: { select: { id: true, name: true, email: true } },
             },
             orderBy: { startTime: 'asc' },
+            take: limit,
         });
 
         return NextResponse.json(meetings);
@@ -200,20 +204,37 @@ export async function POST(request: Request) {
             // Aqui apenas retornamos a reunião criada com o include necessário para o frontend.
             const fullMeeting = await prisma.meeting.findUnique({
                 where: { id: meeting.id },
-                include: {
-                    lead: { select: buildLeadSelect({ user, includeSensitive: true }) },
+                select: {
+                    id: true,
+                    title: true,
+                    startTime: true,
+                    endTime: true,
+                    leadId: true,
+                    description: true,
+                    meetingType: true,
+                    provider: true,
+                    teamsJoinUrl: true,
+                    status: true,
+                    selfScheduled: true,
+                    location: true,
+                    attendees: true,
+                    createdAt: true,
+                    updatedAt: true,
+                    completedAt: true,
+                    cancelledAt: true,
+                    lead: { select: { id: true, name: true, company: true, grade: true } },
                     user: { select: { id: true, name: true } },
                 },
             });
 
             return NextResponse.json(fullMeeting, { status: 201 });
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Error in scheduleMeeting:', error);
-            return NextResponse.json({ error: error.message || 'Falha ao agendar reunião' }, { status: 500 });
+            const message = error instanceof Error ? error.message : 'Falha ao agendar reunião';
+            return NextResponse.json({ error: message }, { status: 500 });
         }
     } catch (error) {
         console.error('Error creating meeting:', error);
         return NextResponse.json({ error: 'Erro ao criar reunião' }, { status: 500 });
     }
 }
-

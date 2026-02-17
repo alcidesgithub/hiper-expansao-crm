@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { AssociationPricing, UserRole } from '@prisma/client';
+import { AssociationPricing } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';

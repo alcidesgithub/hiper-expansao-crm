@@ -3,12 +3,19 @@
 import React, { useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import type { HeaderNotification } from './Header';
+
+interface DashboardShellUser {
+    name?: string | null;
+    email?: string | null;
+    avatar?: string | null;
+}
 
 interface DashboardShellProps {
     children: React.ReactNode;
     userRole?: string | null;
-    user?: any;
-    initialNotifications?: any[];
+    user?: DashboardShellUser;
+    initialNotifications?: HeaderNotification[];
 }
 
 export function DashboardShell({ children, userRole, user, initialNotifications }: DashboardShellProps) {

@@ -1,31 +1,21 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { BarChart3, TrendingUp, Download, Calendar, DollarSign, Users, Loader2, AlertCircle } from 'lucide-react';
 import {
-    AreaChart,
-    Area,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    ResponsiveContainer,
-    BarChart,
-    Bar,
-    PieChart,
-    Pie,
-    Cell,
-    Legend,
-} from 'recharts';
-import {
-    getFinancialMetrics,
-    getLeadsOverTime,
-    getFunnelMetrics,
-    getSourceDistribution,
+    getReportsOverview,
     getExportData,
 } from '../actions';
 
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
+const ReportsCharts = dynamic(() => import('./ReportsCharts'), {
+    ssr: false,
+    loading: () => (
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <div className="h-80 w-full rounded-lg bg-slate-100 animate-pulse" />
+        </div>
+    ),
+});
 
 type ReportPeriod = '7d' | '30d' | '90d' | '12m';
 
@@ -82,6 +72,7 @@ export default function ReportsPage() {
     const [mounted, setMounted] = useState(false);
     const [loading, setLoading] = useState(true);
     const [exporting, setExporting] = useState(false);
+    const [chartsEnabled, setChartsEnabled] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [metrics, setMetrics] = useState<FinancialMetrics | null>(null);
     const [leadsOverTime, setLeadsOverTime] = useState<LeadsOverTimePoint[]>([]);
@@ -92,20 +83,15 @@ export default function ReportsPage() {
         setLoading(true);
         setError(null);
         try {
-            const [fin, time, funnel, source] = await Promise.all([
-                getFinancialMetrics(period),
-                getLeadsOverTime(period),
-                getFunnelMetrics(period),
-                getSourceDistribution(period),
-            ]);
+            const overview = await getReportsOverview(period);
 
-            setMetrics(fin as FinancialMetrics);
-            setLeadsOverTime((time as LeadsOverTimePoint[]) ?? []);
-            setFunnelData(funnel as FunnelMetrics);
-            setSourceData((source as SourceDistributionItem[]) ?? []);
+            setMetrics(overview.financial as FinancialMetrics);
+            setLeadsOverTime((overview.leadsOverTime as LeadsOverTimePoint[]) ?? []);
+            setFunnelData(overview.funnel as FunnelMetrics);
+            setSourceData((overview.source as SourceDistributionItem[]) ?? []);
         } catch (fetchError) {
             console.error('Error fetching report data:', fetchError);
-            setError('Não foi possível carregar os relatórios. Tente novamente.');
+            setError('Nao foi possivel carregar os relatorios. Tente novamente.');
         } finally {
             setLoading(false);
         }
@@ -182,8 +168,8 @@ export default function ReportsPage() {
         <div className="w-full bg-slate-50 min-h-full font-sans text-slate-800 p-6 space-y-8">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Relatórios de Performance</h1>
-                    <p className="mt-2 text-slate-500">Acompanhe as métricas vitais da expansão.</p>
+                    <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Relatorios de Performance</h1>
+                    <p className="mt-2 text-slate-500">Acompanhe as metricas vitais da expansao.</p>
                 </div>
                 <div className="flex gap-2">
                     <div className="relative">
@@ -192,10 +178,10 @@ export default function ReportsPage() {
                             onChange={(e) => setPeriod(e.target.value as ReportPeriod)}
                             className="appearance-none bg-white border border-gray-300 text-gray-700 px-4 py-2 pr-8 rounded-lg text-sm font-medium shadow-sm hover:bg-gray-50 transition-colors outline-none focus:ring-2 focus:ring-primary/20"
                         >
-                            <option value="7d">Últimos 7 dias</option>
-                            <option value="30d">Últimos 30 dias</option>
-                            <option value="90d">Últimos 90 dias</option>
-                            <option value="12m">Últimos 12 meses</option>
+                            <option value="7d">Ultimos 7 dias</option>
+                            <option value="30d">Ultimos 30 dias</option>
+                            <option value="90d">Ultimos 90 dias</option>
+                            <option value="12m">Ultimos 12 meses</option>
                         </select>
                         <Calendar className="absolute right-3 top-2.5 text-gray-400 pointer-events-none" size={16} />
                     </div>
@@ -246,7 +232,7 @@ export default function ReportsPage() {
                                 <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
                                     <TrendingUp size={24} />
                                 </div>
-                                <p className="text-sm text-gray-500 font-medium">Ticket Médio</p>
+                                <p className="text-sm text-gray-500 font-medium">Ticket Medio</p>
                             </div>
                             <h3 className="text-2xl font-bold text-slate-900">{formatCurrency(metrics?.averageTicket ?? 0)}</h3>
                         </div>
@@ -256,10 +242,10 @@ export default function ReportsPage() {
                                 <div className="p-3 bg-purple-50 text-purple-600 rounded-lg">
                                     <BarChart3 size={24} />
                                 </div>
-                                <p className="text-sm text-gray-500 font-medium">Taxa de Conversão</p>
+                                <p className="text-sm text-gray-500 font-medium">Taxa de Conversao</p>
                             </div>
                             <h3 className="text-2xl font-bold text-slate-900">{conversionRate.toFixed(1)}%</h3>
-                            <p className="text-xs text-gray-400 mt-1">{totalConverted} convertidos no período</p>
+                            <p className="text-xs text-gray-400 mt-1">{totalConverted} convertidos no periodo</p>
                         </div>
 
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
@@ -273,111 +259,34 @@ export default function ReportsPage() {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 lg:col-span-2">
-                            <h3 className="text-lg font-bold text-gray-800 mb-6">Volume de Leads</h3>
-                            <div className="h-80 w-full">
-                                {mounted && (
-                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200} debounce={100}>
-                                        <AreaChart data={leadsOverTime}>
-                                            <defs>
-                                                <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#DF362D" stopOpacity={0.1} />
-                                                    <stop offset="95%" stopColor="#DF362D" stopOpacity={0} />
-                                                </linearGradient>
-                                            </defs>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                                            <XAxis
-                                                dataKey="date"
-                                                stroke="#9CA3AF"
-                                                tick={{ fontSize: 12 }}
-                                                tickFormatter={(val) =>
-                                                    new Date(val).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
-                                                }
-                                            />
-                                            <YAxis stroke="#9CA3AF" tick={{ fontSize: 12 }} />
-                                            <Tooltip
-                                                contentStyle={{
-                                                    borderRadius: '8px',
-                                                    border: 'none',
-                                                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                                                }}
-                                                labelFormatter={(label) => new Date(label).toLocaleDateString('pt-BR')}
-                                            />
-                                            <Area
-                                                type="monotone"
-                                                dataKey="count"
-                                                stroke="#DF362D"
-                                                strokeWidth={2}
-                                                fillOpacity={1}
-                                                fill="url(#colorCount)"
-                                                name="Leads"
-                                            />
-                                        </AreaChart>
-                                    </ResponsiveContainer>
-                                )}
-                            </div>
-                        </div>
-
+                    {chartsEnabled ? (
+                        <ReportsCharts
+                            mounted={mounted}
+                            leadsOverTime={leadsOverTime}
+                            sourceData={sourceData}
+                            funnelData={funnelData}
+                        />
+                    ) : (
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                            <h3 className="text-lg font-bold text-gray-800 mb-6">Origem dos Leads</h3>
-                            <div className="h-80 w-full">
-                                {mounted && (
-                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200} debounce={100}>
-                                        <PieChart>
-                                            <Pie
-                                                data={sourceData}
-                                                cx="50%"
-                                                cy="50%"
-                                                innerRadius={60}
-                                                outerRadius={100}
-                                                paddingAngle={5}
-                                                dataKey="count"
-                                                nameKey="source"
-                                            >
-                                                {sourceData.map((entry, index) => (
-                                                    <Cell key={`${entry.source}-${index}`} fill={COLORS[index % COLORS.length]} />
-                                                ))}
-                                            </Pie>
-                                            <Tooltip />
-                                            <Legend wrapperStyle={{ fontSize: '12px' }} />
-                                        </PieChart>
-                                    </ResponsiveContainer>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-6">
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                            <div className="flex justify-between items-center mb-6">
-                                <h3 className="text-lg font-bold text-gray-800">Funil de Conversão</h3>
-                                <div className="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-                                    Drop-off Total: {funnelData?.dropoffRate ?? 0}%
+                            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-800">Visualizacoes de Grafico</h3>
+                                    <p className="text-sm text-gray-500 mt-1">
+                                        Carregue os graficos sob demanda para manter a pagina inicial mais leve.
+                                    </p>
                                 </div>
-                            </div>
-                            <div className="h-80 w-full">
-                                {mounted && (
-                                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={200} debounce={100}>
-                                        <BarChart data={funnelData?.funnel ?? []} layout="horizontal">
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                                            <XAxis dataKey="step" stroke="#9CA3AF" tick={{ fontSize: 12 }} />
-                                            <YAxis stroke="#9CA3AF" tick={{ fontSize: 12 }} />
-                                            <Tooltip
-                                                cursor={{ fill: 'transparent' }}
-                                                contentStyle={{
-                                                    borderRadius: '8px',
-                                                    border: 'none',
-                                                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
-                                                }}
-                                            />
-                                            <Bar dataKey="count" fill="#114F99" radius={[4, 4, 0, 0]} barSize={60} name="Leads" />
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                )}
+                                <button
+                                    type="button"
+                                    onMouseEnter={() => void import('./ReportsCharts')}
+                                    onFocus={() => void import('./ReportsCharts')}
+                                    onClick={() => setChartsEnabled(true)}
+                                    className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-hover transition-colors"
+                                >
+                                    Carregar graficos
+                                </button>
                             </div>
                         </div>
-                    </div>
+                    )}
                 </>
             )}
         </div>

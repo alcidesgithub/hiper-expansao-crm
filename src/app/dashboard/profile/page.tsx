@@ -14,8 +14,20 @@ import {
 import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
 
+type ProfileSessionUser = {
+    id: string;
+    role: string;
+    name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    department?: string | null;
+};
+
+type RoleLabelMap = Record<'ADMIN' | 'DIRECTOR' | 'MANAGER' | 'CONSULTANT', string>;
+
 export default function ProfilePage() {
     const { data: session, update } = useSession();
+    const sessionUser = session?.user as ProfileSessionUser | undefined;
     const [loading, setLoading] = useState(false);
 
     const [form, setForm] = useState({
@@ -29,16 +41,16 @@ export default function ProfilePage() {
     });
 
     useEffect(() => {
-        if (session?.user) {
+        if (sessionUser) {
             setForm(prev => ({
                 ...prev,
-                name: session.user.name || '',
-                email: session.user.email || '',
-                phone: (session.user as any).phone || '',
-                department: (session.user as any).department || '',
+                name: sessionUser.name || '',
+                email: sessionUser.email || '',
+                phone: sessionUser.phone || '',
+                department: sessionUser.department || '',
             }));
         }
-    }, [session]);
+    }, [sessionUser]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -51,8 +63,18 @@ export default function ProfilePage() {
         }
 
         try {
-            const userId = (session?.user as any).id;
-            const body: any = {
+            const userId = sessionUser?.id;
+            if (!userId) {
+                throw new Error('Usuário não autenticado');
+            }
+
+            const body: {
+                name: string;
+                email: string;
+                phone: string;
+                department: string;
+                password?: string;
+            } = {
                 name: form.name,
                 email: form.email,
                 phone: form.phone,
@@ -80,14 +102,15 @@ export default function ProfilePage() {
 
             // Refetch session
             await update();
-        } catch (err: any) {
-            toast.error(err.message);
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Erro ao atualizar perfil';
+            toast.error(message);
         } finally {
             setLoading(false);
         }
     };
 
-    if (!session) {
+    if (!sessionUser) {
         return (
             <div className="flex items-center justify-center min-h-[400px]">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -95,13 +118,13 @@ export default function ProfilePage() {
         );
     }
 
-    const userRole = (session.user as any).role || 'CONSULTANT';
-    const roleLabels: any = {
+    const roleLabels: RoleLabelMap = {
         ADMIN: 'Administrador',
         DIRECTOR: 'Diretor',
         MANAGER: 'Gerente',
         CONSULTANT: 'Consultor'
     };
+    const roleLabel = roleLabels[(sessionUser.role as keyof RoleLabelMap)] ?? roleLabels.CONSULTANT;
 
     return (
         <div className="max-w-4xl mx-auto p-6 space-y-6">
@@ -118,17 +141,17 @@ export default function ProfilePage() {
                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col items-center text-center">
                         <div className="w-24 h-24 rounded-full bg-primary/10 flex items-center justify-center border-4 border-white shadow-sm mb-4">
                             <span className="text-3xl font-bold text-primary">
-                                {session.user.name?.charAt(0).toUpperCase() || 'U'}
+                                {sessionUser.name?.charAt(0).toUpperCase() || 'U'}
                             </span>
                         </div>
-                        <h2 className="text-lg font-bold text-gray-900">{session.user.name}</h2>
+                        <h2 className="text-lg font-bold text-gray-900">{sessionUser.name}</h2>
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 mt-2 rounded-full text-xs font-bold bg-blue-50 text-blue-700 border border-blue-100">
-                            <Shield size={12} /> {roleLabels[userRole]}
+                            <Shield size={12} /> {roleLabel}
                         </span>
                         <div className="w-full mt-6 pt-6 border-t border-gray-50 space-y-3">
                             <div className="flex items-center gap-3 text-sm text-gray-600">
                                 <Mail size={16} className="text-gray-400" />
-                                <span className="truncate">{session.user.email}</span>
+                                <span className="truncate">{sessionUser.email}</span>
                             </div>
                             {form.phone && (
                                 <div className="flex items-center gap-3 text-sm text-gray-600">

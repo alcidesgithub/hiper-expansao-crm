@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { Lead, LeadGrade, LeadSource, LeadStatus, Prisma, UserRole } from '@prisma/client';
+import { Lead, LeadGrade, LeadSource, LeadStatus, Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 import { leadCreateSchema } from '@/lib/validation';
