@@ -431,7 +431,7 @@ export default function LandingPage() {
             <div className="p-8 lg:p-16 w-full lg:w-3/5 order-2 lg:order-1 flex flex-col justify-center">
               <div className="mb-10">
                 <h2 className="text-4xl md:text-5xl font-extrabold text-gray-900 mb-6 leading-tight">
-                  Leve sua farmácia para o próximo nível.
+                  Leve sua farmácia para o próximo nível
                 </h2>
                 <p className="text-lg text-gray-600 mb-8 leading-relaxed">
                   Não lute sozinho no mercado. Junte-se à Hiperfarma e cresça com a segurança de uma rede forte.
