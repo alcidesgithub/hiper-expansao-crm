@@ -182,12 +182,12 @@ export default function LandingPage() {
               </div>
             </div>
             <div className="relative lg:h-full flex items-center justify-center">
-              <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl border-4 border-white">
+              <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl border-4 border-white bg-white">
                 <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 to-transparent z-10"></div>
                 <Image
-                  alt="Equipe Hiperfarma"
-                  className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-700"
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMDdUOiDm4V4Il7X17QQ_fbxCndUueQtEcP8Bnjl515ORoVy4ILWoat0VqIDVTMl6HCjxZmyog1_ucpaP6bd2ScSnZJUIPBrtjN2oquJJvdfLUN2DUfaDHtvJcGX3myokFTOOuKsQOIEofAz02acxIyPkEn8obIWkhtiDfnT26_zECJUWfvPGbuiKjIUecbQWvv1mEJhYi390MHV3TIiwF3tCRJZt0hrlToLA1KvYc-6klyIchIdWM8lxNZDnKpu_XchGY5wxER3Q"
+                  alt="Expansão Hiperfarma Hero"
+                  className="w-full h-full object-contain"
+                  src="/expansao-hiperfarma-hero.png"
                   width={1200}
                   height={900}
                 />
@@ -317,10 +317,15 @@ export default function LandingPage() {
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div className="order-2 lg:order-1 relative">
               <div className="absolute -inset-4 bg-primary/20 rounded-full blur-3xl opacity-30"></div>
-              <div className="relative bg-gradient-to-br from-primary to-secondary rounded-2xl p-1 shadow-2xl">
-                <div className="bg-white rounded-xl overflow-hidden h-full">
-                  <Image alt="Loyalty card" className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMDdUOiDm4V4Il7X17QQ_fbxCndUueQtEcP8Bnjl515ORoVy4ILWoat0VqIDVTMl6HCjxZmyog1_ucpaP6bd2ScSnZJUIPBrtjN2oquJJvdfLUN2DUfaDHtvJcGX3myokFTOOuKsQOIEofAz02acxIyPkEn8obIWkhtiDfnT26_zECJUWfvPGbuiKjIUecbQWvv1mEJhYi390MHV3TIiwF3tCRJZt0hrlToLA1KvYc-6klyIchIdWM8lxNZDnKpu_XchGY5wxER3Q" width={1200} height={900} />
-                </div>
+              <div className="relative w-full rounded-2xl overflow-hidden shadow-2xl border-4 border-white bg-white">
+                <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 to-transparent z-10"></div>
+                <Image
+                  alt="Hiperfarma Club e Convenios"
+                  className="w-full h-full object-cover"
+                  src="/expansao-hiperfarma-conv-club.png"
+                  width={1200}
+                  height={900}
+                />
               </div>
             </div>
             <div className="order-1 lg:order-2">
@@ -469,9 +474,9 @@ export default function LandingPage() {
             <div className="w-full lg:w-2/5 bg-gray-100 order-1 lg:order-2 relative overflow-hidden group">
               <div className="absolute inset-0 bg-primary/20 z-10 mix-blend-multiply group-hover:bg-primary/10 transition-all duration-700"></div>
               <Image
-                alt="Pharmacists discussion"
+                alt="Depoimento Hiperfarma"
                 className="w-full h-full object-cover transform scale-100 group-hover:scale-110 transition-transform duration-1000"
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMDdUOiDm4V4Il7X17QQ_fbxCndUueQtEcP8Bnjl515ORoVy4ILWoat0VqIDVTMl6HCjxZmyog1_ucpaP6bd2ScSnZJUIPBrtjN2oquJJvdfLUN2DUfaDHtvJcGX3myokFTOOuKsQOIEofAz02acxIyPkEn8obIWkhtiDfnT26_zECJUWfvPGbuiKjIUecbQWvv1mEJhYi390MHV3TIiwF3tCRJZt0hrlToLA1KvYc-6klyIchIdWM8lxNZDnKpu_XchGY5wxER3Q"
+                src="/expansao-hiperfarma-depo.png"
                 width={1200}
                 height={900}
               />
