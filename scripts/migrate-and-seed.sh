@@ -5,6 +5,9 @@ MAX_RETRIES="${MIGRATION_MAX_RETRIES:-30}"
 RETRY_DELAY_SECONDS="${MIGRATION_RETRY_DELAY_SECONDS:-2}"
 CURRENT_ATTEMPT=1
 
+echo "Starting migration script..."
+echo "Waiting for database..."
+
 while ! npx prisma migrate deploy; do
   if [ "$CURRENT_ATTEMPT" -ge "$MAX_RETRIES" ]; then
     echo "Migration failed after ${MAX_RETRIES} attempts."
@@ -16,4 +19,7 @@ while ! npx prisma migrate deploy; do
   sleep "$RETRY_DELAY_SECONDS"
 done
 
+echo "Migration successful."
+echo "Starting seed..."
 npx prisma db seed
+echo "Seed finished."
