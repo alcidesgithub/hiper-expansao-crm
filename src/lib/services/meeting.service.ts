@@ -1,9 +1,9 @@
-import { prisma } from '@/lib/prisma';
-import { graphService } from './microsoft-graph.service';
-import { sendEmail } from '@/lib/email';
+import { Lead, Meeting, Prisma, User } from '@prisma/client';
 import { addMinutes } from 'date-fns';
 import { logAudit } from '@/lib/audit';
-import { Lead, Meeting, Prisma, User } from '@prisma/client';
+import { sendEmail } from '@/lib/email';
+import { prisma } from '@/lib/prisma';
+import { graphService } from './microsoft-graph.service';
 
 function escapeHtml(value: unknown): string {
     const text = String(value ?? '');
@@ -51,42 +51,32 @@ export interface CreateMeetingParams {
 }
 
 export class MeetingService {
-    /**
-     * Agenda reunião completa (Teams + Calendar + DB + Email)
-     * Baseado no Guia de Implementação v1.0
-     */
     async scheduleMeeting(params: CreateMeetingParams) {
-        // 1. Validar lead
         const lead = await prisma.lead.findUnique({
             where: { id: params.leadId },
         });
 
         if (!lead) {
-            throw new Error('Lead não encontrado');
+            throw new Error('Lead nao encontrado');
         }
 
-        // Validação de Grade conforme PRD (A/B)
         if (lead.grade && !['A', 'B'].includes(lead.grade)) {
-            throw new Error('Lead não qualificado para agendamento automático (Grade C/D/F)');
+            throw new Error('Lead nao qualificado para agendamento automatico (Grade C/D/F)');
         }
 
-        // Validação financeira (campo qualificationData no schema)
         const qualData = (lead.qualificationData ?? null) as { hasFinancialCapacity?: boolean } | null;
-        // Nota: O guia menciona hasFinancialCapacity, vamos verificar se existe no JSON
         if (qualData && qualData.hasFinancialCapacity === false) {
             throw new Error('Lead sem capacidade financeira validada para agendamento');
         }
 
-        // 2. Buscar consultor
         const consultant = await prisma.user.findUnique({
             where: { id: params.consultantId },
         });
 
         if (!consultant || !consultant.email) {
-            throw new Error('Consultor não encontrado ou sem email configurado');
+            throw new Error('Consultor nao encontrado ou sem email configurado');
         }
 
-        // 3. Verificar slot disponível (usando a lógica do banco)
         const isSlotAvailable = await this.isSlotAvailable(
             params.consultantId,
             params.scheduledAt,
@@ -94,46 +84,42 @@ export class MeetingService {
         );
 
         if (!isSlotAvailable) {
-            throw new Error('Horário não disponível para este consultor');
+            throw new Error('Horario nao disponivel para este consultor');
         }
 
-        // 4. Calcular datas
         const startDateTime = params.scheduledAt;
         const endDateTime = addMinutes(startDateTime, params.duration || 60);
-        const subject = params.title || `Apresentação Hiperfarma - ${lead.name}`;
+        const subject = params.title || `Apresentacao Hiperfarma - ${lead.name}`;
 
-        // 5. Criar reunião no Teams (se configurado)
-        let onlineMeeting = null;
-        let calendarEvent = null;
-        const isTeamsConfigured = graphService.isConfigured();
+        let provider: string = 'local';
+        let teamsJoinUrl: string | null = null;
+        let teamsEventId: string | null = null;
 
-        if (isTeamsConfigured) {
+        if (graphService.isConfigured()) {
             try {
-                onlineMeeting = await graphService.createOnlineMeeting({
-                    subject,
-                    startDateTime,
-                    endDateTime,
-                    organizerEmail: consultant.email,
-                });
-
-                // 6. Criar evento no calendário
-                calendarEvent = await graphService.createCalendarEvent({
+                const calendarEvent = await graphService.createCalendarEvent({
                     consultantEmail: consultant.email,
                     subject,
                     startDateTime,
                     endDateTime,
-                    joinUrl: onlineMeeting.joinWebUrl!,
                     leadName: lead.name,
                     leadEmail: lead.email,
                     leadPhone: lead.phone,
+                    description: params.leadNotes,
                 });
+                const joinUrl = calendarEvent.onlineMeeting?.joinUrl || null;
+                if (joinUrl) {
+                    provider = 'teams';
+                    teamsJoinUrl = joinUrl;
+                    teamsEventId = calendarEvent.id || null;
+                } else {
+                    console.warn('Teams configurado, mas Graph retornou evento sem joinUrl. Seguindo como reuniao local.');
+                }
             } catch (error) {
-                console.error('Falha ao criar reunião no Teams, prosseguindo com reunião local:', error);
-                // Fallback para local se falhar a criação no Teams mesmo configurado
+                console.error('Falha ao criar reuniao no Teams. Seguindo com agenda interna:', error);
             }
         }
 
-        // 7. Salvar no banco (Novo Schema v1.0)
         const meetingData: Prisma.MeetingUncheckedCreateInput = {
             leadId: params.leadId,
             userId: params.consultantId,
@@ -144,31 +130,27 @@ export class MeetingService {
             duration: params.duration || 60,
             status: 'SCHEDULED',
             leadNotes: params.leadNotes,
-            provider: onlineMeeting ? 'teams' : 'local',
+            provider,
+            teamsJoinUrl,
         };
 
-        if (onlineMeeting && calendarEvent) {
-            meetingData.teamsEventId = calendarEvent.id!;
-            meetingData.teamsMeetingId = onlineMeeting.id!;
-            meetingData.teamsJoinUrl = onlineMeeting.joinWebUrl!;
-            meetingData.teamsThreadId = onlineMeeting.chatInfo?.threadId;
+        if (teamsEventId) {
+            meetingData.teamsEventId = teamsEventId;
         }
 
         const meeting = await prisma.meeting.create({
             data: meetingData,
         });
 
-        // 8. Atualizar status do lead
         await prisma.lead.update({
             where: { id: params.leadId },
             data: {
                 meetingScheduled: true,
                 lastMeetingAt: startDateTime,
-                status: 'QUALIFIED', // Ou um status específico de agendado se preferir
+                status: 'QUALIFIED',
             },
         });
 
-        // 9. Registrar em AuditLog
         await logAudit({
             userId: consultant.id,
             action: 'MEETING_SCHEDULED',
@@ -177,28 +159,24 @@ export class MeetingService {
             changes: {
                 leadId: params.leadId,
                 scheduledAt: startDateTime,
-                teamsJoinUrl: onlineMeeting?.joinWebUrl ?? undefined,
+                teamsJoinUrl: teamsJoinUrl || undefined,
                 provider: meetingData.provider,
             },
         });
 
-        // 10. Enviar emails de confirmação
         await this.sendConfirmationEmails({
             meeting,
             lead,
             consultant,
-            joinUrl: onlineMeeting?.joinWebUrl ?? undefined,
+            joinUrl: teamsJoinUrl || undefined,
         });
 
         return {
             meeting,
-            joinUrl: onlineMeeting?.joinWebUrl ?? undefined,
+            joinUrl: teamsJoinUrl || undefined,
         };
     }
 
-    /**
-     * Verifica se slot está disponível (Lógica simplificada buscando conflitos)
-     */
     async isSlotAvailable(
         userId: string,
         startDateTime: Date,
@@ -232,9 +210,6 @@ export class MeetingService {
         return conflictingMeetings.length === 0;
     }
 
-    /**
-     * Cancela reunião
-     */
     async cancelMeeting(meetingId: string, reason?: string, cancelledBy?: string) {
         const meeting = await prisma.meeting.findUnique({
             where: { id: meetingId },
@@ -245,10 +220,9 @@ export class MeetingService {
         });
 
         if (!meeting) {
-            throw new Error('Reunião não encontrada');
+            throw new Error('Reuniao nao encontrada');
         }
 
-        // Cancelar no Teams e Calendário
         if (meeting.teamsEventId && meeting.user.email) {
             try {
                 await graphService.cancelCalendarEvent(meeting.user.email, meeting.teamsEventId);
@@ -257,7 +231,6 @@ export class MeetingService {
             }
         }
 
-        // Atualizar no banco
         await prisma.meeting.update({
             where: { id: meetingId },
             data: {
@@ -268,7 +241,6 @@ export class MeetingService {
             },
         });
 
-        // Notificar audit
         await logAudit({
             userId: cancelledBy || meeting.userId,
             action: 'MEETING_CANCELLED',
@@ -278,49 +250,41 @@ export class MeetingService {
         });
     }
 
-    /**
-     * Envia emails de confirmação (Abstração sobre o email.ts existente)
-     */
     private async sendConfirmationEmails(params: {
         meeting: Pick<Meeting, 'startTime'>;
         lead: Pick<Lead, 'email' | 'name' | 'company'>;
         consultant: Pick<User, 'email' | 'name'>;
         joinUrl?: string;
     }) {
-        // Nota: Usando a função genérica sendEmail ou as específicas se existirem no lib/email.ts
-        // Como não quero quebrar se não houver templates específicos, vou usar uma lógica básica
-
         const meetingLinkHtml = params.joinUrl
-            ? `<p><strong>Link da Reunião (Teams):</strong> <a href="${sanitizeUrl(params.joinUrl) || '#'}">Clique aqui para entrar</a></p>`
-            : '<p><strong>Local:</strong> A confirmar (Reunião Presencial/Telefone)</p>';
+            ? `<p><strong>Link da Reuniao (Teams):</strong> <a href="${sanitizeUrl(params.joinUrl) || '#'}">Clique aqui para entrar</a></p>`
+            : '<p><strong>Link:</strong> A confirmar</p>';
 
         const meetingLinkHtmlConsultant = params.joinUrl
-            ? `<p><strong>Link Teams:</strong> <a href="${sanitizeUrl(params.joinUrl) || '#'}">Entrar na Reunião</a></p>`
+            ? `<p><strong>Link Teams:</strong> <a href="${sanitizeUrl(params.joinUrl) || '#'}">Entrar na Reuniao</a></p>`
             : '';
 
-        // Email para o Lead
         await sendEmail({
             to: params.lead.email,
-            subject: 'Confirmação de Reunião - Hiperfarma',
+            subject: 'Confirmacao de Reuniao - Hiperfarma',
             html: `
-        <h1>Olá ${escapeHtml(params.lead.name)},</h1>
-        <p>Sua reunião com <strong>${escapeHtml(params.consultant.name)}</strong> foi agendada com sucesso.</p>
+        <h1>Ola ${escapeHtml(params.lead.name)},</h1>
+        <p>Sua reuniao com <strong>${escapeHtml(params.consultant.name)}</strong> foi agendada com sucesso.</p>
         <p><strong>Data:</strong> ${escapeHtml(formatPtBrDateTime(params.meeting.startTime))}</p>
         ${meetingLinkHtml}
         <br/>
-        <p>Atenciosamente,<br/>Expansão Hiperfarma</p>
+        <p>Atenciosamente,<br/>Expansao Hiperfarma</p>
       `,
         });
 
-        // Email para o Consultor
         await sendEmail({
             to: params.consultant.email,
             subject: `Novo Agendamento: ${escapeHtml(params.lead.name)}`,
             html: `
-        <h1>Olá ${escapeHtml(params.consultant.name)},</h1>
-        <p>Um novo lead agendou uma apresentação com você.</p>
+        <h1>Ola ${escapeHtml(params.consultant.name)},</h1>
+        <p>Um novo lead agendou uma apresentacao com voce.</p>
         <p><strong>Lead:</strong> ${escapeHtml(params.lead.name)}</p>
-        <p><strong>Empresa:</strong> ${escapeHtml(params.lead.company || 'Não informada')}</p>
+        <p><strong>Empresa:</strong> ${escapeHtml(params.lead.company || 'Nao informada')}</p>
         <p><strong>Data:</strong> ${escapeHtml(formatPtBrDateTime(params.meeting.startTime))}</p>
         ${meetingLinkHtmlConsultant}
       `,
@@ -329,5 +293,3 @@ export class MeetingService {
 }
 
 export const meetingService = new MeetingService();
-
-

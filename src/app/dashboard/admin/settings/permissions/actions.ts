@@ -19,17 +19,17 @@ let authHandler: AuthHandler = auth;
 let updateSingleRolePermissionsHandler: UpdateSingleRolePermissionsHandler = PermissionService.updateSingleRolePermissions;
 let revalidatePathHandler: RevalidatePathHandler = revalidatePath;
 
-export function __setPermissionActionsHandlersForTests(handlers: {
+export async function __setPermissionActionsHandlersForTests(handlers: {
     authHandler?: AuthHandler;
     updateSingleRolePermissionsHandler?: UpdateSingleRolePermissionsHandler;
     revalidatePathHandler?: RevalidatePathHandler;
-}): void {
+}): Promise<void> {
     if (handlers.authHandler) authHandler = handlers.authHandler;
     if (handlers.updateSingleRolePermissionsHandler) updateSingleRolePermissionsHandler = handlers.updateSingleRolePermissionsHandler;
     if (handlers.revalidatePathHandler) revalidatePathHandler = handlers.revalidatePathHandler;
 }
 
-export function __resetPermissionActionsHandlersForTests(): void {
+export async function __resetPermissionActionsHandlersForTests(): Promise<void> {
     authHandler = auth;
     updateSingleRolePermissionsHandler = PermissionService.updateSingleRolePermissions;
     revalidatePathHandler = revalidatePath;

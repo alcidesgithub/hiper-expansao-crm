@@ -231,7 +231,14 @@ export async function POST(request: Request) {
         } catch (error: unknown) {
             console.error('Error in scheduleMeeting:', error);
             const message = error instanceof Error ? error.message : 'Falha ao agendar reunião';
-            return NextResponse.json({ error: message }, { status: 500 });
+            const normalized = message.toLowerCase();
+            const status =
+                normalized.includes('nao configurada')
+                    ? 503
+                    : normalized.includes('falha ao criar reuniao no teams') || normalized.includes('sem link da reuniao')
+                        ? 502
+                        : 500;
+            return NextResponse.json({ error: message }, { status });
         }
     } catch (error) {
         console.error('Error creating meeting:', error);

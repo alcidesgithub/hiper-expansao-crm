@@ -8,7 +8,7 @@ import {
   Menu, ArrowRight, PlayCircle, Handshake, Store, Megaphone,
   TrendingUp, CreditCard, Building2, Tag, ChevronDown, Rocket,
   Phone, Mail, Facebook, Instagram, Linkedin, CheckCircle2,
-  ShoppingBag, Pill, HelpCircle, X
+  ShoppingBag, Pill, HelpCircle, ShieldCheck, BadgeCheck, Clock3, X
 } from 'lucide-react';
 
 export default function LandingPage() {
@@ -25,15 +25,7 @@ export default function LandingPage() {
     closeMenu();
 
     const routes: Record<string, string> = {
-      'dashboard': '/dashboard',
-      'kanban': '/dashboard/leads',
-      'lead-detail': '/dashboard/leads/demo',
-      'calendar': '/dashboard/agenda',
-      'analytics': '/dashboard/relatorios',
-      'settings': '/dashboard/config',
-      'login': '/login',
       'wizard': '/associar',
-      'schedule-call': '/agendamento',
       'privacy': '/privacidade',
       'terms': '/termos'
     };
@@ -49,7 +41,7 @@ export default function LandingPage() {
       <style>{`html { scroll-behavior: smooth; }`}</style>
 
       {/* Navbar */}
-      <nav className="fixed w-full z-50 bg-white/95 backdrop-blur-md border-b border-gray-200 transition-colors duration-300">
+      <nav aria-label="Navegacao principal" className="fixed w-full z-50 bg-white/95 backdrop-blur-md border-b border-gray-200 transition-colors duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             <div className="flex-shrink-0 cursor-pointer" onClick={() => window.scrollTo(0, 0)}>
@@ -60,13 +52,14 @@ export default function LandingPage() {
             <div className="hidden md:flex space-x-8 items-center">
               <a href="#vantagens" className="text-gray-600 hover:text-primary font-medium transition-colors">Vantagens</a>
               <a href="#ferramentas" className="text-gray-600 hover:text-primary font-medium transition-colors">Ferramentas</a>
+              <a href="#como-funciona" className="text-gray-600 hover:text-primary font-medium transition-colors">Como Funciona</a>
               <a href="#faq" className="text-gray-600 hover:text-primary font-medium transition-colors">Dúvidas</a>
 
 
 
               <button
                 onClick={() => navigateTo('wizard')}
-                className="border-2 border-primary text-primary hover:bg-primary hover:text-white px-5 py-2 rounded-lg font-semibold transition-all duration-300"
+                className="min-h-11 border-2 border-primary text-primary hover:bg-primary hover:text-white px-5 py-2 rounded-lg font-semibold transition-all duration-300"
               >
                 Seja um Associado
               </button>
@@ -76,7 +69,7 @@ export default function LandingPage() {
             <div className="md:hidden">
               <button
                 onClick={toggleMenu}
-                className="text-gray-600 hover:text-primary p-2 focus:outline-none transition-colors"
+                className="text-gray-600 hover:text-primary p-3 focus:outline-none transition-colors"
                 aria-label="Menu principal"
               >
                 {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
@@ -104,27 +97,23 @@ export default function LandingPage() {
                 Ferramentas
               </a>
               <a
+                href="#como-funciona"
+                onClick={closeMenu}
+                className="block px-3 py-3 rounded-lg text-base font-medium text-gray-700 hover:text-primary hover:bg-primary/5 transition-colors"
+              >
+                Como Funciona
+              </a>
+              <a
                 href="#faq"
                 onClick={closeMenu}
                 className="block px-3 py-3 rounded-lg text-base font-medium text-gray-700 hover:text-primary hover:bg-primary/5 transition-colors"
               >
                 Dúvidas
               </a>
-
-              <div className="border-t border-gray-100 pt-2 mt-2">
-                <p className="px-3 text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Acesso Rápido</p>
-                <button onClick={() => navigateTo('dashboard')} className="block w-full text-left px-3 py-2 text-base text-gray-600 hover:text-primary">Dashboard</button>
-                <button onClick={() => navigateTo('kanban')} className="block w-full text-left px-3 py-2 text-base text-gray-600 hover:text-primary">CRM Leads</button>
-                <button onClick={() => navigateTo('calendar')} className="block w-full text-left px-3 py-2 text-base text-gray-600 hover:text-primary">Agenda</button>
-                <button onClick={() => navigateTo('analytics')} className="block w-full text-left px-3 py-2 text-base text-gray-600 hover:text-primary">Relatórios</button>
-                <button onClick={() => navigateTo('schedule-call')} className="block w-full text-left px-3 py-2 text-base text-gray-600 hover:text-primary">Agendamento de Call</button>
-                <button onClick={() => navigateTo('login')} className="block w-full text-left px-3 py-2 text-base text-gray-600 hover:text-primary">Login</button>
-              </div>
-
               <div className="pt-2 mt-2 border-t border-gray-100">
                 <button
                   onClick={() => { closeMenu(); navigateTo('wizard'); }}
-                  className="w-full flex items-center justify-center px-5 py-3 border border-transparent text-base font-bold rounded-lg text-white bg-primary hover:bg-primary-dark transition-colors shadow-lg shadow-primary/20"
+                  className="min-h-11 w-full flex items-center justify-center px-5 py-3 border border-transparent text-base font-bold rounded-lg text-white bg-primary hover:bg-primary-dark transition-colors shadow-lg shadow-primary/20"
                 >
                   Seja um Associado
                 </button>
@@ -143,10 +132,10 @@ export default function LandingPage() {
                 <span className="w-2 h-2 rounded-full bg-primary mr-2 animate-pulse"></span>
                 Aqui, quem caminha junto, vai mais longe
               </div>
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-gray-900 leading-tight mb-6">
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight text-gray-900 leading-tight mb-6">
                 Sua farmácia muito mais <span className="text-primary">competitiva e lucrativa</span>
               </h1>
-              <p className="text-lg md:text-xl text-gray-600 mb-8 max-w-2xl mx-auto lg:mx-0 leading-relaxed">
+              <p className="text-lg md:text-xl text-gray-600 mb-8 max-w-[65ch] mx-auto lg:mx-0 leading-relaxed">
                 Associe-se à Hiperfarma e tenha acesso a negociações exclusivas, marketing de impacto e ferramentas de gestão que transformam o seu negócio.
               </p>
               <div className="flex flex-col sm:flex-row justify-center lg:justify-start gap-4">
@@ -179,6 +168,20 @@ export default function LandingPage() {
                 </div>
                 <p>Junte-se a <span className="font-bold text-gray-900">200+</span> lojas associadas</p>
               </div>
+              <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl mx-auto lg:mx-0">
+                <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                  <ShieldCheck size={16} className="text-primary flex-shrink-0" />
+                  Sem franquia
+                </div>
+                <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                  <BadgeCheck size={16} className="text-primary flex-shrink-0" />
+                  25+ anos de rede
+                </div>
+                <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700">
+                  <Clock3 size={16} className="text-primary flex-shrink-0" />
+                  Suporte especializado
+                </div>
+              </div>
             </div>
             <div className="relative lg:h-full flex items-center justify-center">
               <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl border-4 border-white bg-white">
@@ -195,8 +198,8 @@ export default function LandingPage() {
                 />
               </div>
               <div className="absolute -bottom-6 -left-6 bg-white p-4 rounded-xl shadow-xl border border-gray-100 flex items-center gap-3 z-20 animate-bounce" style={{ animationDuration: '3s' }}>
-                <div className="bg-blue-100 p-2 rounded-lg">
-                  <Handshake className="text-blue-600" size={24} />
+                <div className="bg-secondary/10 p-2 rounded-lg">
+                  <Handshake className="text-secondary" size={24} />
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 font-medium">Parceria Estratégica</p>
@@ -234,12 +237,56 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Como Funciona */}
+      <section className="py-20 bg-gray-50 border-b border-gray-100 scroll-mt-24" id="como-funciona">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-3xl mx-auto mb-12">
+            <p className="text-primary font-bold tracking-wider uppercase text-sm mb-3">Passo a Passo</p>
+            <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-4">Como entrar para a rede</h2>
+            <p className="text-lg text-gray-600 max-w-[65ch] mx-auto">
+              Processo claro, com previsibilidade desde o primeiro contato até a ativação da sua farmácia.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-6">
+            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+              <p className="text-xs font-bold text-primary uppercase tracking-wider mb-3">Passo 1</p>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Diagnóstico do Perfil</h3>
+              <p className="text-gray-600 text-sm leading-relaxed">
+                Entendemos o momento da sua loja e validamos aderência ao modelo associativo.
+              </p>
+            </div>
+            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+              <p className="text-xs font-bold text-primary uppercase tracking-wider mb-3">Passo 2</p>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Estudo de Viabilidade</h3>
+              <p className="text-gray-600 text-sm leading-relaxed">
+                Avaliamos potencial de ganho com convênios, compra coletiva e fidelização.
+              </p>
+            </div>
+            <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+              <p className="text-xs font-bold text-primary uppercase tracking-wider mb-3">Passo 3</p>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Plano e Implantação</h3>
+              <p className="text-gray-600 text-sm leading-relaxed">
+                Formalização simples, ativação das ferramentas e suporte para acelerar resultados.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-10 max-w-2xl mx-auto">
+            <div className="h-2 rounded-full bg-gray-200 overflow-hidden" role="presentation" aria-hidden="true">
+              <div className="h-full w-1/3 bg-primary"></div>
+            </div>
+            <p className="mt-2 text-sm text-gray-500 text-center">Passo 1 de 3: inicie com uma análise gratuita</p>
+          </div>
+        </div>
+      </section>
+
       {/* Vantagens */}
       <section className="py-20 bg-white scroll-mt-24" id="vantagens">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-16">
-            <h2 className="text-primary font-bold tracking-wider uppercase text-sm mb-3">Nossos Pilares</h2>
-            <h3 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-4">Por que escolher a Hiperfarma?</h3>
+            <p className="text-primary font-bold tracking-wider uppercase text-sm mb-3">Nossos Pilares</p>
+            <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-4">Por que escolher a Hiperfarma?</h2>
             <p className="text-gray-600 text-lg">Entregamos ferramentas reais que aumentam a competitividade, o fluxo de clientes e a rentabilidade da sua farmácia.</p>
           </div>
 
@@ -249,7 +296,7 @@ export default function LandingPage() {
               <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center mb-6 group-hover:bg-primary group-hover:text-white transition-colors duration-300 text-primary">
                 <ShoppingBag size={32} />
               </div>
-              <h4 className="text-xl font-bold text-gray-900 mb-3">Poder de Compra</h4>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Poder de Compra</h3>
               <p className="text-gray-600 leading-relaxed text-sm">
                 Acesse condições comerciais exclusivas. Negociações em bloco, OLs e transferências com as principais indústrias e distribuidoras garantem sua competitividade.
               </p>
@@ -260,7 +307,7 @@ export default function LandingPage() {
               <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center mb-6 group-hover:bg-primary group-hover:text-white transition-colors duration-300 text-primary">
                 <CreditCard size={32} />
               </div>
-              <h4 className="text-xl font-bold text-gray-900 mb-3">Hiper Club de Descontos</h4>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Hiper Club de Descontos</h3>
               <p className="text-gray-600 leading-relaxed text-sm">
                 Nossa ferramenta mais forte. Com mais de <strong>1 milhão de clientes fidelizados</strong>, você oferece descontos reais, acumula inteligência de dados e retém seu público.
               </p>
@@ -271,7 +318,7 @@ export default function LandingPage() {
               <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center mb-6 group-hover:bg-primary group-hover:text-white transition-colors duration-300 text-primary">
                 <Building2 size={32} />
               </div>
-              <h4 className="text-xl font-bold text-gray-900 mb-3">Convênios Corporativos</h4>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Convênios Corporativos</h3>
               <p className="text-gray-600 leading-relaxed text-sm">
                 Mais de <strong>500 empresas conveniadas</strong> no PR e SC. Direcionamos fluxo garantido de colaboradores que compram na sua farmácia.
               </p>
@@ -282,7 +329,7 @@ export default function LandingPage() {
               <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center mb-6 group-hover:bg-primary group-hover:text-white transition-colors duration-300 text-primary">
                 <Pill size={32} />
               </div>
-              <h4 className="text-xl font-bold text-gray-900 mb-3">Gestão de PBMs</h4>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Gestão de PBMs</h3>
               <p className="text-gray-600 leading-relaxed text-sm">
                 Esteja conectado aos principais programas de laboratórios (VidaLink, e-Pharma, Funcional), oferecendo os descontos que o cliente procura.
               </p>
@@ -293,7 +340,7 @@ export default function LandingPage() {
               <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center mb-6 group-hover:bg-primary group-hover:text-white transition-colors duration-300 text-primary">
                 <Megaphone size={32} />
               </div>
-              <h4 className="text-xl font-bold text-gray-900 mb-3">Marketing Cooperado</h4>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Marketing Cooperado</h3>
               <p className="text-gray-600 leading-relaxed text-sm">
                 Tablóides de ofertas mensais, gestão profissional de redes sociais, rádio interna e materiais de ponto de venda para manter sua marca ativa.
               </p>
@@ -304,7 +351,7 @@ export default function LandingPage() {
               <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center mb-6 group-hover:bg-primary group-hover:text-white transition-colors duration-300 text-primary">
                 <Store size={32} />
               </div>
-              <h4 className="text-xl font-bold text-gray-900 mb-3">Marca e Credibilidade</h4>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Marca e Credibilidade</h3>
               <p className="text-gray-600 leading-relaxed text-sm">
                 Faça parte de uma história de mais de 25 anos. A marca Hiperfarma é sinônimo de confiança e preço justo para o consumidor paranaense e catarinense.
               </p>
@@ -346,7 +393,7 @@ export default function LandingPage() {
                     <Building2 className="text-primary" size={24} />
                   </div>
                   <div>
-                    <h4 className="text-xl font-bold text-gray-900">Rede de Convênios</h4>
+                    <h3 className="text-xl font-bold text-gray-900">Rede de Convênios</h3>
                     <p className="text-gray-600 mt-2">
                       Mais de <strong>500 empresas parceiras</strong> e <strong>2 milhões de clientes conveniados</strong>. Direcionamos colaboradores de indústrias e comércios locais para comprar na sua farmácia.
                     </p>
@@ -357,7 +404,7 @@ export default function LandingPage() {
                     <Tag className="text-secondary" size={24} />
                   </div>
                   <div>
-                    <h4 className="text-xl font-bold text-gray-900">Hiper Club de Descontos</h4>
+                    <h3 className="text-xl font-bold text-gray-900">Hiper Club de Descontos</h3>
                     <p className="text-gray-600 mt-2">
                       Sistema de fidelização robusto com APP exclusivo e mais de <strong>1 milhão de usuários</strong>. Ofereça descontos personalizados e acumule pontos para fazer o cliente voltar sempre.
                     </p>
@@ -388,7 +435,7 @@ export default function LandingPage() {
                 <span className="flex items-center gap-3"><HelpCircle className="text-primary" size={20} /> Porque ser um associado Hiperfarma?</span>
                 <ChevronDown className="transition-transform group-open:rotate-180 text-primary" size={24} />
               </summary>
-              <div className="mt-4 text-gray-600 leading-relaxed pl-8 border-l-2 border-primary/20">
+              <div className="mt-4 max-w-[65ch] text-gray-600 leading-relaxed pl-8 border-l-2 border-primary/20">
                 O mercado está cada vez mais competitivo e em constante transformação. Uma forma de se manter nesta constante mudança, é se unindo a uma Rede forte, com valores consolidados e que possua toda uma infraestrutura capaz de suprir estas necessidades do empresário atual. União de tecnologia, inteligência de mercado, equipe qualificada e principalmente o foco no objetivo em comum, tudo que hoje a Hiperfarma oferece ao seu associado.
               </div>
             </details>
@@ -398,7 +445,7 @@ export default function LandingPage() {
                 <span className="flex items-center gap-3"><TrendingUp className="text-primary" size={20} /> Qual o meu investimento x benefício?</span>
                 <ChevronDown className="transition-transform group-open:rotate-180 text-primary" size={24} />
               </summary>
-              <div className="mt-4 text-gray-600 leading-relaxed pl-8 border-l-2 border-primary/20">
+              <div className="mt-4 max-w-[65ch] text-gray-600 leading-relaxed pl-8 border-l-2 border-primary/20">
                 Possuímos 2 taxas fixas mensais. Por sermos uma Associação, todas as verbas arrecadadas, seja através das mensalidades dos associados ou de negociações com fornecedores, são revertidas em benefício ao associado, podendo ser em forma de campanhas, materiais de divulgação ou até mesmo produtos. Possuímos também uma taxa de adesão para a pessoa física representante da loja. Esta pode ser paga à vista ou parcelada. Para consultas de valores, basta entrar em contato conosco.
               </div>
             </details>
@@ -408,7 +455,7 @@ export default function LandingPage() {
                 <span className="flex items-center gap-3"><Store className="text-primary" size={20} /> Existe um padrão de layoutização?</span>
                 <ChevronDown className="transition-transform group-open:rotate-180 text-primary" size={24} />
               </summary>
-              <div className="mt-4 text-gray-600 leading-relaxed pl-8 border-l-2 border-primary/20">
+              <div className="mt-4 max-w-[65ch] text-gray-600 leading-relaxed pl-8 border-l-2 border-primary/20">
                 Sim, possuímos um padrão de comunicação interno e externo, que orienta o cliente a ter uma visão de unidade da Rede. Nosso associado em seu primeiro contato já toma conhecimento do padrão, através do nosso manual de comunicação constantemente atualizado pelo departamento de marketing. Contamos com um quadro de diretores qualificados, sempre à disposição dos seus associados, e entendem no seu dia-a-dia o que faz a diferença na sua empresa. Uma assembleia mensal, onde de forma transparente, todos os seus associados são ouvidos e recebem informações voltadas ao seu negócio. Um modelo de associativismo que em conjunto fortalece sua marca.
               </div>
             </details>
@@ -418,7 +465,7 @@ export default function LandingPage() {
                 <span className="flex items-center gap-3"><CheckCircle2 className="text-primary" size={20} /> O que difere a associação Hiperfarma de uma rede de franquias?</span>
                 <ChevronDown className="transition-transform group-open:rotate-180 text-primary" size={24} />
               </summary>
-              <div className="mt-4 text-gray-600 leading-relaxed pl-8 border-l-2 border-primary/20">
+              <div className="mt-4 max-w-[65ch] text-gray-600 leading-relaxed pl-8 border-l-2 border-primary/20">
                 Na Hiperfarma o associado não é somente mais uma farmácia ou número. É um empresário em fase de crescimento, com total administração do seu estabelecimento comercial. Ele usufrui de todas as ferramentas disponibilizadas pela Rede que trabalham interligados: Sistema de informação gerencial, Departamento de Convênios, Departamento Comercial e Negociação, Departamento de Marketing. Contamos com um quadro de diretores qualificados, sempre à disposição dos seus associados, e entendem no seu dia-a-dia o que faz a diferença na sua empresa. Uma assembleia mensal, onde de forma transparente, todos os seus associados são ouvidos e recebem informações voltadas ao seu negócio. Um modelo de associativismo que em conjunto fortalece sua marca.
               </div>
             </details>
@@ -445,7 +492,7 @@ export default function LandingPage() {
                       <CheckCircle2 size={20} />
                     </div>
                     <div>
-                      <h4 className="font-bold text-gray-900">Análise de Perfil Gratuita</h4>
+                      <h3 className="font-bold text-gray-900">Análise de Perfil Gratuita</h3>
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
@@ -453,7 +500,7 @@ export default function LandingPage() {
                       <CheckCircle2 size={20} />
                     </div>
                     <div>
-                      <h4 className="font-bold text-gray-900">Estudo de Viabilidade</h4>
+                      <h3 className="font-bold text-gray-900">Estudo de Viabilidade</h3>
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
@@ -461,7 +508,7 @@ export default function LandingPage() {
                       <CheckCircle2 size={20} />
                     </div>
                     <div>
-                      <h4 className="font-bold text-gray-900">Apresentação do Plano de Negócios</h4>
+                      <h3 className="font-bold text-gray-900">Apresentação do Plano de Negócios</h3>
                     </div>
                   </div>
                 </div>

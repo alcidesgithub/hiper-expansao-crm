@@ -5,6 +5,12 @@ interface TeamsConfig {
     scope: string;
 }
 
+interface CachedGraphToken {
+    cacheKey: string;
+    token: string;
+    expiresAt: number;
+}
+
 interface GraphDateTime {
     dateTime?: string;
     timeZone?: string;
@@ -60,11 +66,33 @@ export interface TeamsSubscriptionPayload {
     clientState?: string;
 }
 
+let cachedGraphToken: CachedGraphToken | null = null;
+
+function buildConfigCacheKey(config: TeamsConfig): string {
+    return `${config.tenantId}|${config.clientId}|${config.scope}|${config.clientSecret}`;
+}
+
+function getCachedToken(config: TeamsConfig): string | null {
+    if (!cachedGraphToken) return null;
+    if (cachedGraphToken.cacheKey !== buildConfigCacheKey(config)) return null;
+    if (cachedGraphToken.expiresAt <= Date.now() + 60_000) return null;
+    return cachedGraphToken.token;
+}
+
+function cacheToken(config: TeamsConfig, token: string, expiresInSeconds?: number): void {
+    if (!expiresInSeconds || !Number.isFinite(expiresInSeconds) || expiresInSeconds <= 120) return;
+    cachedGraphToken = {
+        cacheKey: buildConfigCacheKey(config),
+        token,
+        expiresAt: Date.now() + expiresInSeconds * 1000,
+    };
+}
+
 function getTeamsConfig(): TeamsConfig | null {
-    const tenantId = process.env.MS_TEAMS_TENANT_ID;
-    const clientId = process.env.MS_TEAMS_CLIENT_ID;
-    const clientSecret = process.env.MS_TEAMS_CLIENT_SECRET;
-    const scope = process.env.MS_TEAMS_GRAPH_SCOPE || 'https://graph.microsoft.com/.default';
+    const tenantId = process.env.MS_TEAMS_TENANT_ID || process.env.MICROSOFT_TENANT_ID;
+    const clientId = process.env.MS_TEAMS_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID;
+    const clientSecret = process.env.MS_TEAMS_CLIENT_SECRET || process.env.MICROSOFT_CLIENT_SECRET;
+    const scope = process.env.MS_TEAMS_GRAPH_SCOPE || process.env.MICROSOFT_GRAPH_SCOPE || 'https://graph.microsoft.com/.default';
 
     if (!tenantId || !clientId || !clientSecret) return null;
     return { tenantId, clientId, clientSecret, scope };
@@ -75,6 +103,9 @@ export function isTeamsConfigured(): boolean {
 }
 
 async function getGraphToken(config: TeamsConfig): Promise<string> {
+    const cached = getCachedToken(config);
+    if (cached) return cached;
+
     const tokenUrl = `https://login.microsoftonline.com/${config.tenantId}/oauth2/v2.0/token`;
     const body = new URLSearchParams({
         client_id: config.clientId,
@@ -94,10 +125,16 @@ async function getGraphToken(config: TeamsConfig): Promise<string> {
         throw new Error(`Falha ao autenticar no Graph: ${response.status} ${detail}`);
     }
 
-    const payload = await response.json() as { access_token?: string };
+    const payload = await response.json() as { access_token?: string; expires_in?: number | string };
     if (!payload.access_token) {
         throw new Error('Graph nao retornou access token');
     }
+
+    const expiresIn =
+        typeof payload.expires_in === 'number'
+            ? payload.expires_in
+            : Number.parseInt(String(payload.expires_in ?? ''), 10);
+    cacheToken(config, payload.access_token, Number.isFinite(expiresIn) ? expiresIn : undefined);
 
     return payload.access_token;
 }

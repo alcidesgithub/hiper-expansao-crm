@@ -292,6 +292,77 @@ test('POST /api/schedule should reject with minimum advance time rule', async ()
     assert.equal(response.status, 400);
 });
 
+test('POST /api/schedule should create internal meeting when Teams is not configured', async () => {
+    const token = '1234567890123456';
+    const restoreBase = setupScheduleBaseMocks(token);
+    setScheduleTeamsHandlers({
+        isTeamsConfigured: () => false,
+        createTeamsMeeting: async () => {
+            throw new Error('should not call createTeamsMeeting when Teams is disabled');
+        },
+    });
+
+    const restores: RestoreFn[] = [];
+    const { date, time } = nextBusinessDayAt(10, 0);
+    let capturedProvider: unknown;
+    let capturedTeamsJoinUrl: unknown;
+    let capturedTeamsEventId: unknown;
+
+    restores.push(
+        mockMethod(prisma, '$transaction', (async (callback: unknown) => {
+            const tx = {
+                $executeRaw: async () => undefined,
+                meeting: {
+                    findFirst: async () => null,
+                    create: async (args: { data?: Record<string, unknown> }) => {
+                        capturedProvider = args.data?.provider;
+                        capturedTeamsJoinUrl = args.data?.teamsJoinUrl;
+                        capturedTeamsEventId = args.data?.teamsEventId;
+                        return {
+                            id: 'meeting-internal-1',
+                            teamsJoinUrl: null,
+                        };
+                    },
+                },
+            };
+            if (typeof callback === 'function') {
+                return (callback as (arg: unknown) => unknown)(tx);
+            }
+            throw new Error('unexpected transaction call');
+        }) as typeof prisma.$transaction)
+    );
+
+    restores.push(
+        mockMethod(prisma.lead, 'update', (async () => ({ id: 'lead-1' })) as unknown as typeof prisma.lead.update)
+    );
+    restores.push(
+        mockMethod(prisma.activity, 'create', (async () => ({ id: 'activity-1' })) as unknown as typeof prisma.activity.create)
+    );
+    restores.push(
+        mockMethod(prisma.auditLog, 'create', (async () => ({ id: 'audit-1' })) as unknown as typeof prisma.auditLog.create)
+    );
+
+    try {
+        const request = buildScheduleRequest({
+            leadId: 'lead-1',
+            token,
+            consultorId: 'consultor-1',
+            date,
+            time,
+            notes: 'sem teams',
+        }, '10.0.0.65');
+
+        const response = await postScheduleRoute(request);
+        assert.equal(response.status, 201);
+        assert.equal(capturedProvider, 'local');
+        assert.equal(capturedTeamsJoinUrl, null);
+        assert.equal(capturedTeamsEventId, null);
+    } finally {
+        for (const restore of restores.reverse()) restore();
+        restoreBase();
+    }
+});
+
 test('POST /api/schedule should return 409 when lead already has scheduled meeting', async () => {
     const token = '1234567890123456';
     const restoreBase = setupScheduleBaseMocks(token);

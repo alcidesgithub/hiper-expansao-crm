@@ -256,10 +256,6 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: availabilityValidation.reason }, { status: 409 });
         }
 
-        if (!isTeamsConfiguredHandler()) {
-            return NextResponse.json({ error: 'Integracao com Teams nao configurada' }, { status: 503 });
-        }
-
         let teamsMeeting: TeamsMeetingPayload | null = null;
         const rollbackTeamsMeeting = () => {
             if (!teamsMeeting?.externalEventId) return;
@@ -268,22 +264,21 @@ export async function POST(request: Request) {
                 externalEventId: teamsMeeting.externalEventId,
             }).catch((error) => console.error('Failed to rollback Teams meeting:', error));
         };
-        try {
-            teamsMeeting = await createTeamsMeetingHandler({
-                organizerEmail: consultor.email,
-                leadEmail: lead.email,
-                leadName: lead.name,
-                subject: `Reuniao de Expansao - ${lead.name}`,
-                description: notes || null,
-                startTime,
-                endTime,
-            });
-        } catch (error) {
-            console.error('Error creating Teams meeting:', error);
-            return NextResponse.json({ error: 'Nao foi possivel criar reuniao no Teams' }, { status: 502 });
-        }
-        if (!teamsMeeting) {
-            return NextResponse.json({ error: 'Falha ao preparar reuniao no Teams' }, { status: 502 });
+        if (isTeamsConfiguredHandler()) {
+            try {
+                teamsMeeting = await createTeamsMeetingHandler({
+                    organizerEmail: consultor.email,
+                    leadEmail: lead.email,
+                    leadName: lead.name,
+                    subject: `Reuniao de Expansao - ${lead.name}`,
+                    description: notes || null,
+                    startTime,
+                    endTime,
+                });
+            } catch (error) {
+                console.error('Error creating Teams meeting. Proceeding with internal schedule:', error);
+                teamsMeeting = null;
+            }
         }
 
         const booking = await prisma.$transaction(async (tx) => {
@@ -325,9 +320,9 @@ export async function POST(request: Request) {
                     endTime,
                     selfScheduled: true,
                     status: 'SCHEDULED',
-                    teamsJoinUrl: teamsMeeting.meetingLink,
-                    teamsEventId: teamsMeeting.externalEventId,
-                    provider: teamsMeeting.provider,
+                    teamsJoinUrl: teamsMeeting?.meetingLink ?? null,
+                    teamsEventId: teamsMeeting?.externalEventId ?? null,
+                    provider: teamsMeeting?.provider ?? 'local',
                 },
             });
 

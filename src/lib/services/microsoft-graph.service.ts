@@ -1,7 +1,7 @@
 import { ClientSecretCredential } from '@azure/identity';
 import { Client } from '@microsoft/microsoft-graph-client';
 import { TokenCredentialAuthenticationProvider } from '@microsoft/microsoft-graph-client/authProviders/azureTokenCredentials';
-import { OnlineMeeting, Event } from '@microsoft/microsoft-graph-types';
+import { Event, OnlineMeeting } from '@microsoft/microsoft-graph-types';
 import 'isomorphic-fetch';
 
 export class MicrosoftGraphService {
@@ -19,12 +19,7 @@ export class MicrosoftGraphService {
             throw new Error('Microsoft Graph credentials missing');
         }
 
-        const credential = new ClientSecretCredential(
-            tenantId,
-            clientId,
-            clientSecret
-        );
-
+        const credential = new ClientSecretCredential(tenantId, clientId, clientSecret);
         const authProvider = new TokenCredentialAuthenticationProvider(credential, {
             scopes: [scope],
         });
@@ -37,13 +32,9 @@ export class MicrosoftGraphService {
         const tenantId = process.env.MS_TEAMS_TENANT_ID || process.env.MICROSOFT_TENANT_ID;
         const clientId = process.env.MS_TEAMS_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID;
         const clientSecret = process.env.MS_TEAMS_CLIENT_SECRET || process.env.MICROSOFT_CLIENT_SECRET;
-
-        return !!(tenantId && clientId && clientSecret);
+        return Boolean(tenantId && clientId && clientSecret);
     }
 
-    /**
-     * Cria reunião online do Teams
-     */
     async createOnlineMeeting(params: {
         subject: string;
         startDateTime: Date;
@@ -58,29 +49,24 @@ export class MicrosoftGraphService {
                 subject: params.subject,
             };
 
-            const meeting = await client
+            return await client
                 .api(`/users/${encodeURIComponent(params.organizerEmail)}/onlineMeetings`)
                 .post(meetingBody);
-
-            return meeting;
         } catch (error) {
             console.error('Error creating online meeting:', error);
             throw new Error(`Failed to create Teams meeting: ${error}`);
         }
     }
 
-    /**
-     * Cria evento no calendário do consultor com link da reunião
-     */
     async createCalendarEvent(params: {
         consultantEmail: string;
         subject: string;
         startDateTime: Date;
         endDateTime: Date;
-        joinUrl: string;
         leadName: string;
         leadEmail: string;
         leadPhone?: string;
+        description?: string;
     }): Promise<Event> {
         try {
             const client = this.getClient();
@@ -108,24 +94,19 @@ export class MicrosoftGraphService {
                     },
                 ],
                 isOnlineMeeting: true,
-                onlineMeetingUrl: params.joinUrl,
                 onlineMeetingProvider: 'teamsForBusiness' as const,
+                allowNewTimeProposals: true,
             };
 
-            const createdEvent = await client
+            return await client
                 .api(`/users/${encodeURIComponent(params.consultantEmail)}/calendar/events`)
                 .post(event);
-
-            return createdEvent;
         } catch (error) {
             console.error('Error creating calendar event:', error);
             throw new Error(`Failed to create calendar event: ${error}`);
         }
     }
 
-    /**
-     * Cancela reunião online
-     */
     async cancelOnlineMeeting(
         consultantEmail: string,
         meetingId: string
@@ -141,9 +122,6 @@ export class MicrosoftGraphService {
         }
     }
 
-    /**
-     * Cancela evento do calendário
-     */
     async cancelCalendarEvent(
         consultantEmail: string,
         eventId: string
@@ -159,47 +137,35 @@ export class MicrosoftGraphService {
         }
     }
 
-    /**
-     * Monta corpo do email do evento
-     */
     private buildEventBody(params: {
         leadName: string;
         leadEmail: string;
         leadPhone?: string;
-        joinUrl: string;
+        description?: string;
     }): string {
+        const leadDescription = params.description
+            ? `<p><strong>Observacoes:</strong> ${params.description}</p>`
+            : '';
+
         return `
       <div style="font-family: Arial, sans-serif;">
-        <h2>Reunião de Apresentação Hiperfarma</h2>
+        <h2>Reuniao de Apresentacao Hiperfarma</h2>
         
-        <h3>Informações do Lead:</h3>
+        <h3>Informacoes do Lead:</h3>
         <ul>
           <li><strong>Nome:</strong> ${params.leadName}</li>
           <li><strong>Email:</strong> ${params.leadEmail}</li>
           ${params.leadPhone ? `<li><strong>Telefone:</strong> ${params.leadPhone}</li>` : ''}
         </ul>
 
-        <h3>Link da Reunião:</h3>
-        <p>
-          <a href="${params.joinUrl}" style="
-            display: inline-block;
-            background-color: #0078d4;
-            color: white;
-            padding: 12px 24px;
-            text-decoration: none;
-            border-radius: 4px;
-            font-weight: bold;
-            text-align: center;
-          ">Participar da Reunião Teams</a>
-        </p>
+        ${leadDescription}
 
         <p style="color: #666; font-size: 12px; margin-top: 20px;">
-          Este lead foi pré-qualificado pelo sistema e possui capacidade financeira validada.
+          O convite do Outlook/Teams contera automaticamente o botao para entrada na reuniao.
         </p>
       </div>
     `;
     }
 }
 
-// Singleton instance
 export const graphService = new MicrosoftGraphService();

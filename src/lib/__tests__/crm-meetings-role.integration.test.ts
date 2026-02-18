@@ -7,8 +7,6 @@ import {
     POST as postMeetingsRoute,
     __setAuthHandlerForTests as setMeetingsAuth,
     __resetAuthHandlerForTests as resetMeetingsAuth,
-    __setTeamsHandlersForTests as setMeetingsTeamsHandlers,
-    __resetTeamsHandlersForTests as resetMeetingsTeamsHandlers,
 } from '@/app/api/meetings/route';
 import {
     GET as getMeetingByIdRoute,
@@ -25,6 +23,7 @@ import {
     withAuthSession,
     withRouteIdParam,
 } from '@/lib/__tests__/crm-role-test-utils';
+import { graphService } from '@/lib/services/microsoft-graph.service';
 
 test('GET /api/meetings should return 401 when unauthenticated', async () => {
     const restoreAuth = withAuthSession(setMeetingsAuth, resetMeetingsAuth, null);
@@ -132,16 +131,28 @@ test('POST /api/meetings should return 404 when lead is outside scope', async ()
 
 test('POST /api/meetings should create meeting for in-scope lead with safe lead select', async () => {
     const restoreAuth = withAuthSession(setMeetingsAuth, resetMeetingsAuth, sessionForRole('CONSULTANT'));
-    setMeetingsTeamsHandlers({
-        isTeamsConfigured: () => true,
-        createTeamsMeeting: async () => ({
-            provider: 'teams',
-            meetingLink: 'https://teams.example/meeting-1',
-            externalEventId: 'event-1',
-        }),
-    });
     const restores: RestoreFn[] = [];
     let capturedLeadSelect: Record<string, unknown> | undefined;
+
+    restores.push(
+        mockMethod(
+            graphService,
+            'isConfigured',
+            (() => true) as unknown as typeof graphService.isConfigured
+        )
+    );
+    restores.push(
+        mockMethod(
+            graphService,
+            'createCalendarEvent',
+            (async () => ({
+                id: 'event-1',
+                onlineMeeting: {
+                    joinUrl: 'https://teams.example/meeting-1',
+                },
+            })) as unknown as typeof graphService.createCalendarEvent
+        )
+    );
 
     restores.push(
         mockMethod(
@@ -262,7 +273,6 @@ test('POST /api/meetings should create meeting for in-scope lead with safe lead 
         assert.equal(capturedLeadSelect?.roiData, undefined);
     } finally {
         for (const restore of restores.reverse()) restore();
-        resetMeetingsTeamsHandlers();
         restoreAuth();
     }
 });

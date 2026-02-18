@@ -12,13 +12,27 @@ import {
 type RestoreFn = () => void;
 
 function setEnv(
-    values: Partial<Record<'MS_TEAMS_CLIENT_ID' | 'MS_TEAMS_CLIENT_SECRET' | 'MS_TEAMS_TENANT_ID' | 'MS_TEAMS_GRAPH_SCOPE', string | undefined>>
+    values: Partial<Record<
+        | 'MS_TEAMS_CLIENT_ID'
+        | 'MS_TEAMS_CLIENT_SECRET'
+        | 'MS_TEAMS_TENANT_ID'
+        | 'MS_TEAMS_GRAPH_SCOPE'
+        | 'MICROSOFT_CLIENT_ID'
+        | 'MICROSOFT_CLIENT_SECRET'
+        | 'MICROSOFT_TENANT_ID'
+        | 'MICROSOFT_GRAPH_SCOPE',
+        string | undefined
+    >>
 ): RestoreFn {
     const previous: Record<string, string | undefined> = {
         MS_TEAMS_CLIENT_ID: process.env.MS_TEAMS_CLIENT_ID,
         MS_TEAMS_CLIENT_SECRET: process.env.MS_TEAMS_CLIENT_SECRET,
         MS_TEAMS_TENANT_ID: process.env.MS_TEAMS_TENANT_ID,
         MS_TEAMS_GRAPH_SCOPE: process.env.MS_TEAMS_GRAPH_SCOPE,
+        MICROSOFT_CLIENT_ID: process.env.MICROSOFT_CLIENT_ID,
+        MICROSOFT_CLIENT_SECRET: process.env.MICROSOFT_CLIENT_SECRET,
+        MICROSOFT_TENANT_ID: process.env.MICROSOFT_TENANT_ID,
+        MICROSOFT_GRAPH_SCOPE: process.env.MICROSOFT_GRAPH_SCOPE,
     };
 
     for (const [key, value] of Object.entries(values)) {
@@ -57,10 +71,31 @@ test('isTeamsConfigured should be false when env vars are missing', { concurrenc
         MS_TEAMS_CLIENT_SECRET: undefined,
         MS_TEAMS_TENANT_ID: undefined,
         MS_TEAMS_GRAPH_SCOPE: undefined,
+        MICROSOFT_CLIENT_ID: undefined,
+        MICROSOFT_CLIENT_SECRET: undefined,
+        MICROSOFT_TENANT_ID: undefined,
+        MICROSOFT_GRAPH_SCOPE: undefined,
     });
 
     try {
         assert.equal(isTeamsConfigured(), false);
+    } finally {
+        restoreEnv();
+    }
+});
+
+test('isTeamsConfigured should accept MICROSOFT_* aliases', { concurrency: false }, () => {
+    const restoreEnv = setEnv({
+        MS_TEAMS_CLIENT_ID: undefined,
+        MS_TEAMS_CLIENT_SECRET: undefined,
+        MS_TEAMS_TENANT_ID: undefined,
+        MICROSOFT_CLIENT_ID: 'legacy-client-id',
+        MICROSOFT_CLIENT_SECRET: 'legacy-client-secret',
+        MICROSOFT_TENANT_ID: 'legacy-tenant-id',
+    });
+
+    try {
+        assert.equal(isTeamsConfigured(), true);
     } finally {
         restoreEnv();
     }
@@ -281,4 +316,3 @@ test('createTeamsEventSubscription and renewTeamsEventSubscription should work',
         restoreEnv();
     }
 });
-
