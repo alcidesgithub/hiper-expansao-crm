@@ -124,7 +124,7 @@ async function ensureTargetUserCanHaveAvailability(targetUserId: string, actorUs
     });
     if (!target) return false;
     if (target.id === actorUserId) return true;
-    return target.role === 'CONSULTANT';
+    return target.role === 'CONSULTANT' || target.role === 'MANAGER';
 }
 
 async function loadAvailabilityPayload(targetUserId: string, includeConsultants: boolean) {
@@ -141,7 +141,7 @@ async function loadAvailabilityPayload(targetUserId: string, includeConsultants:
             ? prisma.user.findMany({
                 where: {
                     status: 'ACTIVE',
-                    role: { in: ['CONSULTANT'] },
+                    role: { in: ['CONSULTANT', 'MANAGER'] },
                 },
                 select: { id: true, name: true, role: true },
                 orderBy: { name: 'asc' },

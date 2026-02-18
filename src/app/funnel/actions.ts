@@ -8,6 +8,7 @@ import { calculateLeadScore, calcularScore, type DynamicScoringCriterion, type Q
 import { processAutomationRules, type AutomationRule } from '@/lib/automation';
 import { validateLeadContactPayload } from '@/lib/contact-validation';
 import { buildDefaultAutomationRules, DEFAULT_SCORING_CRITERIA } from '@/lib/config-options';
+import { notifyActiveManagers } from '@/lib/crm-notifications';
 
 const FUNNEL_TOKEN_KEY = 'funnelToken';
 type GateProfile = 'DECISOR' | 'INFLUENCIADOR' | 'PESQUISADOR';
@@ -154,6 +155,13 @@ export async function submitStepOne(formData: {
                     [FUNNEL_TOKEN_KEY]: funnelToken,
                 },
             },
+        });
+
+        await notifyActiveManagers({
+            title: 'Novo lead no funil',
+            message: `${lead.name} iniciou o funil de qualificação.`,
+            link: `/dashboard/leads/${lead.id}`,
+            emailSubject: 'Novo lead no funil de qualificação',
         });
 
         redirect(
@@ -452,6 +460,13 @@ export async function submitStepFive(
                 priority: resolvedPriority,
                 assignedUserId: automationResult.updates.assignedUserId || lead.assignedUserId,
             },
+        });
+
+        await notifyActiveManagers({
+            title: 'Lead concluiu qualificação',
+            message: `${lead.name} concluiu o formulário. Grade ${resolvedGrade} e score ${dynamicScore}.`,
+            link: `/dashboard/leads/${leadId}`,
+            emailSubject: 'Lead concluiu o formulário de qualificação',
         });
 
         redirect(

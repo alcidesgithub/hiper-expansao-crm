@@ -11,6 +11,7 @@ import { buildLeadSelect } from '@/lib/lead-select';
 
 import { calculateLeadScore, DynamicScoringCriterion } from '@/lib/scoring';
 import { processAutomationRules, AutomationRule } from '@/lib/automation';
+import { notifyActiveManagers, notifyAssignableUser } from '@/lib/crm-notifications';
 const LEAD_GRADES: readonly LeadGrade[] = ['A', 'B', 'C', 'D', 'F'];
 const LEAD_SOURCES: readonly LeadSource[] = ['WEBSITE', 'FACEBOOK', 'INSTAGRAM', 'GOOGLE_ADS', 'LINKEDIN', 'EMAIL', 'PHONE', 'REFERRAL', 'EVENT', 'OTHER'];
 
@@ -186,10 +187,13 @@ export async function POST(request: Request) {
         if (parsed.data.assignedUserId) {
             const assigned = await prisma.user.findUnique({
                 where: { id: parsed.data.assignedUserId },
-                select: { id: true, status: true },
+                select: { id: true, status: true, role: true },
             });
             if (!assigned || assigned.status !== 'ACTIVE') {
-                return NextResponse.json({ error: 'Usuário responsável inválido ou inativo' }, { status: 400 });
+                return NextResponse.json({ error: 'Usuario responsavel invalido ou inativo' }, { status: 400 });
+            }
+            if (!['CONSULTANT', 'MANAGER'].includes(assigned.role)) {
+                return NextResponse.json({ error: 'Responsavel deve ser consultor ou manager ativo' }, { status: 400 });
             }
         }
 
@@ -301,10 +305,25 @@ export async function POST(request: Request) {
             },
         });
 
+        await notifyActiveManagers({
+            title: 'Novo lead criado',
+            message: `${lead.name} foi criado no CRM.`,
+            link: `/dashboard/leads/${lead.id}`,
+            emailSubject: 'Novo lead criado no CRM',
+        });
+
+        if (user.role === 'MANAGER' && assignedUserId && assignedUserId !== user.id) {
+            await notifyAssignableUser(assignedUserId, {
+                title: 'Lead transferido para voce',
+                message: `${lead.name} foi transferido para sua carteira.`,
+                link: `/dashboard/leads/${lead.id}`,
+                emailSubject: 'Novo lead transferido para voce',
+            });
+        }
+
         return NextResponse.json(lead, { status: 201 });
     } catch (error) {
         console.error('Error creating lead:', error);
         return NextResponse.json({ error: 'Erro ao criar lead' }, { status: 500 });
     }
 }
-

@@ -9,6 +9,7 @@ import { can, canAny, getLeadPermissions } from '@/lib/permissions';
 import { buildLeadSelect } from '@/lib/lead-select';
 import { calculateLeadScore, DynamicScoringCriterion } from '@/lib/scoring';
 import { processAutomationRules, AutomationRule } from '@/lib/automation';
+import { notifyAssignableUser } from '@/lib/crm-notifications';
 
 interface SessionUser {
     id?: string;
@@ -152,10 +153,13 @@ export async function PATCH(
         if (data.assignedUserId) {
             const assigned = await prisma.user.findUnique({
                 where: { id: data.assignedUserId },
-                select: { id: true, status: true },
+                select: { id: true, status: true, role: true },
             });
             if (!assigned || assigned.status !== 'ACTIVE') {
-                return NextResponse.json({ error: 'Usuário responsável inválido ou inativo' }, { status: 400 });
+                return NextResponse.json({ error: 'Usuario responsavel invalido ou inativo' }, { status: 400 });
+            }
+            if (!['CONSULTANT', 'MANAGER'].includes(assigned.role)) {
+                return NextResponse.json({ error: 'Responsavel deve ser consultor ou manager ativo' }, { status: 400 });
             }
         }
 
@@ -304,6 +308,16 @@ export async function PATCH(
                 includeRoiData: true,
             }),
         });
+
+        const assignmentChanged = data.assignedUserId !== undefined && existing.assignedUserId !== updated.assignedUserId;
+        if (assignmentChanged && user.role === 'MANAGER' && updated.assignedUserId && updated.assignedUserId !== user.id) {
+            await notifyAssignableUser(updated.assignedUserId, {
+                title: 'Lead transferido para voce',
+                message: `${updated.name} foi transferido para sua carteira.`,
+                link: `/dashboard/leads/${id}`,
+                emailSubject: 'Novo lead transferido para voce',
+            });
+        }
 
         if (user.id && data.pipelineStageId && existing.pipelineStageId !== data.pipelineStageId) {
             await prisma.activity.create({

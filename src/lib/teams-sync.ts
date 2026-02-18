@@ -159,7 +159,7 @@ export async function syncTeamsEventSubscriptions(): Promise<TeamsSubscriptionSy
         prisma.user.findMany({
             where: {
                 status: 'ACTIVE',
-                role: { in: ['CONSULTANT'] },
+                role: { in: ['CONSULTANT', 'MANAGER'] },
                 email: { contains: '@' },
             },
             select: { email: true },

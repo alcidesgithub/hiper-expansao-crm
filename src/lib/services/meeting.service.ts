@@ -5,6 +5,7 @@ import { sendMeetingConfirmationToLead, sendMeetingNotificationToConsultor } fro
 import { prisma } from '@/lib/prisma';
 import { isMeetingOverlapError } from '@/lib/meeting-conflict';
 import { graphService } from './microsoft-graph.service';
+import { createInAppNotifications, notifyActiveManagers } from '@/lib/crm-notifications';
 
 function resolveInternalAppUrl(): string | undefined {
     const candidates = [process.env.NEXT_PUBLIC_APP_URL, process.env.NEXTAUTH_URL];
@@ -155,13 +156,32 @@ export class MeetingService {
             },
         });
 
+        const shouldNotifyConsultant = lead.assignedUserId === consultant.id;
+
         await this.sendConfirmationEmails({
             meeting,
             lead,
             consultant,
             joinUrl: teamsJoinUrl || undefined,
             leadNotes: params.leadNotes,
+            notifyConsultant: shouldNotifyConsultant,
         });
+
+        await notifyActiveManagers({
+            title: 'Reuniao agendada',
+            message: `${lead.name} teve reuniao agendada com ${consultant.name}.`,
+            link: `/dashboard/leads/${lead.id}`,
+            emailSubject: 'Nova reuniao agendada no CRM',
+        });
+
+        if (shouldNotifyConsultant) {
+            await createInAppNotifications([consultant.id], {
+                title: 'Reuniao agendada',
+                message: `Nova reuniao com ${lead.name}.`,
+                link: `/dashboard/leads/${lead.id}`,
+                type: 'info',
+            });
+        }
 
         return {
             meeting,
@@ -248,6 +268,7 @@ export class MeetingService {
         consultant: Pick<User, 'email' | 'name'>;
         joinUrl?: string;
         leadNotes?: string;
+        notifyConsultant: boolean;
     }) {
         const appUrl = resolveInternalAppUrl();
         const date = params.meeting.startTime.toLocaleDateString('pt-BR', {
@@ -261,7 +282,7 @@ export class MeetingService {
         const time = `${startHour} - ${endHour}`;
         const leadCrmUrl = appUrl ? `${appUrl}/dashboard/leads/${params.lead.id}` : undefined;
 
-        await Promise.all([
+        const emailJobs = [
             sendMeetingConfirmationToLead({
                 leadName: params.lead.name,
                 leadEmail: params.lead.email,
@@ -271,23 +292,30 @@ export class MeetingService {
                 meetingLink: params.joinUrl,
                 appUrl,
             }),
-            sendMeetingNotificationToConsultor({
-                consultorEmail: params.consultant.email,
-                consultorName: params.consultant.name,
-                leadName: params.lead.name,
-                leadEmail: params.lead.email,
-                leadPhone: params.lead.phone || undefined,
-                leadCompany: params.lead.company || undefined,
-                score: params.lead.score ?? undefined,
-                grade: params.lead.grade ?? undefined,
-                date,
-                time,
-                meetingLink: params.joinUrl,
-                leadNotes: params.leadNotes,
-                leadCrmUrl,
-                appUrl,
-            }),
-        ]);
+        ];
+
+        if (params.notifyConsultant) {
+            emailJobs.push(
+                sendMeetingNotificationToConsultor({
+                    consultorEmail: params.consultant.email,
+                    consultorName: params.consultant.name,
+                    leadName: params.lead.name,
+                    leadEmail: params.lead.email,
+                    leadPhone: params.lead.phone || undefined,
+                    leadCompany: params.lead.company || undefined,
+                    score: params.lead.score ?? undefined,
+                    grade: params.lead.grade ?? undefined,
+                    date,
+                    time,
+                    meetingLink: params.joinUrl,
+                    leadNotes: params.leadNotes,
+                    leadCrmUrl,
+                    appUrl,
+                })
+            );
+        }
+
+        await Promise.all(emailJobs);
     }
 }
 

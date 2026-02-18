@@ -7,6 +7,7 @@ import { logAudit } from '@/lib/audit';
 import { getPublicAvailabilitySlotsForDate, validateConsultorAvailabilityWindow } from '@/lib/availability';
 import { isMeetingOverlapError } from '@/lib/meeting-conflict';
 import { cancelTeamsMeeting, createTeamsMeeting, isTeamsConfigured, type TeamsMeetingPayload } from '@/lib/teams';
+import { createInAppNotifications, notifyActiveManagers } from '@/lib/crm-notifications';
 
 interface StageProgression {
     pipelineStageId: string | null;
@@ -238,6 +239,7 @@ export async function POST(request: Request) {
                     grade: true,
                     score: true,
                     qualificationData: true,
+                    assignedUserId: true,
                 },
             }),
             prisma.user.findUnique({
@@ -261,7 +263,7 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Somente leads aprovados podem agendar' }, { status: 403 });
         }
 
-        if (!consultor || consultor.status !== 'ACTIVE' || !['CONSULTANT'].includes(consultor.role)) {
+        if (!consultor || consultor.status !== 'ACTIVE' || !['CONSULTANT', 'MANAGER'].includes(consultor.role)) {
             return NextResponse.json({ error: 'Consultor invalido ou inativo' }, { status: 404 });
         }
 
@@ -400,24 +402,41 @@ export async function POST(request: Request) {
             appUrl,
         }).catch((err) => console.error('[Schedule] Email to lead failed:', err));
 
-        sendMeetingNotificationToConsultor({
-            consultorEmail: consultor.email,
-            consultorName: consultor.name,
-            leadName: lead.name,
-            leadEmail: lead.email,
-            leadPhone: lead.phone || '',
-            leadCompany: lead.company || '',
-            score: lead.score || 0,
-            grade: lead.grade || 'C',
-            desafios: [],
-            urgencia: '',
-            date: dateFormatted,
-            time: timeFormatted,
-            meetingLink: meeting.teamsJoinUrl || undefined,
-            leadNotes: notes || undefined,
-            leadCrmUrl: `${appUrl}/dashboard/leads/${leadId}`,
-            appUrl,
-        }).catch((err) => console.error('[Schedule] Email to consultor failed:', err));
+        const shouldNotifyConsultant = lead.assignedUserId === consultorId;
+        if (shouldNotifyConsultant) {
+            sendMeetingNotificationToConsultor({
+                consultorEmail: consultor.email,
+                consultorName: consultor.name,
+                leadName: lead.name,
+                leadEmail: lead.email,
+                leadPhone: lead.phone || '',
+                leadCompany: lead.company || '',
+                score: lead.score || 0,
+                grade: lead.grade || 'C',
+                desafios: [],
+                urgencia: '',
+                date: dateFormatted,
+                time: timeFormatted,
+                meetingLink: meeting.teamsJoinUrl || undefined,
+                leadNotes: notes || undefined,
+                leadCrmUrl: `${appUrl}/dashboard/leads/${leadId}`,
+                appUrl,
+            }).catch((err) => console.error('[Schedule] Email to consultor failed:', err));
+
+            await createInAppNotifications([consultorId], {
+                title: 'Reuniao agendada',
+                message: `Nova reuniao com ${lead.name}.`,
+                link: `/dashboard/leads/${leadId}`,
+                type: 'info',
+            });
+        }
+
+        await notifyActiveManagers({
+            title: 'Reuniao agendada',
+            message: `${lead.name} teve reuniao agendada com ${consultor.name}.`,
+            link: `/dashboard/leads/${leadId}`,
+            emailSubject: 'Nova reuniao agendada no CRM',
+        });
 
         await logAudit({
             userId: consultorId,

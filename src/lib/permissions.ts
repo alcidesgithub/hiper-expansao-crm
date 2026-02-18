@@ -105,12 +105,13 @@ export function getDefaultPermissionsForRole(role: string | null | undefined): r
 
 export function getLeadPermissions(user: PermissionUser | null | undefined, lead: unknown) {
     void lead;
-    if (!user) return { canEditLead: false, canAdvancePipeline: false, canDeleteLead: false };
+    if (!user) return { canEditLead: false, canAdvancePipeline: false, canDeleteLead: false, canAssignLead: false };
 
     return {
         canEditLead: can(user, 'leads:write:own'),
         canAdvancePipeline: can(user, 'pipeline:advance'),
         canDeleteLead: can(user, 'leads:delete'),
+        canAssignLead: can(user, 'leads:assign'),
     };
 }
 

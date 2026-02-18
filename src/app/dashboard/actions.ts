@@ -4,11 +4,12 @@ import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { LeadSource, LeadPriority, LeadStatus, Lead } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
-import { canAny, getLeadPermissions } from '@/lib/permissions';
+import { can, canAny, getLeadPermissions } from '@/lib/permissions';
 import { buildLeadScope, mergeLeadWhere } from '@/lib/lead-scope';
 import { subDays } from 'date-fns';
 import { calculateLeadScore, calcularScore, type QualificationData, type DynamicScoringCriterion } from '@/lib/scoring';
 import { DEFAULT_SCORING_CRITERIA } from '@/lib/config-options';
+import { notifyActiveManagers } from '@/lib/crm-notifications';
 
 export async function searchLeads(query: string) {
     const session = await auth();
@@ -290,6 +291,22 @@ export async function getLeadById(id: string) {
 
     if (!lead) return null;
 
+    const assignableUsers = can(session.user, 'leads:assign')
+        ? await prisma.user.findMany({
+            where: {
+                status: 'ACTIVE',
+                role: { in: ['CONSULTANT', 'MANAGER'] },
+            },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+            },
+            orderBy: [{ role: 'asc' }, { name: 'asc' }],
+        })
+        : [];
+
     // Get available stages for the initial render
     const pipelineId = lead.pipelineStage?.pipelineId || null;
     const availableStages = pipelineId
@@ -303,6 +320,7 @@ export async function getLeadById(id: string) {
     const result = {
         ...lead,
         availableStages,
+        assignableUsers,
         permissions: getLeadPermissions(session.user, lead),
     };
 
@@ -580,6 +598,13 @@ export async function createLead(data: CreateLeadData) {
                     }
                 }
             }
+        });
+
+        await notifyActiveManagers({
+            title: 'Novo lead criado no CRM',
+            message: `${lead.name} foi criado manualmente e está disponível para triagem.`,
+            link: `/dashboard/leads/${lead.id}`,
+            emailSubject: 'Novo lead criado no CRM',
         });
 
         revalidatePath('/dashboard/leads');

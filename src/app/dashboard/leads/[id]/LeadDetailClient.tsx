@@ -49,6 +49,7 @@ interface LeadData {
     pipelineStageId: string | null;
     pipelineStage: StageOption | null;
     assignedUser?: { id: string; name: string; email?: string } | null;
+    assignableUsers?: Array<{ id: string; name: string; email: string; role: 'CONSULTANT' | 'MANAGER' }>;
     customFields?: unknown;
     activities: Array<{
         id: string;
@@ -83,6 +84,7 @@ interface LeadData {
         canEditLead?: boolean;
         canAdvancePipeline?: boolean;
         canDeleteLead?: boolean;
+        canAssignLead?: boolean;
     };
 }
 
@@ -213,6 +215,10 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
 
     const canEditLead = Boolean(leadState.permissions?.canEditLead);
     const canAdvancePipeline = Boolean(leadState.permissions?.canAdvancePipeline);
+    const canAssignLead = Boolean(leadState.permissions?.canAssignLead);
+    const [selectedAssigneeId, setSelectedAssigneeId] = useState(lead.assignedUser?.id || '');
+    const [savingAssignment, setSavingAssignment] = useState(false);
+    const assignableUsers = useMemo(() => lead.assignableUsers ?? [], [lead.assignableUsers]);
 
     useEffect(() => {
         if (!editingData) {
@@ -225,6 +231,10 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
             });
         }
     }, [editingData, leadState]);
+
+    useEffect(() => {
+        setSelectedAssigneeId(leadState.assignedUser?.id || '');
+    }, [leadState.assignedUser?.id]);
 
     const daysInFunnel = Math.max(0, Math.floor((Date.now() - (toDate(leadState.createdAt)?.getTime() || Date.now())) / (1000 * 3600 * 24)));
     const interactionsCount = (leadState.activities?.length || 0) + (leadState.meetings?.length || 0) + (leadState.notes?.length || 0);
@@ -314,6 +324,26 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
             setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Não foi possível salvar os dados.' });
         } finally {
             setSavingData(false);
+        }
+    };
+
+    const saveAssignment = async () => {
+        if (!canAssignLead) return;
+        const currentAssigneeId = leadState.assignedUser?.id || '';
+        if (currentAssigneeId === selectedAssigneeId) return;
+
+        setSavingAssignment(true);
+        try {
+            const updated = await apiRequest<Partial<LeadData>>(`/api/leads/${leadState.id}`, {
+                method: 'PATCH',
+                body: JSON.stringify({ assignedUserId: selectedAssigneeId || null }),
+            });
+            setLeadState((current) => mergeLeadPatch(current, updated));
+            setFeedback({ type: 'success', message: 'Responsavel atualizado com sucesso.' });
+        } catch (error) {
+            setFeedback({ type: 'error', message: error instanceof Error ? error.message : 'Nao foi possivel atualizar o responsavel.' });
+        } finally {
+            setSavingAssignment(false);
         }
     };
 
@@ -468,6 +498,37 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
                                 <p className="text-xs text-primary font-semibold uppercase tracking-wider">Lead Score</p>
                                 <p className="text-sm font-medium text-gray-900">{leadState.score} pontos</p>
                             </div>
+                        </div>
+
+                        <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Responsavel atual</p>
+                            <p className="text-sm font-medium text-gray-900 mt-1">{leadState.assignedUser?.name || 'Nao atribuido'}</p>
+                            {canAssignLead && assignableUsers.length > 0 && (
+                                <div className="mt-3 space-y-2">
+                                    <select
+                                        value={selectedAssigneeId}
+                                        onChange={(e) => setSelectedAssigneeId(e.target.value)}
+                                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                                        disabled={savingAssignment}
+                                    >
+                                        <option value="">Sem responsavel</option>
+                                        {assignableUsers.map((userOption) => (
+                                            <option key={userOption.id} value={userOption.id}>
+                                                {userOption.name} ({userOption.role})
+                                            </option>
+                                        ))}
+                                    </select>
+                                    <button
+                                        type="button"
+                                        onClick={() => void saveAssignment()}
+                                        disabled={savingAssignment || (leadState.assignedUser?.id || '') === selectedAssigneeId}
+                                        className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gray-900 text-white text-xs font-medium disabled:opacity-60"
+                                    >
+                                        {savingAssignment && <Loader2 size={14} className="animate-spin" />}
+                                        Transferir lead
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
                         <div className="mt-6 space-y-2">
