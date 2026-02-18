@@ -39,7 +39,7 @@ test('GET /api/leads should apply role scope matrix on where clause', async () =
     const scenarios = [
         { role: 'ADMIN', userId: ROLE_USER_IDS.ADMIN, scope: 'all' },
         { role: 'DIRECTOR', userId: ROLE_USER_IDS.DIRECTOR, scope: 'all' },
-        { role: 'MANAGER', userId: ROLE_USER_IDS.MANAGER, scope: 'team' },
+        { role: 'MANAGER', userId: ROLE_USER_IDS.MANAGER, scope: 'all' },
         { role: 'CONSULTANT', userId: ROLE_USER_IDS.CONSULTANT, scope: 'own' },
     ] as const;
 
@@ -91,16 +91,6 @@ test('GET /api/leads should apply role scope matrix on where clause', async () =
                 assert.deepEqual(scopeClause, { assignedUserId: scenario.userId });
             }
 
-            if (scenario.scope === 'team') {
-                const andClause = (capturedWhere as { AND?: Array<Record<string, unknown>> }).AND;
-                assert.equal(Array.isArray(andClause), true);
-                const scopeClause = andClause?.find((entry) => 'assignedUserId' in entry) as
-                    | { assignedUserId?: { in?: string[] } }
-                    | undefined;
-                assert.equal(Array.isArray(scopeClause?.assignedUserId?.in), true);
-                assert.equal(scopeClause?.assignedUserId?.in?.includes('team-user-1'), true);
-                assert.equal(scopeClause?.assignedUserId?.in?.includes(scenario.userId), true);
-            }
         } finally {
             for (const restore of restores.reverse()) restore();
             restoreAuth();

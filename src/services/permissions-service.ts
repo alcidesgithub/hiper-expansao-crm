@@ -32,9 +32,7 @@ function normalizePermissions(raw: unknown): Permission[] {
 }
 
 function enforceRolePermissionConstraints(role: AppRole, permissions: Permission[]): Permission[] {
-    if (role === 'MANAGER') {
-        return permissions.filter((permission) => permission !== 'leads:read:all');
-    }
+    void role;
     return permissions;
 }
 

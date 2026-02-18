@@ -29,7 +29,7 @@ test('GET /api/pipeline should apply lead scope and safe lead select for each ro
     const scenarios = [
         { role: 'ADMIN', userId: ROLE_USER_IDS.ADMIN, scope: 'all' },
         { role: 'DIRECTOR', userId: ROLE_USER_IDS.DIRECTOR, scope: 'all' },
-        { role: 'MANAGER', userId: ROLE_USER_IDS.MANAGER, scope: 'team' },
+        { role: 'MANAGER', userId: ROLE_USER_IDS.MANAGER, scope: 'all' },
         { role: 'CONSULTANT', userId: ROLE_USER_IDS.CONSULTANT, scope: 'own' },
     ] as const;
 
@@ -89,13 +89,6 @@ test('GET /api/pipeline should apply lead scope and safe lead select for each ro
 
             if (scenario.scope === 'own') {
                 assert.deepEqual(capturedLeadWhere, { assignedUserId: scenario.userId });
-            }
-
-            if (scenario.scope === 'team') {
-                assert.equal(
-                    Array.isArray((capturedLeadWhere as { assignedUserId?: { in?: string[] } }).assignedUserId?.in),
-                    true
-                );
             }
 
             assert.equal(capturedLeadSelect?.score, true);
