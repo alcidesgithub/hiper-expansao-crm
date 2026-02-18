@@ -28,7 +28,7 @@ const RESOURCE_ICONS: Record<string, React.ReactNode> = {
     'Gestão de Leads': <UserCircle size={18} className="text-blue-500" />,
     'Pipeline e Vendas': <Workflow size={18} className="text-purple-500" />,
     'Financeiro e Preços': <DollarSign size={18} className="text-green-500" />,
-    'Equipe e Usuários': <Users size={18} className="text-orange-500" />,
+    'Usuarios e Disponibilidade': <Users size={18} className="text-orange-500" />,
     'Relatórios': <BarChart3 size={18} className="text-amber-500" />,
     'Configurações de Sistema': <Settings size={18} className="text-slate-500" />,
 };
@@ -158,3 +158,4 @@ export function PermissionTable({ rolePermissions, roles, permissionsByResource 
         </div>
     );
 }
+

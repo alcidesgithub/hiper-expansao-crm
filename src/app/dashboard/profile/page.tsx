@@ -6,7 +6,6 @@ import {
     Mail,
     Shield,
     Phone,
-    Building2,
     Lock,
     Save,
     Loader2,
@@ -20,7 +19,6 @@ type ProfileSessionUser = {
     name?: string | null;
     email?: string | null;
     phone?: string | null;
-    department?: string | null;
 };
 
 type RoleLabelMap = Record<'ADMIN' | 'DIRECTOR' | 'MANAGER' | 'CONSULTANT', string>;
@@ -34,7 +32,6 @@ export default function ProfilePage() {
         name: '',
         email: '',
         phone: '',
-        department: '',
         currentPassword: '',
         newPassword: '',
         confirmPassword: ''
@@ -47,7 +44,6 @@ export default function ProfilePage() {
                 name: sessionUser.name || '',
                 email: sessionUser.email || '',
                 phone: sessionUser.phone || '',
-                department: sessionUser.department || '',
             }));
         }
     }, [sessionUser]);
@@ -78,13 +74,11 @@ export default function ProfilePage() {
                 name: string;
                 email: string;
                 phone: string;
-                department: string;
                 password?: string;
             } = {
                 name: form.name,
                 email: form.email,
                 phone: form.phone,
-                department: form.department,
             };
 
             if (form.newPassword) {
@@ -165,12 +159,6 @@ export default function ProfilePage() {
                                     <span>{form.phone}</span>
                                 </div>
                             )}
-                            {form.department && (
-                                <div className="flex items-center gap-3 text-sm text-gray-600">
-                                    <Building2 size={16} className="text-gray-400" />
-                                    <span>{form.department}</span>
-                                </div>
-                            )}
                         </div>
                     </div>
                 </div>
@@ -216,18 +204,6 @@ export default function ProfilePage() {
                                             type="text"
                                             value={form.phone}
                                             onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
-                                            className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                                        />
-                                    </div>
-                                </div>
-                                <div className="space-y-1.5">
-                                    <label className="text-xs font-semibold text-gray-500 uppercase">Departamento</label>
-                                    <div className="relative">
-                                        <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                                        <input
-                                            type="text"
-                                            value={form.department}
-                                            onChange={e => setForm(f => ({ ...f, department: e.target.value }))}
                                             className="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                                         />
                                     </div>

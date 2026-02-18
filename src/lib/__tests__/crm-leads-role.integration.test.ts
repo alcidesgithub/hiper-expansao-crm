@@ -67,13 +67,6 @@ test('GET /api/leads should apply role scope matrix on where clause', async () =
         restores.push(
             mockMethod(prisma.lead, 'count', (async () => 1) as unknown as typeof prisma.lead.count)
         );
-        restores.push(
-            mockMethod(
-                prisma.teamMember,
-                'findMany',
-                (async () => [{ userId: scenario.userId }, { userId: 'team-user-1' }]) as unknown as typeof prisma.teamMember.findMany
-            )
-        );
 
         try {
             const response = await getLeadsRoute(new Request('http://localhost:3000/api/leads?page=1&limit=10'));
@@ -117,7 +110,7 @@ test('POST /api/leads should return 403 for DIRECTOR (no write permission)', asy
     }
 });
 
-test('POST /api/leads should block MANAGER assigning lead outside team scope', async () => {
+test('POST /api/leads should allow MANAGER assigning lead to active user', async () => {
     const restoreAuth = withAuthSession(setLeadsAuth, resetLeadsAuth, sessionForRole('MANAGER'));
     const restores: RestoreFn[] = [];
 
@@ -137,9 +130,48 @@ test('POST /api/leads should block MANAGER assigning lead outside team scope', a
     );
     restores.push(
         mockMethod(
-            prisma.teamMember,
+            prisma.systemSettings,
             'findMany',
-            (async () => [{ userId: ROLE_USER_IDS.MANAGER }, { userId: 'team-user-1' }]) as unknown as typeof prisma.teamMember.findMany
+            (async () => []) as unknown as typeof prisma.systemSettings.findMany
+        )
+    );
+    restores.push(
+        mockMethod(
+            prisma.pipeline,
+            'findFirst',
+            (async () => ({ id: 'pipeline-default' })) as unknown as typeof prisma.pipeline.findFirst
+        )
+    );
+    restores.push(
+        mockMethod(
+            prisma.pipelineStage,
+            'findMany',
+            (async () => ([{
+                id: 'stage-1',
+                name: 'Novo',
+                order: 1,
+                isWon: false,
+                isLost: false,
+                pipelineId: 'pipeline-default',
+            }])) as unknown as typeof prisma.pipelineStage.findMany
+        )
+    );
+    restores.push(
+        mockMethod(
+            prisma.lead,
+            'create',
+            (async () => buildLeadFixture({
+                id: 'lead-new',
+                pipelineStageId: 'stage-1',
+                assignedUserId: 'outside-user',
+            })) as unknown as typeof prisma.lead.create
+        )
+    );
+    restores.push(
+        mockMethod(
+            prisma.activity,
+            'create',
+            (async () => ({ id: 'activity-1' })) as unknown as typeof prisma.activity.create
         )
     );
 
@@ -155,7 +187,7 @@ test('POST /api/leads should block MANAGER assigning lead outside team scope', a
                 assignedUserId: 'outside-user',
             }),
         }));
-        assert.equal(response.status, 403);
+        assert.equal(response.status, 201);
     } finally {
         for (const restore of restores.reverse()) restore();
         restoreAuth();
@@ -244,13 +276,6 @@ test('GET /api/leads/[id] should select deep sensitive fields for MANAGER', asyn
     const restores: RestoreFn[] = [];
     let capturedSelect: Record<string, unknown> | undefined;
 
-    restores.push(
-        mockMethod(
-            prisma.teamMember,
-            'findMany',
-            (async () => [{ userId: ROLE_USER_IDS.MANAGER }, { userId: 'team-user-1' }]) as unknown as typeof prisma.teamMember.findMany
-        )
-    );
     restores.push(
         mockMethod(
             prisma.lead,

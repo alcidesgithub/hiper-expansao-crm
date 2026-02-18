@@ -1554,37 +1554,36 @@ O sistema possui quatro roles internos. A matriz de permissões é **totalmente 
 
 **Escopo de leitura de leads:**
 
-| Role | Leads visíveis |
+| Role | Leads visiveis |
 |------|---------------|
 | ADMIN | Todos os leads do sistema |
 | DIRECTOR | Todos os leads (somente leitura) |
-| MANAGER | Leads da própria equipe (TeamMember) |
-| CONSULTANT | Apenas leads atribuídos a si |
+| MANAGER | Todos os leads (visao operacional) |
+| CONSULTANT | Apenas leads atribuidos a si |
 
-**Matriz de permissões base (Customizável):**
+**Matriz de permissoes base (Customizavel):**
 
 | Recurso | ADMIN | DIRECTOR | MANAGER | CONSULTANT |
 |---------|:-----:|:--------:|:-------:|:----------:|
-| Ver leads (todos) | ✅ | ✅ | ❌ | ❌ |
-| Ver leads (equipe) | ✅ | ✅ | ✅ | ❌ |
-| Ver leads (próprios) | ✅ | ✅ | ✅ | ✅ |
-| Editar leads | ✅ | ❌ | ✅* | ✅* |
-| Excluir leads | ✅ | ❌ | ❌ | ❌ |
-| Ver score / grade / qualifData | ✅ | ✅ | ✅* | ✅* |
-| Redistribuir / atribuir leads | ✅ | ❌ | ✅ | ❌ |
-| Avançar lead no pipeline | ✅ | ❌ | ✅ | ✅ |
-| Configurar pipeline e etapas | ✅ | ❌ | ❌ | ❌ |
-| Ver pricing ativo | ✅ | ✅ | ✅ | ✅ |
-| Configurar pricing | ✅ | ❌ | ❌ | ❌ |
-| Dashboard executivo | ✅ | ✅ | ❌ | ❌ |
-| Dashboard operacional | ✅ | ✅ | ✅ | ❌ |
-| Dashboard Consultor | ✅ | ❌ | ✅ | ✅ |
-| Gerenciar usuários | ✅ | ❌ | ❌ | ❌ |
-| Gerenciar integrações | ✅ | ❌ | ❌ | ❌ |
-| AuditLog | ✅ | ❌ | ❌ | ❌ |
-| Notas e tarefas | ✅ | ❌ | ✅* | ✅* |
-| Agendar reuniões | ✅ | ❌ | ✅* | ✅* |
-| Gerenciar disponibilidade | ✅ | ❌ | ❌ | ✅ |
+| Ver leads (todos) | SIM | SIM | SIM | NAO |
+| Ver leads (proprios) | SIM | SIM | SIM | SIM |
+| Editar leads | SIM | NAO | SIM* | SIM* |
+| Excluir leads | SIM | NAO | NAO | NAO |
+| Ver score / grade / qualifData | SIM | SIM | SIM* | SIM* |
+| Redistribuir / atribuir leads | SIM | NAO | SIM | NAO |
+| Avancar lead no pipeline | SIM | NAO | SIM | SIM |
+| Configurar pipeline e etapas | SIM | NAO | NAO | NAO |
+| Ver pricing ativo | SIM | SIM | SIM | SIM |
+| Configurar pricing | SIM | NAO | NAO | NAO |
+| Dashboard executivo | SIM | SIM | NAO | NAO |
+| Dashboard operacional | SIM | SIM | SIM | NAO |
+| Dashboard Consultor | SIM | NAO | SIM | SIM |
+| Gerenciar usuarios | SIM | NAO | NAO | NAO |
+| Gerenciar integracoes | SIM | NAO | NAO | NAO |
+| AuditLog | SIM | NAO | NAO | NAO |
+| Notas e tarefas | SIM | NAO | SIM* | SIM* |
+| Agendar reunioes | SIM | NAO | SIM* | SIM* |
+| Gerenciar disponibilidade | SIM | NAO | NAO | SIM |
 
 *restrito ao escopo de leads permitido para o role
 
@@ -1604,8 +1603,7 @@ export const config = {
 
 ```typescript
 type Permission =
-  | 'leads:read:all'        // ADMIN, DIRECTOR
-  | 'leads:read:team'       // MANAGER
+  | 'leads:read:all'        // ADMIN, DIRECTOR, MANAGER
   | 'leads:read:own'        // CONSULTANT
   | 'leads:write:own'       // CONSULTANT, MANAGER
   | 'leads:delete'          // ADMIN
@@ -1625,7 +1623,7 @@ type Permission =
 
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   ADMIN: [
-    'leads:read:all', 'leads:read:team', 'leads:read:own',
+    'leads:read:all', 'leads:read:own',
     'leads:write:own', 'leads:delete', 'leads:assign', 'leads:score:read',
     'pipeline:advance', 'pipeline:configure',
     'pricing:read', 'pricing:write', 'users:manage',
@@ -1638,7 +1636,7 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'dashboard:executive', 'dashboard:operational'
   ],
   MANAGER: [
-    'leads:read:team', 'leads:read:own', 'leads:write:own',
+    'leads:read:all', 'leads:read:own', 'leads:write:own',
     'leads:assign', 'leads:score:read',
     'pipeline:advance',
     'pricing:read',
@@ -1664,18 +1662,13 @@ export function can(user: User, permission: Permission): boolean {
 // lib/lead-scope.ts
 export async function buildLeadScope(session: Session) {
   if (can(session.user, 'leads:read:all')) {
-    return {}  // ADMIN, DIRECTOR — sem filtro
+    return {}  // ADMIN, DIRECTOR, MANAGER - sem filtro
   }
-  if (can(session.user, 'leads:read:team')) {
-    // MANAGER — apenas leads da equipe
-    const members = await prisma.teamMember.findMany({
-      where: { team: { managerId: session.user.id } },
-      select: { userId: true }
-    })
-    return { assignedUserId: { in: members.map(m => m.userId) } }
+  if (can(session.user, 'leads:read:own')) {
+    // CONSULTANT - apenas leads proprios
+    return { assignedUserId: session.user.id }
   }
-  // CONSULTANT — apenas leads próprios
-  return { assignedUserId: session.user.id }
+  return { id: '__no-access__' }
 }
 
 // Uso em API Route:

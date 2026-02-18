@@ -26,7 +26,6 @@ interface ManagedUser {
     email: string;
     role: UserRole;
     status: UserStatus;
-    department: string | null;
     phone: string | null;
     lastLoginAt: string | null;
 }
@@ -43,7 +42,6 @@ interface UserFormState {
     email: string;
     role: UserRole;
     status: UserStatus;
-    department: string;
     phone: string;
     password: string;
 }
@@ -66,7 +64,6 @@ const EMPTY_FORM: UserFormState = {
     email: '',
     role: 'CONSULTANT',
     status: 'ACTIVE',
-    department: '',
     phone: '',
     password: '',
 };
@@ -155,7 +152,6 @@ export default function UsersPage() {
             email: user.email,
             role: user.role,
             status: user.status,
-            department: user.department || '',
             phone: user.phone || '',
             password: '',
         });
@@ -179,7 +175,6 @@ export default function UsersPage() {
                 email: form.email.trim(),
                 role: form.role,
                 status: form.status,
-                department: form.department.trim(),
                 phone: form.phone.trim(),
             };
             if (form.password.trim()) body.password = form.password.trim();
@@ -279,7 +274,7 @@ export default function UsersPage() {
             <div className="bg-white rounded-xl border p-4 grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div className="relative md:col-span-2">
                     <Search size={16} className="absolute left-3 top-2.5 text-gray-400" />
-                    <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Buscar por nome, e-mail ou departamento" className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm" />
+                    <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Buscar por nome ou e-mail" className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm" />
                 </div>
                 <select value={roleFilter} onChange={(e) => { setRoleFilter(e.target.value as 'ALL' | UserRole); setPage(1); }} className="px-3 py-2 border rounded-lg text-sm">
                     <option value="ALL">Todas as funções</option>
@@ -377,10 +372,7 @@ export default function UsersPage() {
                                     {Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                                 </select>
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <input value={form.department} onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))} placeholder="Departamento" className="w-full border rounded-lg px-3 py-2 text-sm" />
-                                <input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="Telefone" className="w-full border rounded-lg px-3 py-2 text-sm" />
-                            </div>
+                            <input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="Telefone" className="w-full border rounded-lg px-3 py-2 text-sm" />
                             <input value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder={editingUser ? 'Nova senha (opcional)' : 'Senha'} type="password" minLength={12} required={!editingUser} className="w-full border rounded-lg px-3 py-2 text-sm" />
                             {formError && <p className="text-sm text-red-600">{formError}</p>}
                             <div className="flex justify-end gap-2 pt-2">

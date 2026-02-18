@@ -15,11 +15,10 @@ async function main() {
     });
     console.log('Role Permissions Matrix from DB:', JSON.stringify(setting?.value, null, 2));
 
-    const teams = await prisma.team.findMany({
-        where: { managerId: userId },
-        include: { members: true }
+    const assignedLeads = await prisma.lead.count({
+        where: { assignedUserId: userId },
     });
-    console.log('Teams managed by user:', JSON.stringify(teams, null, 2));
+    console.log('Assigned leads count:', assignedLeads);
 }
 
 main().catch(console.error).finally(() => prisma.$disconnect());

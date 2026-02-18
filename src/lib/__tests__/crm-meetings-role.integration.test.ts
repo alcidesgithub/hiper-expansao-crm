@@ -398,13 +398,6 @@ test('DELETE /api/meetings/[id] should cancel meeting for MANAGER in scope', asy
 
     restores.push(
         mockMethod(
-            prisma.teamMember,
-            'findMany',
-            (async () => [{ userId: ROLE_USER_IDS.MANAGER }, { userId: 'team-user-1' }]) as unknown as typeof prisma.teamMember.findMany
-        )
-    );
-    restores.push(
-        mockMethod(
             prisma.meeting,
             'findFirst',
             (async () => ({

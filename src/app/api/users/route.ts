@@ -81,7 +81,6 @@ export async function GET(request: Request) {
         where.OR = [
             { name: { contains: search, mode: 'insensitive' } },
             { email: { contains: search, mode: 'insensitive' } },
-            { department: { contains: search, mode: 'insensitive' } },
         ];
     }
 
@@ -94,7 +93,6 @@ export async function GET(request: Request) {
                 email: true,
                 role: true,
                 status: true,
-                department: true,
                 phone: true,
                 createdAt: true,
                 lastLoginAt: true,
@@ -159,7 +157,6 @@ export async function POST(request: Request) {
                 email,
                 role: parsed.data.role,
                 status: parsed.data.status,
-                department: parsed.data.department?.trim() || null,
                 phone: parsed.data.phone?.trim() || null,
                 password: hashedPassword,
             },
@@ -169,7 +166,6 @@ export async function POST(request: Request) {
                 email: true,
                 role: true,
                 status: true,
-                department: true,
                 phone: true,
                 createdAt: true,
                 lastLoginAt: true,

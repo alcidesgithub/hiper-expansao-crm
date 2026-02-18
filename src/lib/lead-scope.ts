@@ -8,42 +8,17 @@ export interface LeadScopeUser {
     permissions?: string[] | null;
 }
 
-export async function getManagerScopedUserIds(managerId: string): Promise<string[]> {
-    const members = await prisma.teamMember.findMany({
-        where: {
-            team: { managerId },
-        },
-        select: { userId: true },
-    });
-
-    const scoped = new Set<string>(members.map((member) => member.userId));
-    scoped.add(managerId);
-    return Array.from(scoped);
-}
-
 export async function buildLeadScope(user: LeadScopeUser): Promise<Prisma.LeadWhereInput> {
     if (!user.id) {
         return { id: '__no-access__' };
     }
 
-    // 1. Can read all leads? (Admin/Director)
+    // 1. Can read all leads? (Admin/Director/Manager)
     if (can(user, 'leads:read:all')) {
         return {};
     }
 
-    // 2. Can read team leads? (Manager)
-    if (can(user, 'leads:read:team')) {
-        const scopedIds = await getManagerScopedUserIds(user.id);
-        if (scopedIds.length === 0) {
-            // Even if manager has no team, they should see their own leads?
-            // Usually managers also have leads assigned to them.
-            // If scopedIds is empty (impossible because we add managerId), it means managerId is there.
-            return { assignedUserId: user.id };
-        }
-        return { assignedUserId: { in: scopedIds } };
-    }
-
-    // 3. Can read own leads? (Consultant)
+    // 2. Can read own leads? (Consultant)
     if (can(user, 'leads:read:own')) {
         return { assignedUserId: user.id };
     }

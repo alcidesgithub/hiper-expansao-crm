@@ -38,7 +38,6 @@ async function main() {
             status: UserStatus.ACTIVE,
             password: hashedPassword,
             phone: '(41) 99999-0001',
-            department: 'TI',
         },
     });
     console.log('  ok Admin user:', admin.email);
@@ -54,7 +53,6 @@ async function main() {
             status: UserStatus.ACTIVE,
             password: hashedPassword,
             phone: '(41) 99999-0003',
-            department: 'Expansao',
         },
     });
     console.log('  ok Consultant user:', consultant.email);

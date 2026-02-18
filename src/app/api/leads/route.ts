@@ -5,7 +5,7 @@ import { auth } from '@/auth';
 import { leadCreateSchema } from '@/lib/validation';
 import { logAudit } from '@/lib/audit';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
-import { buildLeadScope, getManagerScopedUserIds, mergeLeadWhere } from '@/lib/lead-scope';
+import { buildLeadScope, mergeLeadWhere } from '@/lib/lead-scope';
 import { can, canAny } from '@/lib/permissions';
 import { buildLeadSelect } from '@/lib/lead-select';
 
@@ -43,7 +43,7 @@ export function __resetAuthHandlerForTests(): void {
 }
 
 function canView(user: SessionUser): boolean {
-    return canAny(user, ['leads:read:all', 'leads:read:team', 'leads:read:own']);
+    return canAny(user, ['leads:read:all', 'leads:read:own']);
 }
 
 function canManage(user: SessionUser): boolean {
@@ -200,19 +200,6 @@ export async function POST(request: Request) {
             assignedUserId = user.id;
         }
 
-        if (user.role === 'MANAGER') {
-            if (!user.id) return NextResponse.json({ error: 'Usuário inválido' }, { status: 401 });
-            const allowedAssignees = new Set(await getManagerScopedUserIds(user.id));
-            if (!assignedUserId) assignedUserId = user.id;
-            if (!allowedAssignees.has(assignedUserId)) {
-                return NextResponse.json(
-                    { error: 'Sem permissão para atribuir lead para este usuário' },
-                    { status: 403 }
-                );
-            }
-        }
-
-
         // --- SCORING & AUTOMATION ---
 
         // 1. Load Configuration
@@ -320,3 +307,4 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Erro ao criar lead' }, { status: 500 });
     }
 }
+

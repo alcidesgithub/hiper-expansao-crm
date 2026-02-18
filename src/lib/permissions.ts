@@ -2,7 +2,6 @@ export type AppRole = 'ADMIN' | 'DIRECTOR' | 'MANAGER' | 'CONSULTANT';
 
 export type Permission =
     | 'leads:read:all'
-    | 'leads:read:team'
     | 'leads:read:own'
     | 'leads:write:own'
     | 'leads:delete'
@@ -30,7 +29,6 @@ export interface PermissionUser {
 export const ROLE_PERMISSIONS: Record<AppRole, readonly Permission[]> = {
     ADMIN: [
         'leads:read:all',
-        'leads:read:team',
         'leads:read:own',
         'leads:write:own',
         'leads:delete',
@@ -50,7 +48,6 @@ export const ROLE_PERMISSIONS: Record<AppRole, readonly Permission[]> = {
     ],
     DIRECTOR: [
         'leads:read:all',
-        'leads:read:team',
         'leads:read:own',
         'leads:score:read',
         'pricing:read',
@@ -59,7 +56,6 @@ export const ROLE_PERMISSIONS: Record<AppRole, readonly Permission[]> = {
     ],
     MANAGER: [
         'leads:read:all',
-        'leads:read:team',
         'leads:read:own',
         'leads:write:own',
         'leads:delete',
@@ -84,7 +80,6 @@ export const ROLE_PERMISSIONS: Record<AppRole, readonly Permission[]> = {
 
 export const ALL_PERMISSIONS: readonly Permission[] = [
     'leads:read:all',
-    'leads:read:team',
     'leads:read:own',
     'leads:write:own',
     'leads:delete',

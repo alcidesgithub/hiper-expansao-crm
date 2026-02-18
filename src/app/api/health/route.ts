@@ -66,6 +66,7 @@ async function checkRedis(): Promise<ServiceHealth> {
             enableOfflineQueue: false,
             lazyConnect: true,
         });
+        await withTimeout(client.connect(), HEALTH_TIMEOUT_MS, 'redis-connect');
         await withTimeout(client.ping(), HEALTH_TIMEOUT_MS, 'redis');
         return {
             status: 'ok',

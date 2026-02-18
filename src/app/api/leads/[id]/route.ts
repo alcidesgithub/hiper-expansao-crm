@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 import { leadUpdateSchema } from '@/lib/validation';
 import { logAudit } from '@/lib/audit';
-import { buildLeadScope, getManagerScopedUserIds, mergeLeadWhere } from '@/lib/lead-scope';
+import { buildLeadScope, mergeLeadWhere } from '@/lib/lead-scope';
 import { can, canAny, getLeadPermissions } from '@/lib/permissions';
 import { buildLeadSelect } from '@/lib/lead-select';
 import { calculateLeadScore, DynamicScoringCriterion } from '@/lib/scoring';
@@ -39,7 +39,7 @@ export function __resetAuthHandlerForTests(): void {
 }
 
 function canView(user: SessionUser): boolean {
-    return canAny(user, ['leads:read:all', 'leads:read:team', 'leads:read:own']);
+    return canAny(user, ['leads:read:all', 'leads:read:own']);
 }
 
 function canManage(user: SessionUser): boolean {
@@ -173,17 +173,6 @@ export async function PATCH(
             if (data.assignedUserId && data.assignedUserId !== user.id) {
                 return NextResponse.json(
                     { error: 'Sem permissão para transferir este lead' },
-                    { status: 403 }
-                );
-            }
-        }
-
-        if (user.role === 'MANAGER' && data.assignedUserId) {
-            if (!user.id) return NextResponse.json({ error: 'Usuário inválido' }, { status: 401 });
-            const allowedAssignees = new Set(await getManagerScopedUserIds(user.id));
-            if (!allowedAssignees.has(data.assignedUserId)) {
-                return NextResponse.json(
-                    { error: 'Sem permissão para atribuir lead para este usuário' },
                     { status: 403 }
                 );
             }
@@ -414,3 +403,4 @@ export async function DELETE(
         return NextResponse.json({ error: 'Erro ao arquivar lead' }, { status: 500 });
     }
 }
+

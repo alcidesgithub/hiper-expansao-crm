@@ -121,7 +121,6 @@ export const userCreateSchema = z.object({
     email: z.string().email('Email invalido'),
     role: z.enum(['ADMIN', 'DIRECTOR', 'MANAGER', 'CONSULTANT']),
     status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED']).default('ACTIVE'),
-    department: z.string().max(120).optional().nullable(),
     phone: z.string().max(40).optional().nullable(),
     password: z.string().min(12, 'Senha deve ter ao menos 12 caracteres'),
 });
@@ -131,7 +130,6 @@ export const userUpdateSchema = z.object({
     email: z.string().email().optional(),
     role: z.enum(['ADMIN', 'DIRECTOR', 'MANAGER', 'CONSULTANT']).optional(),
     status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED']).optional(),
-    department: z.string().max(120).optional().nullable(),
     phone: z.string().max(40).optional().nullable(),
     password: z.string().min(12).optional(),
 });

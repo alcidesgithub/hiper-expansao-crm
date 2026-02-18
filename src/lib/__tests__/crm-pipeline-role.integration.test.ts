@@ -69,14 +69,6 @@ test('GET /api/pipeline should apply lead scope and safe lead select for each ro
                 }) as unknown as typeof prisma.pipelineStage.findMany
             )
         );
-        restores.push(
-            mockMethod(
-                prisma.teamMember,
-                'findMany',
-                (async () => [{ userId: scenario.userId }, { userId: 'team-user-1' }]) as unknown as typeof prisma.teamMember.findMany
-            )
-        );
-
         try {
             const response = await getPipelineRoute();
             assert.equal(response.status, 200);

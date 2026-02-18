@@ -332,13 +332,6 @@ test('GET /api/leads/[id]/activities should succeed for in-scope lead', async ()
 
     restores.push(
         mockMethod(
-            prisma.teamMember,
-            'findMany',
-            (async () => [{ userId: ROLE_USER_IDS.MANAGER }, { userId: 'team-user-1' }]) as unknown as typeof prisma.teamMember.findMany
-        )
-    );
-    restores.push(
-        mockMethod(
             prisma.lead,
             'findFirst',
             (async () => ({ id: 'lead-1' })) as unknown as typeof prisma.lead.findFirst

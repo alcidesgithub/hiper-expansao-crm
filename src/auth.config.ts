@@ -24,7 +24,7 @@ function canAccessDashboardPath(pathname: string, user: SessionUser): boolean {
     }
     if (pathname.startsWith('/dashboard/disponibilidade')) return can(scopedUser, 'availability:manage');
     if (pathname.startsWith('/dashboard/leads')) {
-        return canAny(scopedUser, ['leads:read:own', 'leads:read:team', 'leads:read:all']);
+        return canAny(scopedUser, ['leads:read:own', 'leads:read:all']);
     }
 
     return true;

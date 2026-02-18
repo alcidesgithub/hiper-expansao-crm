@@ -36,7 +36,6 @@ model User {
   status        UserStatus  @default(ACTIVE)
   password      String
   phone         String?
-  department    String?
   
   // Permissões customizadas (JSON)
   permissions   Json?
@@ -45,8 +44,6 @@ model User {
   settings      Json?
   
   // Relações
-  managedTeams  Team[]      @relation("TeamManager")
-  teamMemberships TeamMember[]
   assignedLeads Lead[]      @relation("AssignedUser")
   activities    Activity[]
   meetings      Meeting[]
@@ -64,34 +61,6 @@ model User {
   @@index([email])
   @@index([role])
   @@index([status])
-}
-
-model Team {
-  id          String       @id @default(cuid())
-  name        String
-  description String?
-  managerId   String
-  manager     User         @relation("TeamManager", fields: [managerId], references: [id])
-  members     TeamMember[]
-  
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  
-  @@index([managerId])
-}
-
-model TeamMember {
-  id        String   @id @default(cuid())
-  teamId    String
-  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  joinedAt  DateTime @default(now())
-  
-  @@unique([teamId, userId])
-  @@index([teamId])
-  @@index([userId])
 }
 
 // ==========================================

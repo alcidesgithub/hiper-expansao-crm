@@ -78,7 +78,6 @@ export async function PATCH(
 
         if (data.role !== undefined) updateData.role = data.role;
         if (data.status !== undefined) updateData.status = data.status;
-        if (data.department !== undefined) updateData.department = data.department?.trim() || null;
         if (data.phone !== undefined) updateData.phone = data.phone?.trim() || null;
         if (data.password !== undefined) updateData.password = await bcrypt.hash(data.password, 10);
 
@@ -132,7 +131,6 @@ export async function PATCH(
                 email: true,
                 role: true,
                 status: true,
-                department: true,
                 phone: true,
                 createdAt: true,
                 lastLoginAt: true,
@@ -149,7 +147,6 @@ export async function PATCH(
                 email: data.email,
                 role: data.role,
                 status: data.status,
-                department: data.department,
                 phone: data.phone,
                 passwordUpdated: data.password !== undefined,
             },

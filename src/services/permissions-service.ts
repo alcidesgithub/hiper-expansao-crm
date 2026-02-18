@@ -56,7 +56,6 @@ function normalizeMatrix(raw: unknown): Record<AppRole, Permission[]> {
 export const PERMISSIONS_BY_RESOURCE: Record<string, Permission[]> = {
     'Gestão de Leads': [
         'leads:read:all',
-        'leads:read:team',
         'leads:read:own',
         'leads:write:own',
         'leads:delete',
@@ -71,7 +70,7 @@ export const PERMISSIONS_BY_RESOURCE: Record<string, Permission[]> = {
         'pricing:read',
         'pricing:write',
     ],
-    'Equipe e Usuários': [
+    'Usuarios e Disponibilidade': [
         'users:manage',
         'availability:manage',
     ],
