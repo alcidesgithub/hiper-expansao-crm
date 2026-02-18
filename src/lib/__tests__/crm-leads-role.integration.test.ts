@@ -174,6 +174,27 @@ test('POST /api/leads should allow MANAGER assigning lead to active user', async
             (async () => ({ id: 'activity-1' })) as unknown as typeof prisma.activity.create
         )
     );
+    restores.push(
+        mockMethod(
+            prisma.auditLog,
+            'create',
+            (async () => ({ id: 'audit-1' })) as unknown as typeof prisma.auditLog.create
+        )
+    );
+    restores.push(
+        mockMethod(
+            prisma.user,
+            'findMany',
+            (async () => []) as unknown as typeof prisma.user.findMany
+        )
+    );
+    restores.push(
+        mockMethod(
+            prisma.user,
+            'findFirst',
+            (async () => null) as unknown as typeof prisma.user.findFirst
+        )
+    );
 
     try {
         const response = await postLeadsRoute(new Request('http://localhost:3000/api/leads', {
@@ -367,6 +388,41 @@ test('PATCH /api/leads/[id] should keep deep sensitive fields hidden for CONSULT
             (async () => ({ id: 'activity-1' })) as unknown as typeof prisma.activity.create
         )
     );
+    restores.push(
+        mockMethod(
+            prisma.systemSettings,
+            'findMany',
+            (async () => []) as unknown as typeof prisma.systemSettings.findMany
+        )
+    );
+    restores.push(
+        mockMethod(
+            prisma.pipelineStage,
+            'findMany',
+            (async () => ([{
+                id: 'stage-1',
+                name: 'Novo',
+                order: 1,
+                isWon: false,
+                isLost: false,
+                pipelineId: 'pipe-1',
+            }])) as unknown as typeof prisma.pipelineStage.findMany
+        )
+    );
+    restores.push(
+        mockMethod(
+            prisma.user,
+            'findUnique',
+            (async () => ({ id: ROLE_USER_IDS.CONSULTANT, status: 'ACTIVE', role: 'CONSULTANT' })) as unknown as typeof prisma.user.findUnique
+        )
+    );
+    restores.push(
+        mockMethod(
+            prisma.auditLog,
+            'create',
+            (async () => ({ id: 'audit-1' })) as unknown as typeof prisma.auditLog.create
+        )
+    );
 
     try {
         const response = await patchLeadByIdRoute(
@@ -388,6 +444,16 @@ test('PATCH /api/leads/[id] should keep deep sensitive fields hidden for CONSULT
 
 test('DELETE /api/leads/[id] should return 404 for MANAGER when lead is out of scope', async () => {
     const restoreAuth = withAuthSession(setLeadByIdAuth, resetLeadByIdAuth, sessionForRole('MANAGER'));
+    const restores: RestoreFn[] = [];
+
+    restores.push(
+        mockMethod(
+            prisma.lead,
+            'findFirst',
+            (async () => null) as unknown as typeof prisma.lead.findFirst
+        )
+    );
+
     try {
         const response = await deleteLeadByIdRoute(
             new Request('http://localhost:3000/api/leads/lead-1', { method: 'DELETE' }),
@@ -395,6 +461,7 @@ test('DELETE /api/leads/[id] should return 404 for MANAGER when lead is out of s
         );
         assert.equal(response.status, 404);
     } finally {
+        for (const restore of restores.reverse()) restore();
         restoreAuth();
     }
 });
@@ -422,6 +489,13 @@ test('DELETE /api/leads/[id] should archive lead for ADMIN when in scope', async
             prisma.activity,
             'create',
             (async () => ({ id: 'activity-1' })) as unknown as typeof prisma.activity.create
+        )
+    );
+    restores.push(
+        mockMethod(
+            prisma.auditLog,
+            'create',
+            (async () => ({ id: 'audit-1' })) as unknown as typeof prisma.auditLog.create
         )
     );
 

@@ -2,7 +2,18 @@
 
 import React, { useState } from 'react';
 import { ArrowRight, X } from 'lucide-react';
-import { createLead } from '../actions';
+import {
+    LEAD_CAPACIDADE_TOTAL_OPTIONS as CAPACIDADE_TOTAL_OPTIONS,
+    LEAD_CARGO_OPTIONS as CARGOS_OPTIONS,
+    LEAD_COMPROMISSO_OPTIONS as COMPROMISSO_OPTIONS,
+    LEAD_FATURAMENTO_OPTIONS as FATURAMENTO_OPTIONS,
+    LEAD_LOJAS_OPTIONS as LOJAS_OPTIONS,
+    LEAD_MOTIVACAO_OPTIONS as MOTIVACAO_OPTIONS,
+    LEAD_SOURCE_OPTIONS as SOURCE_OPTIONS,
+    LEAD_TEMPO_MERCADO_OPTIONS as TEMPO_OPTIONS,
+    LEAD_UF_OPTIONS as UF_OPTIONS,
+    LEAD_URGENCIA_OPTIONS as URGENCIA_OPTIONS,
+} from '@/lib/lead-form-options';
 
 interface Lead {
     id: string;
@@ -77,83 +88,87 @@ const EMPTY_NEW_LEAD: NewLeadForm = {
     expectedCloseDate: '',
 };
 
-const CARGOS_OPTIONS = [
-    { value: 'proprietario', label: 'Proprietário' },
-    { value: 'farmaceutico_rt', label: 'Farmacêutico RT / Sócio' },
-    { value: 'gerente_geral', label: 'Gerente Geral' },
-    { value: 'gerente_comercial', label: 'Gerente Comercial' },
-    { value: 'farmaceutico', label: 'Farmacêutico (não sócio)' },
-    { value: 'outro', label: 'Outro' },
-];
-
-const TEMPO_OPTIONS = [
-    { value: '<1a', label: 'Menos de 1 ano' },
-    { value: '1-3a', label: '1 a 3 anos' },
-    { value: '3-5a', label: '3 a 5 anos' },
-    { value: '5-10a', label: '5 a 10 anos' },
-    { value: '10a+', label: 'Mais de 10 anos' },
-];
-
-const LOJAS_OPTIONS = [
-    { value: '1', label: '1 loja' },
-    { value: '2-3', label: '2 a 3 lojas' },
-    { value: '4-5', label: '4 a 5 lojas' },
-    { value: '6-10', label: '6 a 10 lojas' },
-    { value: '11+', label: '11 ou mais lojas' },
-];
-
-const FATURAMENTO_OPTIONS = [
-    { value: '0-50k', label: 'Até R$ 50k' },
-    { value: '50-100k', label: 'R$ 50k - R$ 100k' },
-    { value: '100-200k', label: 'R$ 100k - R$ 200k' },
-    { value: '200-500k', label: 'R$ 200k - R$ 500k' },
-    { value: '500k+', label: 'Acima de R$ 500k' },
-];
-
-const MOTIVACAO_OPTIONS = [
-    { value: 'poder-compra', label: 'Poder de Compra' },
-    { value: 'reduzir-custos', label: 'Reduzir Custos' },
-    { value: 'suporte', label: 'Suporte de Gestão' },
-    { value: 'marca', label: 'Fortalecer Marca' },
-];
-
-const URGENCIA_OPTIONS = [
-    { value: 'imediato', label: 'Imediato' },
-    { value: 'este-mes', label: 'Este mês' },
-    { value: 'proximo-mes', label: 'Próximo mês' },
-    { value: 'sem-prazo', label: 'Sem prazo' },
-];
-
-const CAPACIDADE_TOTAL_OPTIONS = [
-    { value: 'sim-tranquilo', label: 'Sim, tranquilo' },
-    { value: 'sim-planejamento', label: 'Sim, com planejamento' },
-    { value: 'apertado-possivel', label: 'Apertado, mas possível' },
-    { value: 'precisaria-ajustes', label: 'Precisaria de ajustes' },
-    { value: 'nao-consigo', label: 'Não consigo agora' },
-];
-
-const SOURCE_OPTIONS = [
-    { value: 'WEBSITE', label: 'Website' },
-    { value: 'FACEBOOK', label: 'Facebook' },
-    { value: 'INSTAGRAM', label: 'Instagram' },
-    { value: 'GOOGLE_ADS', label: 'Google Ads' },
-    { value: 'LINKEDIN', label: 'LinkedIn' },
-    { value: 'EMAIL', label: 'Email' },
-    { value: 'PHONE', label: 'Telefone' },
-    { value: 'REFERRAL', label: 'Indicação' },
-    { value: 'EVENT', label: 'Evento' },
-    { value: 'OTHER', label: 'Outro' },
-] as const;
-
-const UF_OPTIONS = [
-    'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA',
-    'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'
-];
-
 export default function LeadCreateModal({ onClose, onCreated }: LeadCreateModalProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
     const [newLead, setNewLead] = useState<NewLeadForm>(EMPTY_NEW_LEAD);
+
+    const resolveGateProfile = (position: string) => {
+        if (['proprietario', 'farmaceutico_rt', 'gerente_geral'].includes(position)) return 'DECISOR';
+        if (['gerente_comercial'].includes(position)) return 'INFLUENCIADOR';
+        return 'PESQUISADOR';
+    };
+
+    const createLeadViaApi = async () => {
+        const position = newLead.position.trim();
+        const nowIso = new Date().toISOString();
+        const hasStep2 = Boolean(position && newLead.tempoMercado && newLead.stores && newLead.revenue);
+        const hasStep3 = Boolean(newLead.motivacao || newLead.desafios.length > 0);
+        const hasStep5 = Boolean(
+            newLead.capacidadePagamentoTotal ||
+            newLead.compromisso ||
+            newLead.conscienciaInvestimento ||
+            newLead.reacaoValores
+        );
+
+        const response = await fetch('/api/leads', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: newLead.name.trim(),
+                email: newLead.email.trim(),
+                phone: newLead.whatsapp.trim() || null,
+                company: newLead.pharmacyName.trim() || null,
+                position: position || null,
+                source: newLead.source,
+                priority: newLead.priority,
+                expectedCloseDate: newLead.expectedCloseDate || null,
+                qualificationData: {
+                    isDecisionMaker: ['proprietario', 'farmaceutico_rt', 'gerente_geral'].includes(position),
+                    gateProfile: resolveGateProfile(position),
+                    nome: newLead.name.trim(),
+                    email: newLead.email.trim(),
+                    telefone: newLead.whatsapp.trim(),
+                    empresa: newLead.pharmacyName.trim(),
+                    cargo: position,
+                    cargoSub: newLead.cargoSub || '',
+                    numeroLojas: newLead.stores,
+                    lojasSub: newLead.lojasSub || '',
+                    faturamento: newLead.revenue,
+                    localizacao: newLead.state,
+                    city: newLead.city.trim(),
+                    state: newLead.state,
+                    tempoMercado: newLead.tempoMercado,
+                    desafios: newLead.desafios,
+                    motivacao: newLead.motivacao,
+                    urgencia: newLead.urgencia,
+                    historicoRedes: newLead.historicoRedes,
+                    conscienciaInvestimento: newLead.conscienciaInvestimento,
+                    reacaoValores: newLead.reacaoValores,
+                    capacidadeMarketing: newLead.capacidadeMarketing,
+                    capacidadeAdmin: newLead.capacidadeAdmin,
+                    capacidadePagamentoTotal: newLead.capacidadePagamentoTotal,
+                    compromisso: newLead.compromisso,
+                    step2CompletedAt: hasStep2 ? nowIso : null,
+                    step3CompletedAt: hasStep3 ? nowIso : null,
+                    step5CompletedAt: hasStep5 ? nowIso : null,
+                },
+            }),
+        });
+
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+            return {
+                success: false as const,
+                error: typeof payload?.error === 'string' ? payload.error : 'Não foi possível criar o lead.',
+            };
+        }
+
+        return {
+            success: true as const,
+            lead: payload as Lead & { pipelineStage?: { id?: string } | null },
+        };
+    };
 
     const handleAddLead = async (event: React.FormEvent) => {
         event.preventDefault();
@@ -171,21 +186,25 @@ export default function LeadCreateModal({ onClose, onCreated }: LeadCreateModalP
 
         setIsSubmitting(true);
 
-        const response = await createLead(newLead);
-        if (!response.success || !response.lead) {
-            setFormError(response.error || 'Não foi possível criar o lead.');
+        try {
+            const response = await createLeadViaApi();
+            if (!response.success || !response.lead) {
+                setFormError(response.error || 'Não foi possível criar o lead.');
+                return;
+            }
+
+            const createdLead = response.lead as Lead & { pipelineStage?: { id?: string } | null };
+            const safeLead: Lead = {
+                ...createdLead,
+                pipelineStageId: createdLead.pipelineStageId || createdLead.pipelineStage?.id || null,
+            };
+
+            onCreated(safeLead);
+        } catch {
+            setFormError('Não foi possível criar o lead.');
+        } finally {
             setIsSubmitting(false);
-            return;
         }
-
-        const createdLead = response.lead as Lead & { pipelineStage?: { id?: string } | null };
-        const safeLead: Lead = {
-            ...createdLead,
-            pipelineStageId: createdLead.pipelineStageId || createdLead.pipelineStage?.id || null,
-        };
-
-        setIsSubmitting(false);
-        onCreated(safeLead);
     };
 
     return (
@@ -322,9 +341,9 @@ export default function LeadCreateModal({ onClose, onCreated }: LeadCreateModalP
                                 <div className="space-y-1">
                                     <label className="text-[10px] font-bold text-gray-500 uppercase">Nível de Compromisso</label>
                                     <select className="w-full p-2 border rounded text-sm" value={newLead.compromisso} onChange={(e) => setNewLead({ ...newLead, compromisso: e.target.value })}>
-                                        <option value="faz-sentido">Faz total sentido</option>
-                                        <option value="interessante">Achei interessante</option>
-                                        <option value="curiosidade">Apenas curiosidade</option>
+                                        {COMPROMISSO_OPTIONS.map((option) => (
+                                            <option key={option.value} value={option.value}>{option.label}</option>
+                                        ))}
                                     </select>
                                 </div>
                             </div>

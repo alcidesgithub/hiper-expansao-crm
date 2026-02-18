@@ -318,7 +318,7 @@ export default function SettingsPage() {
                     scoringCriteria,
                     automationRules,
                     stages: stages.map((stage) => ({
-                        id: stage.id.startsWith('id-') ? undefined : stage.id,
+                        id: stage.id,
                         name: stage.name,
                         color: stage.color,
                         isWon: stage.isWon,

@@ -20,10 +20,24 @@ import {
 import { useRouter } from 'next/navigation';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import {
+    getOptionLabel,
+    LEAD_CAPACIDADE_TOTAL_OPTIONS,
+    LEAD_CARGO_OPTIONS,
+    LEAD_COMPROMISSO_OPTIONS,
+    LEAD_FATURAMENTO_OPTIONS,
+    LEAD_LOJAS_OPTIONS,
+    LEAD_MOTIVACAO_OPTIONS,
+    LEAD_PRIORITY_OPTIONS,
+    LEAD_TEMPO_MERCADO_OPTIONS,
+    LEAD_UF_OPTIONS,
+    LEAD_URGENCIA_OPTIONS,
+} from '@/lib/lead-form-options';
 
 type LeadTab = 'timeline' | 'data' | 'notes' | 'tasks';
 type TaskStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
 type TaskPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
+type LeadPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
 
 interface StageOption {
     id: string;
@@ -42,9 +56,12 @@ interface LeadData {
     company: string | null;
     position: string | null;
     status: string;
+    priority?: LeadPriority;
     score: number;
     grade: string | null;
     estimatedValue: unknown;
+    expectedCloseDate?: string | Date | null;
+    qualificationData?: unknown;
     createdAt: string | Date;
     pipelineStageId: string | null;
     pipelineStage: StageOption | null;
@@ -115,6 +132,16 @@ function toDate(value: string | Date | null | undefined): Date | null {
     if (!value) return null;
     const date = new Date(value);
     return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    return value as Record<string, unknown>;
+}
+
+function toInputDate(value: unknown): string {
+    const date = toDate(value as string | Date | null | undefined);
+    return date ? format(date, 'yyyy-MM-dd') : '';
 }
 
 function toCurrency(value: unknown): string {
@@ -195,12 +222,23 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
 
     const [editingData, setEditingData] = useState(false);
     const [savingData, setSavingData] = useState(false);
+    const leadQualificationData = asRecord(lead.qualificationData);
     const [dataForm, setDataForm] = useState({
         name: lead.name || '',
         email: lead.email || '',
         phone: lead.phone || '',
         company: lead.company || '',
         position: lead.position || '',
+        priority: lead.priority || 'MEDIUM',
+        expectedCloseDate: toInputDate(lead.expectedCloseDate),
+        numeroLojas: typeof leadQualificationData.numeroLojas === 'string' ? leadQualificationData.numeroLojas : '',
+        faturamento: typeof leadQualificationData.faturamento === 'string' ? leadQualificationData.faturamento : '',
+        localizacao: typeof leadQualificationData.localizacao === 'string' ? leadQualificationData.localizacao : '',
+        tempoMercado: typeof leadQualificationData.tempoMercado === 'string' ? leadQualificationData.tempoMercado : '',
+        motivacao: typeof leadQualificationData.motivacao === 'string' ? leadQualificationData.motivacao : '',
+        urgencia: typeof leadQualificationData.urgencia === 'string' ? leadQualificationData.urgencia : '',
+        capacidadePagamentoTotal: typeof leadQualificationData.capacidadePagamentoTotal === 'string' ? leadQualificationData.capacidadePagamentoTotal : '',
+        compromisso: typeof leadQualificationData.compromisso === 'string' ? leadQualificationData.compromisso : '',
     });
 
     const [noteContent, setNoteContent] = useState('');
@@ -222,12 +260,23 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
 
     useEffect(() => {
         if (!editingData) {
+            const qualificationData = asRecord(leadState.qualificationData);
             setDataForm({
                 name: leadState.name || '',
                 email: leadState.email || '',
                 phone: leadState.phone || '',
                 company: leadState.company || '',
                 position: leadState.position || '',
+                priority: leadState.priority || 'MEDIUM',
+                expectedCloseDate: toInputDate(leadState.expectedCloseDate),
+                numeroLojas: typeof qualificationData.numeroLojas === 'string' ? qualificationData.numeroLojas : '',
+                faturamento: typeof qualificationData.faturamento === 'string' ? qualificationData.faturamento : '',
+                localizacao: typeof qualificationData.localizacao === 'string' ? qualificationData.localizacao : '',
+                tempoMercado: typeof qualificationData.tempoMercado === 'string' ? qualificationData.tempoMercado : '',
+                motivacao: typeof qualificationData.motivacao === 'string' ? qualificationData.motivacao : '',
+                urgencia: typeof qualificationData.urgencia === 'string' ? qualificationData.urgencia : '',
+                capacidadePagamentoTotal: typeof qualificationData.capacidadePagamentoTotal === 'string' ? qualificationData.capacidadePagamentoTotal : '',
+                compromisso: typeof qualificationData.compromisso === 'string' ? qualificationData.compromisso : '',
             });
         }
     }, [editingData, leadState]);
@@ -307,6 +356,7 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
 
         setSavingData(true);
         try {
+            const currentQualification = asRecord(leadState.qualificationData);
             const updated = await apiRequest<Partial<LeadData>>(`/api/leads/${leadState.id}`, {
                 method: 'PATCH',
                 body: JSON.stringify({
@@ -315,6 +365,24 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
                     phone: dataForm.phone.trim() || null,
                     company: dataForm.company.trim() || null,
                     position: dataForm.position.trim() || null,
+                    priority: dataForm.priority,
+                    expectedCloseDate: dataForm.expectedCloseDate || null,
+                    qualificationData: {
+                        ...currentQualification,
+                        nome: dataForm.name.trim(),
+                        email: dataForm.email.trim(),
+                        telefone: dataForm.phone.trim(),
+                        empresa: dataForm.company.trim(),
+                        cargo: dataForm.position.trim(),
+                        numeroLojas: dataForm.numeroLojas.trim(),
+                        faturamento: dataForm.faturamento.trim(),
+                        localizacao: dataForm.localizacao.trim(),
+                        tempoMercado: dataForm.tempoMercado.trim(),
+                        motivacao: dataForm.motivacao.trim(),
+                        urgencia: dataForm.urgencia.trim(),
+                        capacidadePagamentoTotal: dataForm.capacidadePagamentoTotal.trim(),
+                        compromisso: dataForm.compromisso.trim(),
+                    },
                 }),
             });
             setLeadState((current) => mergeLeadPatch(current, updated));
@@ -676,20 +744,271 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
                         {activeTab === 'data' && (
                             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                                 <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
-                                    <h3 className="font-bold text-gray-900 flex items-center gap-2"><Store className="text-primary" size={20} /> Dados Detalhados</h3>
-                                    <button type="button" onClick={() => setEditingData((current) => !current)} disabled={!canEditLead} className="text-xs text-primary font-medium hover:underline disabled:opacity-50 disabled:no-underline">{editingData ? 'Cancelar edição' : 'Editar dados'}</button>
+                                    <h3 className="font-bold text-gray-900 flex items-center gap-2">
+                                        <Store className="text-primary" size={20} /> Dados Detalhados
+                                    </h3>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditingData((current) => !current)}
+                                        disabled={!canEditLead}
+                                        className="text-xs text-primary font-medium hover:underline disabled:opacity-50 disabled:no-underline"
+                                    >
+                                        {editingData ? 'Cancelar edição' : 'Editar dados'}
+                                    </button>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div><label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Nome</label>{editingData ? <input value={dataForm.name} onChange={(e) => setDataForm((prev) => ({ ...prev, name: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" /> : <div className="text-gray-900 text-sm">{leadState.name}</div>}</div>
-                                    <div><label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Email</label>{editingData ? <input value={dataForm.email} onChange={(e) => setDataForm((prev) => ({ ...prev, email: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" /> : <div className="text-gray-900 text-sm">{leadState.email}</div>}</div>
-                                    <div><label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Telefone</label>{editingData ? <input value={dataForm.phone} onChange={(e) => setDataForm((prev) => ({ ...prev, phone: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" /> : <div className="text-gray-900 text-sm">{leadState.phone || '-'}</div>}</div>
-                                    <div><label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Empresa</label>{editingData ? <input value={dataForm.company} onChange={(e) => setDataForm((prev) => ({ ...prev, company: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" /> : <div className="text-gray-900 text-sm">{leadState.company || '-'}</div>}</div>
-                                    <div><label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Cargo</label>{editingData ? <input value={dataForm.position} onChange={(e) => setDataForm((prev) => ({ ...prev, position: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" /> : <div className="text-gray-900 text-sm">{leadState.position || '-'}</div>}</div>
-                                    <div><label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Valor estimado</label><div className="text-gray-900 text-sm font-semibold">{toCurrency(leadState.estimatedValue)}</div></div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Nome</label>
+                                        {editingData ? (
+                                            <input
+                                                value={dataForm.name}
+                                                onChange={(e) => setDataForm((prev) => ({ ...prev, name: e.target.value }))}
+                                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                                            />
+                                        ) : (
+                                            <div className="text-gray-900 text-sm">{leadState.name}</div>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Email</label>
+                                        {editingData ? (
+                                            <input
+                                                value={dataForm.email}
+                                                onChange={(e) => setDataForm((prev) => ({ ...prev, email: e.target.value }))}
+                                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                                            />
+                                        ) : (
+                                            <div className="text-gray-900 text-sm">{leadState.email}</div>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Telefone</label>
+                                        {editingData ? (
+                                            <input
+                                                value={dataForm.phone}
+                                                onChange={(e) => setDataForm((prev) => ({ ...prev, phone: e.target.value }))}
+                                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                                            />
+                                        ) : (
+                                            <div className="text-gray-900 text-sm">{leadState.phone || '-'}</div>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Empresa</label>
+                                        {editingData ? (
+                                            <input
+                                                value={dataForm.company}
+                                                onChange={(e) => setDataForm((prev) => ({ ...prev, company: e.target.value }))}
+                                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                                            />
+                                        ) : (
+                                            <div className="text-gray-900 text-sm">{leadState.company || '-'}</div>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Cargo</label>
+                                        {editingData ? (
+                                            <select
+                                                value={dataForm.position}
+                                                onChange={(e) => setDataForm((prev) => ({ ...prev, position: e.target.value }))}
+                                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                                            >
+                                                <option value="">Selecione...</option>
+                                                {LEAD_CARGO_OPTIONS.map((option) => (
+                                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <div className="text-gray-900 text-sm">{getOptionLabel(LEAD_CARGO_OPTIONS, dataForm.position)}</div>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Prioridade</label>
+                                        {editingData ? (
+                                            <select
+                                                value={dataForm.priority}
+                                                onChange={(e) => setDataForm((prev) => ({ ...prev, priority: e.target.value as LeadPriority }))}
+                                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                                            >
+                                                {LEAD_PRIORITY_OPTIONS.map((option) => (
+                                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <div className="text-gray-900 text-sm">{getOptionLabel(LEAD_PRIORITY_OPTIONS, dataForm.priority)}</div>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Previsão de fechamento</label>
+                                        {editingData ? (
+                                            <input
+                                                type="date"
+                                                value={dataForm.expectedCloseDate}
+                                                onChange={(e) => setDataForm((prev) => ({ ...prev, expectedCloseDate: e.target.value }))}
+                                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                                            />
+                                        ) : (
+                                            <div className="text-gray-900 text-sm">
+                                                {toDate(leadState.expectedCloseDate) ? format(toDate(leadState.expectedCloseDate) as Date, 'dd/MM/yyyy', { locale: ptBR }) : '-'}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Número de lojas</label>
+                                        {editingData ? (
+                                            <select
+                                                value={dataForm.numeroLojas}
+                                                onChange={(e) => setDataForm((prev) => ({ ...prev, numeroLojas: e.target.value }))}
+                                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                                            >
+                                                <option value="">Selecione...</option>
+                                                {LEAD_LOJAS_OPTIONS.map((option) => (
+                                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <div className="text-gray-900 text-sm">{getOptionLabel(LEAD_LOJAS_OPTIONS, dataForm.numeroLojas)}</div>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Faturamento</label>
+                                        {editingData ? (
+                                            <select
+                                                value={dataForm.faturamento}
+                                                onChange={(e) => setDataForm((prev) => ({ ...prev, faturamento: e.target.value }))}
+                                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                                            >
+                                                <option value="">Selecione...</option>
+                                                {LEAD_FATURAMENTO_OPTIONS.map((option) => (
+                                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <div className="text-gray-900 text-sm">{getOptionLabel(LEAD_FATURAMENTO_OPTIONS, dataForm.faturamento)}</div>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Localização</label>
+                                        {editingData ? (
+                                            <select
+                                                value={dataForm.localizacao}
+                                                onChange={(e) => setDataForm((prev) => ({ ...prev, localizacao: e.target.value }))}
+                                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                                            >
+                                                <option value="">Selecione...</option>
+                                                {LEAD_UF_OPTIONS.map((option) => (
+                                                    <option key={option} value={option}>{option}</option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <div className="text-gray-900 text-sm">{dataForm.localizacao || '-'}</div>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Tempo de mercado</label>
+                                        {editingData ? (
+                                            <select
+                                                value={dataForm.tempoMercado}
+                                                onChange={(e) => setDataForm((prev) => ({ ...prev, tempoMercado: e.target.value }))}
+                                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                                            >
+                                                <option value="">Selecione...</option>
+                                                {LEAD_TEMPO_MERCADO_OPTIONS.map((option) => (
+                                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <div className="text-gray-900 text-sm">{getOptionLabel(LEAD_TEMPO_MERCADO_OPTIONS, dataForm.tempoMercado)}</div>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Motivação</label>
+                                        {editingData ? (
+                                            <select
+                                                value={dataForm.motivacao}
+                                                onChange={(e) => setDataForm((prev) => ({ ...prev, motivacao: e.target.value }))}
+                                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                                            >
+                                                <option value="">Selecione...</option>
+                                                {LEAD_MOTIVACAO_OPTIONS.map((option) => (
+                                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <div className="text-gray-900 text-sm">{getOptionLabel(LEAD_MOTIVACAO_OPTIONS, dataForm.motivacao)}</div>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Urgência</label>
+                                        {editingData ? (
+                                            <select
+                                                value={dataForm.urgencia}
+                                                onChange={(e) => setDataForm((prev) => ({ ...prev, urgencia: e.target.value }))}
+                                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                                            >
+                                                <option value="">Selecione...</option>
+                                                {LEAD_URGENCIA_OPTIONS.map((option) => (
+                                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <div className="text-gray-900 text-sm">{getOptionLabel(LEAD_URGENCIA_OPTIONS, dataForm.urgencia)}</div>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Capacidade de pagamento</label>
+                                        {editingData ? (
+                                            <select
+                                                value={dataForm.capacidadePagamentoTotal}
+                                                onChange={(e) => setDataForm((prev) => ({ ...prev, capacidadePagamentoTotal: e.target.value }))}
+                                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                                            >
+                                                <option value="">Selecione...</option>
+                                                {LEAD_CAPACIDADE_TOTAL_OPTIONS.map((option) => (
+                                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <div className="text-gray-900 text-sm">{getOptionLabel(LEAD_CAPACIDADE_TOTAL_OPTIONS, dataForm.capacidadePagamentoTotal)}</div>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Compromisso</label>
+                                        {editingData ? (
+                                            <select
+                                                value={dataForm.compromisso}
+                                                onChange={(e) => setDataForm((prev) => ({ ...prev, compromisso: e.target.value }))}
+                                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                                            >
+                                                <option value="">Selecione...</option>
+                                                {LEAD_COMPROMISSO_OPTIONS.map((option) => (
+                                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <div className="text-gray-900 text-sm">{getOptionLabel(LEAD_COMPROMISSO_OPTIONS, dataForm.compromisso)}</div>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Valor estimado</label>
+                                        <div className="text-gray-900 text-sm font-semibold">{toCurrency(leadState.estimatedValue)}</div>
+                                    </div>
                                 </div>
 
-                                {editingData && <div className="mt-6 flex justify-end"><button type="button" onClick={() => void saveData()} disabled={savingData} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-white text-sm disabled:opacity-60">{savingData ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}Salvar alterações</button></div>}
+                                {editingData && (
+                                    <div className="mt-6 flex justify-end">
+                                        <button
+                                            type="button"
+                                            onClick={() => void saveData()}
+                                            disabled={savingData}
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-white text-sm disabled:opacity-60"
+                                        >
+                                            {savingData ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                                            Salvar alterações
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

@@ -12,9 +12,12 @@ export function buildLeadBaseSelect(): Prisma.LeadSelect {
         email: true,
         phone: true,
         company: true,
+        position: true,
         status: true,
         priority: true,
         source: true,
+        estimatedValue: true,
+        expectedCloseDate: true,
         createdAt: true,
         updatedAt: true,
         assignedUserId: true,
@@ -72,4 +75,3 @@ export function buildLeadSelect(params: {
 
     return select;
 }
-

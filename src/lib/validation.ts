@@ -3,16 +3,55 @@
 // ==========================================
 // LEAD SCHEMAS
 // ==========================================
+const dateInputSchema = z.union([
+    z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data deve ser YYYY-MM-DD'),
+    z.string().datetime({ message: 'Data/hora invalida' }),
+]);
+
+const qualificationDataSchema = z.object({
+    isDecisionMaker: z.boolean().optional(),
+    gateProfile: z.enum(['DECISOR', 'INFLUENCIADOR', 'PESQUISADOR']).optional(),
+    nome: z.string().optional(),
+    email: z.string().optional(),
+    telefone: z.string().optional(),
+    empresa: z.string().optional(),
+    cargo: z.string().optional(),
+    cargoSub: z.string().optional(),
+    numeroLojas: z.string().optional(),
+    lojasSub: z.string().optional(),
+    faturamento: z.string().optional(),
+    localizacao: z.string().optional(),
+    city: z.string().optional(),
+    state: z.string().optional(),
+    tempoMercado: z.string().optional(),
+    desafios: z.array(z.string()).optional(),
+    motivacao: z.string().optional(),
+    urgencia: z.string().optional(),
+    historicoRedes: z.string().optional(),
+    conscienciaInvestimento: z.string().optional(),
+    reacaoValores: z.string().optional(),
+    capacidadeMarketing: z.string().optional(),
+    capacidadeAdmin: z.string().optional(),
+    capacidadePagamentoTotal: z.string().optional(),
+    compromisso: z.string().optional(),
+    step2CompletedAt: dateInputSchema.optional().nullable(),
+    step3CompletedAt: dateInputSchema.optional().nullable(),
+    step5CompletedAt: dateInputSchema.optional().nullable(),
+}).passthrough();
 
 export const leadCreateSchema = z.object({
     name: z.string().min(2, 'Nome deve ter pelo menos 2 caracteres'),
     email: z.string().email('Email invÃ¡lido'),
     phone: z.string().optional().nullable(),
     company: z.string().optional().nullable(),
+    position: z.string().optional().nullable(),
     source: z.enum([
         'WEBSITE', 'FACEBOOK', 'INSTAGRAM', 'GOOGLE_ADS',
         'LINKEDIN', 'EMAIL', 'PHONE', 'REFERRAL', 'EVENT', 'OTHER'
     ]).optional().default('WEBSITE'),
+    priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).optional(),
+    expectedCloseDate: dateInputSchema.optional().nullable(),
+    qualificationData: qualificationDataSchema.optional().nullable(),
     assignedUserId: z.string().optional().nullable(),
     pipelineStageId: z.string().optional().nullable(),
 });
@@ -28,6 +67,8 @@ export const leadUpdateSchema = z.object({
         'NEGOTIATION', 'WON', 'LOST', 'ARCHIVED'
     ]).optional(),
     priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'URGENT']).optional(),
+    expectedCloseDate: dateInputSchema.optional().nullable(),
+    qualificationData: qualificationDataSchema.optional().nullable(),
     pipelineStageId: z.string().optional().nullable(),
     assignedUserId: z.string().optional().nullable(),
 });

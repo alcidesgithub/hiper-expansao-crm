@@ -5,7 +5,6 @@ import dynamic from 'next/dynamic';
 import { DragDropContext, Draggable, Droppable, type DropResult } from '@hello-pangea/dnd';
 import { useRouter } from 'next/navigation';
 import { ChevronRight, Clock, Layout, Plus } from 'lucide-react';
-import { updateLeadStage } from '../actions';
 
 interface Lead {
     id: string;
@@ -73,6 +72,28 @@ export default function KanbanBoard({ initialStages, initialLeads, permissions }
 
     const getLeadsForStage = (stageId: string) => filteredLeads.filter((lead) => lead.pipelineStageId === stageId);
 
+    const updateLeadStageViaApi = async (leadId: string, pipelineStageId: string) => {
+        try {
+            const response = await fetch(`/api/leads/${leadId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pipelineStageId }),
+            });
+
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                return {
+                    success: false as const,
+                    error: typeof payload?.error === 'string' ? payload.error : 'Não foi possível mover o lead.',
+                };
+            }
+
+            return { success: true as const };
+        } catch {
+            return { success: false as const, error: 'Não foi possível mover o lead.' };
+        }
+    };
+
     const onDragEnd = async (result: DropResult) => {
         if (!canAdvancePipeline) return;
         const { destination, source, draggableId } = result;
@@ -88,7 +109,7 @@ export default function KanbanBoard({ initialStages, initialLeads, permissions }
         });
         setLeads(next);
 
-        const response = await updateLeadStage(draggableId, destination.droppableId);
+        const response = await updateLeadStageViaApi(draggableId, destination.droppableId);
         if (!response.success) {
             setLeads(previous);
             setBoardError(response.error || 'Não foi possível mover o lead.');

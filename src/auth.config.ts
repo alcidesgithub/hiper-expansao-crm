@@ -16,7 +16,9 @@ function canAccessDashboardPath(pathname: string, user: SessionUser): boolean {
         return canAny(scopedUser, ['dashboard:operational', 'dashboard:executive']);
     }
     if (pathname.startsWith('/dashboard/usuarios')) return can(scopedUser, 'users:manage');
-    if (pathname.startsWith('/dashboard/config')) return can(scopedUser, 'system:configure');
+    if (pathname.startsWith('/dashboard/config')) {
+        return canAny(scopedUser, ['pipeline:configure', 'system:configure']);
+    }
     if (pathname.startsWith('/dashboard/admin/settings/permissions')) return can(scopedUser, 'system:configure');
     if (pathname.startsWith('/dashboard/pricing')) return can(scopedUser, 'pricing:read');
     if (pathname.startsWith('/dashboard/relatorios')) {
@@ -36,12 +38,12 @@ export const authConfig = {
     },
     callbacks: {
         authorized({ auth, request: { nextUrl } }) {
-            const isLoggedIn = !!auth?.user;
+            const user = auth?.user as SessionUser | undefined;
+            const isLoggedIn = !!user;
             const isOnDashboard = nextUrl.pathname.startsWith('/dashboard');
             if (isOnDashboard) {
                 if (!isLoggedIn) return false;
 
-                const user = auth?.user as SessionUser | undefined;
                 if (!user || !user.role) return false;
 
                 if (!canAccessDashboardPath(nextUrl.pathname, user)) {
@@ -55,7 +57,13 @@ export const authConfig = {
                 return true;
             } else if (isLoggedIn) {
                 if (nextUrl.pathname === '/login') {
-                    return Response.redirect(new URL('/dashboard', nextUrl));
+                    // Prevent login/dashboard redirect loop when session is stale/incomplete.
+                    if (!user.role) return true;
+
+                    const fallbackPath = canAccessDashboardPath('/dashboard', user)
+                        ? '/dashboard'
+                        : '/dashboard/leads';
+                    return Response.redirect(new URL(fallbackPath, nextUrl));
                 }
             }
             return true;

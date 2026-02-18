@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
-import { can } from '@/lib/permissions';
+import { can, canAny } from '@/lib/permissions';
 import {
     AUTOMATION_ACTION_TYPES,
     AUTOMATION_OPERATORS,
@@ -26,6 +26,11 @@ const DEFAULT_STAGES = [
     { name: 'Fechado', color: '#22C55E', order: 7, isWon: true, isLost: false },
     { name: 'Sem Fit', color: '#6B7280', order: 8, isWon: false, isLost: true },
 ] as const;
+
+const SCORING_FIELD_KEYS = new Set(SCORING_FIELD_OPTIONS.map((option) => option.key));
+const SCORING_OPERATOR_KEYS = new Set(SCORING_OPERATORS.map((option) => option.value));
+const AUTOMATION_TRIGGER_FIELD_KEYS = new Set(AUTOMATION_TRIGGER_FIELD_OPTIONS.map((option) => option.key));
+const AUTOMATION_OPERATOR_KEYS = new Set(AUTOMATION_OPERATORS.map((option) => option.value));
 
 const scoringCriterionSchema = z.object({
     id: z.string().min(1),
@@ -82,11 +87,15 @@ type StageEntity = {
 };
 
 function canView(user?: SessionUser | null): boolean {
-    return can(user, 'pipeline:configure');
+    return canAny(user, ['pipeline:configure', 'system:configure']);
 }
 
 function canManage(user?: SessionUser | null): boolean {
     return can(user, 'pipeline:configure');
+}
+
+function normalizeStageName(name: string): string {
+    return name.trim().toLowerCase();
 }
 
 function operatorRequiresValue(operator: string): boolean {
@@ -356,7 +365,69 @@ export async function PUT(request: Request) {
             );
         }
 
+        for (const criterion of parsed.data.scoringCriteria) {
+            if (!SCORING_FIELD_KEYS.has(criterion.fieldKey)) {
+                return NextResponse.json(
+                    { error: `Critério "${criterion.name}" possui campo inválido` },
+                    { status: 400 }
+                );
+            }
+            if (!SCORING_OPERATOR_KEYS.has(criterion.operator)) {
+                return NextResponse.json(
+                    { error: `Critério "${criterion.name}" possui operador inválido` },
+                    { status: 400 }
+                );
+            }
+            if (criterion.min > criterion.max) {
+                return NextResponse.json(
+                    { error: `Critério "${criterion.name}" possui faixa min/max inválida` },
+                    { status: 400 }
+                );
+            }
+            if (criterion.value < criterion.min || criterion.value > criterion.max) {
+                return NextResponse.json(
+                    { error: `Critério "${criterion.name}" possui valor fora da faixa min/max` },
+                    { status: 400 }
+                );
+            }
+        }
+
+        const activeUsers = await prisma.user.findMany({
+            where: { status: 'ACTIVE' },
+            select: { id: true, role: true },
+        });
+        const activeUserIds = new Set(activeUsers.map((item) => item.id));
+        const assignableUserIds = new Set(
+            activeUsers
+                .filter((item) => item.role === 'CONSULTANT' || item.role === 'MANAGER')
+                .map((item) => item.id)
+        );
+        const managerTargets = new Set(
+            activeUsers
+                .filter((item) => item.role === 'MANAGER' || item.role === 'DIRECTOR' || item.role === 'ADMIN')
+                .map((item) => item.id)
+        );
+        const submittedStageIds = new Set(
+            parsed.data.stages.map((stage) => stage.id).filter((id): id is string => Boolean(id))
+        );
+        const submittedStageNames = new Set(
+            parsed.data.stages.map((stage) => normalizeStageName(stage.name))
+        );
+
         for (const rule of parsed.data.automationRules) {
+            if (!AUTOMATION_TRIGGER_FIELD_KEYS.has(rule.triggerField)) {
+                return NextResponse.json(
+                    { error: `Regra "${rule.name}" possui campo de gatilho inválido` },
+                    { status: 400 }
+                );
+            }
+            if (!AUTOMATION_OPERATOR_KEYS.has(rule.operator)) {
+                return NextResponse.json(
+                    { error: `Regra "${rule.name}" possui operador inválido` },
+                    { status: 400 }
+                );
+            }
+
             if (operatorRequiresValue(rule.operator) && !rule.triggerValue.trim()) {
                 return NextResponse.json(
                     { error: `Regra "${rule.name}" exige um valor de gatilho para o operador selecionado` },
@@ -375,6 +446,43 @@ export async function PUT(request: Request) {
                     { status: 400 }
                 );
             }
+
+            if (rule.actionType === 'move_stage') {
+                const stageTarget = rule.actionTarget.trim();
+                const targetExistsById = submittedStageIds.has(stageTarget);
+                const targetExistsByName = submittedStageNames.has(normalizeStageName(stageTarget));
+                if (!targetExistsById && !targetExistsByName) {
+                    return NextResponse.json(
+                        { error: `Regra "${rule.name}" referencia um estágio inválido` },
+                        { status: 400 }
+                    );
+                }
+            }
+
+            if (rule.actionType === 'assign_user' && !assignableUserIds.has(rule.actionTarget.trim())) {
+                return NextResponse.json(
+                    { error: `Regra "${rule.name}" deve atribuir para consultor ou manager ativo` },
+                    { status: 400 }
+                );
+            }
+
+            if (rule.actionType === 'notify_user' && !activeUserIds.has(rule.actionTarget.trim())) {
+                return NextResponse.json(
+                    { error: `Regra "${rule.name}" referencia usuário de notificação inválido` },
+                    { status: 400 }
+                );
+            }
+
+            if (
+                rule.actionType === 'notify_manager' &&
+                rule.actionTarget.trim() !== 'all_managers' &&
+                !managerTargets.has(rule.actionTarget.trim())
+            ) {
+                return NextResponse.json(
+                    { error: `Regra "${rule.name}" referencia gestor inválido para notificação` },
+                    { status: 400 }
+                );
+            }
         }
 
         const response = await prisma.$transaction(async (tx) => {
@@ -385,7 +493,12 @@ export async function PUT(request: Request) {
             });
 
             const existingIds = new Set(existingStages.map((stage) => stage.id));
-            const submittedIds = new Set(parsed.data.stages.map((stage) => stage.id).filter((id): id is string => Boolean(id)));
+            const submittedExistingIds = new Set(
+                parsed.data.stages
+                    .map((stage) => stage.id)
+                    .filter((id): id is string => Boolean(id && existingIds.has(id)))
+            );
+            const submittedToPersistedStageIds = new Map<string, string>();
 
             for (let index = 0; index < parsed.data.stages.length; index += 1) {
                 const stage = parsed.data.stages[index];
@@ -402,8 +515,9 @@ export async function PUT(request: Request) {
                             order,
                         },
                     });
+                    submittedToPersistedStageIds.set(stage.id, stage.id);
                 } else {
-                    await tx.pipelineStage.create({
+                    const createdStage = await tx.pipelineStage.create({
                         data: {
                             pipelineId: pipeline.id,
                             name: stage.name,
@@ -413,10 +527,13 @@ export async function PUT(request: Request) {
                             order,
                         },
                     });
+                    if (stage.id) {
+                        submittedToPersistedStageIds.set(stage.id, createdStage.id);
+                    }
                 }
             }
 
-            const stagesToDelete = existingStages.filter((stage) => !submittedIds.has(stage.id));
+            const stagesToDelete = existingStages.filter((stage) => !submittedExistingIds.has(stage.id));
             for (const stage of stagesToDelete) {
                 if (isReservedStage(stage.automations)) {
                     throw new Error(`O estágio ${stage.name} é reservado e não pode ser removido`);
@@ -436,16 +553,36 @@ export async function PUT(request: Request) {
                 create: { key: 'config.scoringCriteria.v1', value: parsed.data.scoringCriteria as Prisma.InputJsonValue },
             });
 
-            await tx.systemSettings.upsert({
-                where: { key: 'config.automationRules.v1' },
-                update: { value: parsed.data.automationRules as Prisma.InputJsonValue },
-                create: { key: 'config.automationRules.v1', value: parsed.data.automationRules as Prisma.InputJsonValue },
-            });
-
             const freshStages = await tx.pipelineStage.findMany({
                 where: { pipelineId: pipeline.id },
                 orderBy: { order: 'asc' },
                 select: { id: true, name: true, color: true, isWon: true, isLost: true, order: true, automations: true },
+            });
+            const freshStageIds = new Set(freshStages.map((stage) => stage.id));
+            const freshStageNameToId = new Map(
+                freshStages.map((stage) => [normalizeStageName(stage.name), stage.id])
+            );
+            const normalizedAutomationRules = parsed.data.automationRules.map((rule) => {
+                const normalizedRule = { ...rule, actionTarget: rule.actionTarget.trim() };
+                if (normalizedRule.actionType !== 'move_stage') return normalizedRule;
+
+                let resolvedTarget =
+                    submittedToPersistedStageIds.get(normalizedRule.actionTarget) ||
+                    normalizedRule.actionTarget;
+                if (!freshStageIds.has(resolvedTarget)) {
+                    const byName = freshStageNameToId.get(normalizeStageName(resolvedTarget));
+                    if (byName) resolvedTarget = byName;
+                }
+                if (!freshStageIds.has(resolvedTarget)) {
+                    throw new Error(`Regra "${normalizedRule.name}" referencia estágio inexistente`);
+                }
+                return { ...normalizedRule, actionTarget: resolvedTarget };
+            });
+
+            await tx.systemSettings.upsert({
+                where: { key: 'config.automationRules.v1' },
+                update: { value: normalizedAutomationRules as Prisma.InputJsonValue },
+                create: { key: 'config.automationRules.v1', value: normalizedAutomationRules as Prisma.InputJsonValue },
             });
 
             const users = await tx.user.findMany({
@@ -459,7 +596,7 @@ export async function PUT(request: Request) {
                 pipelineName: pipeline.name,
                 stages: freshStages,
                 scoringCriteria: parsed.data.scoringCriteria,
-                automationRules: parsed.data.automationRules,
+                automationRules: normalizedAutomationRules,
                 users,
             });
         });
@@ -471,7 +608,9 @@ export async function PUT(request: Request) {
         const isBusinessError = error instanceof Error && (
             message.includes('não pode') ||
             message.includes('inválid') ||
-            message.includes('possui leads')
+            message.includes('possui leads') ||
+            message.includes('referencia') ||
+            message.includes('inexistente')
         );
 
         return NextResponse.json({ error: message }, { status: isBusinessError ? 400 : 500 });

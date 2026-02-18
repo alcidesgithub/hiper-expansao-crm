@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { Lead, LeadStatus, Prisma } from '@prisma/client';
+import { Lead, LeadGrade, LeadStatus, Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/auth';
 import { leadUpdateSchema } from '@/lib/validation';
@@ -10,6 +10,7 @@ import { buildLeadSelect } from '@/lib/lead-select';
 import { calculateLeadScore, DynamicScoringCriterion } from '@/lib/scoring';
 import { processAutomationRules, AutomationRule } from '@/lib/automation';
 import { notifyAssignableUser } from '@/lib/crm-notifications';
+import { buildDefaultAutomationRules, DEFAULT_SCORING_CRITERIA } from '@/lib/config-options';
 
 interface SessionUser {
     id?: string;
@@ -45,6 +46,166 @@ function canView(user: SessionUser): boolean {
 
 function canManage(user: SessionUser): boolean {
     return can(user, 'leads:write:own');
+}
+
+async function validateAssignableUser(userId: string): Promise<string | null> {
+    const assigned = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, status: true, role: true },
+    });
+    if (!assigned || assigned.status !== 'ACTIVE') {
+        return 'Usuario responsavel invalido ou inativo';
+    }
+    if (typeof assigned.role === 'string' && !['CONSULTANT', 'MANAGER'].includes(assigned.role)) {
+        return 'Responsavel deve ser consultor ou manager ativo';
+    }
+    return null;
+}
+
+function mergeAutomationTags(
+    customFields: unknown,
+    actions: Array<{ type: string; target: string }>
+): Prisma.InputJsonValue | undefined {
+    const tagsToAdd = actions
+        .filter((action) => action.type === 'add_tag')
+        .map((action) => action.target.trim())
+        .filter(Boolean);
+    if (tagsToAdd.length === 0) return undefined;
+
+    const base =
+        customFields && typeof customFields === 'object' && !Array.isArray(customFields)
+            ? { ...(customFields as Record<string, unknown>) }
+            : {};
+    const existingTags = Array.isArray(base.tags)
+        ? base.tags.map((tag) => String(tag).trim()).filter(Boolean)
+        : [];
+    const tags = Array.from(new Set([...existingTags, ...tagsToAdd]));
+
+    return { ...base, tags } as Prisma.InputJsonValue;
+}
+
+function normalizeText(value: unknown): string | undefined {
+    if (typeof value !== 'string') return undefined;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function normalizeDateInputToIso(value: unknown): string | undefined {
+    if (typeof value !== 'string') return undefined;
+    const raw = value.trim();
+    if (!raw) return undefined;
+    const normalized = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T00:00:00.000Z` : raw;
+    const parsed = new Date(normalized);
+    if (Number.isNaN(parsed.getTime())) return undefined;
+    return parsed.toISOString();
+}
+
+function parseDateInput(value: unknown): Date | null {
+    const iso = normalizeDateInputToIso(value);
+    if (!iso) return null;
+    const parsed = new Date(iso);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function resolveGateProfileFromCargo(cargo?: string): 'DECISOR' | 'INFLUENCIADOR' | 'PESQUISADOR' {
+    if (!cargo) return 'PESQUISADOR';
+    if (['proprietario', 'farmaceutico_rt', 'gerente_geral'].includes(cargo)) return 'DECISOR';
+    if (['gerente_comercial'].includes(cargo)) return 'INFLUENCIADOR';
+    return 'PESQUISADOR';
+}
+
+function normalizeQualificationDataForUpdate(params: {
+    incoming: unknown;
+    current: unknown;
+    defaults: {
+        name?: string;
+        email?: string;
+        phone?: string | null;
+        company?: string | null;
+        position?: string | null;
+    };
+}): Prisma.InputJsonValue | null | undefined {
+    const { incoming, current, defaults } = params;
+    if (incoming === undefined) return undefined;
+    if (incoming === null) return null;
+
+    if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) return undefined;
+
+    const currentData =
+        current && typeof current === 'object' && !Array.isArray(current)
+            ? (current as Record<string, unknown>)
+            : {};
+    const merged = { ...currentData, ...(incoming as Record<string, unknown>) };
+
+    const nowIso = new Date().toISOString();
+    const cargo = normalizeText(merged.cargo) || normalizeText(defaults.position) || '';
+    const numeroLojas = normalizeText(merged.numeroLojas) || '';
+    const faturamento = normalizeText(merged.faturamento) || '';
+    const tempoMercado = normalizeText(merged.tempoMercado) || '';
+    const motivacao = normalizeText(merged.motivacao) || '';
+    const conscienciaInvestimento = normalizeText(merged.conscienciaInvestimento) || '';
+    const reacaoValores = normalizeText(merged.reacaoValores) || '';
+    const capacidadePagamentoTotal = normalizeText(merged.capacidadePagamentoTotal) || '';
+    const compromisso = normalizeText(merged.compromisso) || '';
+    const desafios = Array.isArray(merged.desafios)
+        ? merged.desafios.map((item) => String(item).trim()).filter(Boolean)
+        : [];
+
+    const hasStep2 = Boolean(cargo && numeroLojas && faturamento && tempoMercado);
+    const hasStep3 = Boolean(motivacao || desafios.length > 0);
+    const hasStep5 = Boolean(capacidadePagamentoTotal || compromisso || conscienciaInvestimento || reacaoValores);
+
+    const normalized: Record<string, unknown> = {
+        ...merged,
+        isDecisionMaker:
+            typeof merged.isDecisionMaker === 'boolean'
+                ? merged.isDecisionMaker
+                : ['proprietario', 'farmaceutico_rt', 'gerente_geral'].includes(cargo),
+        gateProfile:
+            typeof merged.gateProfile === 'string'
+                ? merged.gateProfile
+                : resolveGateProfileFromCargo(cargo),
+        nome: normalizeText(merged.nome) || normalizeText(defaults.name) || '',
+        email: normalizeText(merged.email) || normalizeText(defaults.email) || '',
+        telefone: normalizeText(merged.telefone) || normalizeText(defaults.phone) || '',
+        empresa: normalizeText(merged.empresa) || normalizeText(defaults.company) || '',
+        cargo,
+        cargoSub: normalizeText(merged.cargoSub) || '',
+        numeroLojas,
+        lojasSub: normalizeText(merged.lojasSub) || '',
+        faturamento,
+        localizacao: normalizeText(merged.localizacao) || normalizeText(merged.state) || '',
+        city: normalizeText(merged.city) || '',
+        state: normalizeText(merged.state) || '',
+        tempoMercado,
+        desafios,
+        motivacao,
+        urgencia: normalizeText(merged.urgencia) || '',
+        historicoRedes: normalizeText(merged.historicoRedes) || '',
+        conscienciaInvestimento,
+        reacaoValores,
+        capacidadeMarketing: normalizeText(merged.capacidadeMarketing) || '',
+        capacidadeAdmin: normalizeText(merged.capacidadeAdmin) || '',
+        capacidadePagamentoTotal,
+        compromisso,
+        step2CompletedAt: normalizeDateInputToIso(merged.step2CompletedAt) || (hasStep2 ? nowIso : undefined),
+        step3CompletedAt: normalizeDateInputToIso(merged.step3CompletedAt) || (hasStep3 ? nowIso : undefined),
+        step5CompletedAt: normalizeDateInputToIso(merged.step5CompletedAt) || (hasStep5 ? nowIso : undefined),
+    };
+
+    const sanitized = Object.fromEntries(
+        Object.entries(normalized).filter(([, value]) => value !== undefined)
+    );
+
+    return sanitized as Prisma.InputJsonValue;
+}
+
+function resolveLeadGrade(score: number): LeadGrade {
+    if (score >= 85) return 'A';
+    if (score >= 70) return 'B';
+    if (score >= 55) return 'C';
+    if (score >= 35) return 'D';
+    return 'F';
 }
 
 async function getLeadDetails(id: string, scope: Prisma.LeadWhereInput, user: SessionUser) {
@@ -151,15 +312,9 @@ export async function PATCH(
         if (!existing) return NextResponse.json({ error: 'Lead não encontrado' }, { status: 404 });
 
         if (data.assignedUserId) {
-            const assigned = await prisma.user.findUnique({
-                where: { id: data.assignedUserId },
-                select: { id: true, status: true, role: true },
-            });
-            if (!assigned || assigned.status !== 'ACTIVE') {
-                return NextResponse.json({ error: 'Usuario responsavel invalido ou inativo' }, { status: 400 });
-            }
-            if (!['CONSULTANT', 'MANAGER'].includes(assigned.role)) {
-                return NextResponse.json({ error: 'Responsavel deve ser consultor ou manager ativo' }, { status: 400 });
+            const assignmentError = await validateAssignableUser(data.assignedUserId);
+            if (assignmentError) {
+                return NextResponse.json({ error: assignmentError }, { status: 400 });
             }
         }
 
@@ -212,8 +367,33 @@ export async function PATCH(
         if (data.company !== undefined) updateData.company = data.company;
         if (data.position !== undefined) updateData.position = data.position;
         if (data.priority !== undefined) updateData.priority = data.priority;
+        if (data.expectedCloseDate !== undefined) updateData.expectedCloseDate = parseDateInput(data.expectedCloseDate);
         if (data.pipelineStageId !== undefined) updateData.pipelineStageId = data.pipelineStageId;
         if (data.assignedUserId !== undefined) updateData.assignedUserId = data.assignedUserId;
+
+        const normalizedQualificationData = normalizeQualificationDataForUpdate({
+            incoming: data.qualificationData,
+            current: existing.qualificationData,
+            defaults: {
+                name: data.name ?? existing.name,
+                email: data.email ?? existing.email,
+                phone: data.phone ?? existing.phone,
+                company: data.company ?? existing.company,
+                position: data.position ?? existing.position,
+            },
+        });
+        if (data.qualificationData !== undefined) {
+            updateData.qualificationData = normalizedQualificationData;
+        }
+        const qualificationDataForEvaluation = (
+            data.qualificationData !== undefined
+                ? normalizedQualificationData
+                : existing.qualificationData
+        ) as Prisma.JsonValue | null | undefined;
+        const expectedCloseDateForEvaluation =
+            data.expectedCloseDate !== undefined
+                ? parseDateInput(data.expectedCloseDate)
+                : existing.expectedCloseDate;
 
         // --- SCORING & AUTOMATION ---
 
@@ -223,13 +403,16 @@ export async function PATCH(
             const settings = await prisma.systemSettings.findMany({
                 where: { key: { in: ['config.scoringCriteria.v1', 'config.automationRules.v1'] } },
             });
-            const scoringCriteria = ((settings.find(s => s.key === 'config.scoringCriteria.v1')?.value) as unknown as DynamicScoringCriterion[]) || [];
-            const automationRules = ((settings.find(s => s.key === 'config.automationRules.v1')?.value) as unknown as AutomationRule[]) || [];
+            const configuredScoringCriteria = (settings.find((setting) => setting.key === 'config.scoringCriteria.v1')?.value) as
+                | DynamicScoringCriterion[]
+                | undefined;
 
             // Merge for evaluation
             const leadForEval = {
                 ...existing,
                 ...data, // overwrite with updates
+                expectedCloseDate: expectedCloseDateForEvaluation,
+                qualificationData: qualificationDataForEvaluation,
                 // ensure numeric fields are numbers if they came as strings in JSON? 
                 // leadUpdateSchema handles types, so data.estimatedValue should be correct type if defined.
             };
@@ -238,14 +421,29 @@ export async function PATCH(
                 ...leadForEval,
                 phone: typeof leadForEval.phone === 'string' ? leadForEval.phone : '',
             };
+            const scoringCriteria = Array.isArray(configuredScoringCriteria) && configuredScoringCriteria.length > 0
+                ? configuredScoringCriteria
+                : DEFAULT_SCORING_CRITERIA;
             const newScore = calculateLeadScore(scoringInput, scoringCriteria);
+            const newGrade = resolveLeadGrade(newScore);
             updateData.score = newScore;
+            updateData.grade = newGrade;
 
-            const allStages = await prisma.pipelineStage.findMany({ where: { pipelineId: existing.pipelineStage?.pipelineId || (await prisma.pipeline.findFirst({ where: { isDefault: true } }))?.id } });
+            const allStages = await prisma.pipelineStage.findMany({
+                where: { pipelineId: existing.pipelineStage?.pipelineId || (await prisma.pipeline.findFirst({ where: { isDefault: true } }))?.id },
+                orderBy: { order: 'asc' },
+            });
+            const configuredAutomationRules = (settings.find((setting) => setting.key === 'config.automationRules.v1')?.value) as
+                | AutomationRule[]
+                | undefined;
+            const automationRules = Array.isArray(configuredAutomationRules) && configuredAutomationRules.length > 0
+                ? configuredAutomationRules
+                : buildDefaultAutomationRules(allStages);
 
             const automationLeadInput: Partial<Lead> = {
                 ...scoringInput,
                 score: newScore,
+                grade: newGrade,
             };
             const automationResult = processAutomationRules(
                 automationLeadInput,
@@ -254,21 +452,46 @@ export async function PATCH(
             );
 
             if (automationResult.updates.pipelineStageId) {
-                updateData.pipelineStageId = automationResult.updates.pipelineStageId;
-                // If automation changed stage, resolvedStatus logic below might need adjustment or re-run
-                // We'll let resolvedStatus logic handle the *user's* input first, but if automation overrides stage, we should check status again.
-                // However, resolvedStatus logic creates 'PROPOSAL' etc based on stage properties.
-                // It's safer to re-evaluate resolvedStatus if stage changed.
-
-                const stage = allStages.find(s => s.id === updateData.pipelineStageId);
-                if (stage) {
-                    stageNameAfter = stage.name; // Update for log
-                    if (!data.status) { // Only override status if user didn't explicitly set it
-                        if (stage.isWon) resolvedStatus = 'WON';
-                        else if (stage.isLost) resolvedStatus = 'LOST';
-                        else resolvedStatus = 'PROPOSAL'; // Logic simplified from above
-                    }
+                const nextStageId = String(automationResult.updates.pipelineStageId);
+                const stage = allStages.find((item) => item.id === nextStageId);
+                if (!stage) {
+                    return NextResponse.json(
+                        { error: 'Regra de automação aponta para etapa inválida' },
+                        { status: 400 }
+                    );
                 }
+
+                updateData.pipelineStageId = nextStageId;
+                stageNameAfter = stage.name;
+                if (!data.status) {
+                    if (stage.isWon) resolvedStatus = 'WON';
+                    else if (stage.isLost) resolvedStatus = 'LOST';
+                    else resolvedStatus = 'PROPOSAL';
+                }
+            }
+
+            if (
+                typeof automationResult.updates.assignedUserId === 'string' &&
+                automationResult.updates.assignedUserId.trim()
+            ) {
+                updateData.assignedUserId = automationResult.updates.assignedUserId.trim();
+            }
+
+            if (user.role === 'CONSULTANT') {
+                if (!user.id) return NextResponse.json({ error: 'Usuário inválido' }, { status: 401 });
+                updateData.assignedUserId = user.id;
+            }
+
+            if (typeof updateData.assignedUserId === 'string' && updateData.assignedUserId.trim()) {
+                const assignmentError = await validateAssignableUser(updateData.assignedUserId.trim());
+                if (assignmentError) {
+                    return NextResponse.json({ error: `Regra de automação inválida: ${assignmentError}` }, { status: 400 });
+                }
+            }
+
+            const mergedCustomFields = mergeAutomationTags(existing.customFields, automationResult.actions);
+            if (mergedCustomFields) {
+                updateData.customFields = mergedCustomFields;
             }
 
             // Notification side effect
@@ -309,17 +532,21 @@ export async function PATCH(
             }),
         });
 
-        const assignmentChanged = data.assignedUserId !== undefined && existing.assignedUserId !== updated.assignedUserId;
+        const assignmentChanged = existing.assignedUserId !== updated.assignedUserId;
         if (assignmentChanged && user.role === 'MANAGER' && updated.assignedUserId && updated.assignedUserId !== user.id) {
-            await notifyAssignableUser(updated.assignedUserId, {
-                title: 'Lead transferido para voce',
-                message: `${updated.name} foi transferido para sua carteira.`,
-                link: `/dashboard/leads/${id}`,
-                emailSubject: 'Novo lead transferido para voce',
-            });
+            try {
+                await notifyAssignableUser(updated.assignedUserId, {
+                    title: 'Lead transferido para voce',
+                    message: `${updated.name} foi transferido para sua carteira.`,
+                    link: `/dashboard/leads/${id}`,
+                    emailSubject: 'Novo lead transferido para voce',
+                });
+            } catch (notifyError) {
+                console.error('Error notifying assigned user after lead update:', notifyError);
+            }
         }
 
-        if (user.id && data.pipelineStageId && existing.pipelineStageId !== data.pipelineStageId) {
+        if (user.id && existing.pipelineStageId !== updated.pipelineStageId) {
             await prisma.activity.create({
                 data: {
                     leadId: id,
