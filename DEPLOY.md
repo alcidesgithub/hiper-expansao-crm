@@ -37,7 +37,7 @@ Ordem esperada:
 
 ## 4. Variaveis de Ambiente (Production)
 
-Configure no painel do Coolify:
+Use `.env.production.example` como base/checklist e configure no painel do Coolify:
 
 ```env
 # Database
@@ -46,7 +46,7 @@ POSTGRES_PASSWORD=<senha-forte>
 POSTGRES_DB=hiperfarma_crm
 DATABASE_URL=postgresql://postgres:<senha-forte>@postgres:5432/hiperfarma_crm?schema=public
 
-# Cache
+# Cache (obrigatorio em producao)
 REDIS_URL=redis://redis:6379
 
 # Auth
@@ -109,7 +109,7 @@ Notas importantes:
 Sobre o `/api/health`:
 
 - `status: "ok"` quando DB/Redis estao saudaveis.
-- `status: "degraded"` quando algum servico opcional esta degradado.
+- `status: "degraded"` indica configuracao invalida/ambiente incompleto (ex.: `REDIS_URL` ausente).
 - `status: "down"` retorna HTTP `503`.
 - Sem `Authorization: Bearer <HEALTHCHECK_TOKEN>`, a resposta e resumida.
 

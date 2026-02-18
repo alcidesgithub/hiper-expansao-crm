@@ -27,11 +27,11 @@ Este repositorio concentra:
 - Node.js 20+
 - npm 10+
 - PostgreSQL disponivel na `DATABASE_URL`
-- Redis disponivel na `REDIS_URL`
+- Redis disponivel na `REDIS_URL` (obrigatorio em producao)
 
 ## Setup Local
 
-1. Copie o arquivo de ambiente:
+1. Copie o arquivo de ambiente de desenvolvimento:
 
 ```bash
 cp .env.example .env
@@ -42,6 +42,17 @@ No Windows PowerShell:
 ```powershell
 Copy-Item .env.example .env
 ```
+
+Ou use os scripts:
+
+```bash
+npm run env:dev
+```
+
+Templates disponiveis:
+
+- `.env.example`: desenvolvimento/local
+- `.env.production.example`: producao/Coolify
 
 2. Ajuste no `.env` os valores minimos para ambiente local:
 
@@ -92,6 +103,10 @@ O seed cria usuarios padrao para o ambiente de desenvolvimento/teste:
 - `npm run db:setup`: Reset, migrate e seed do banco de dados
 - `npm run db:migrate`: Aplica migrations pendentes
 - `npm run db:seed`: Executa o script de seed
+- `npm run env:dev`: Copia `.env.example` para `.env` (falha se `.env` existir)
+- `npm run env:prod`: Copia `.env.production.example` para `.env` (falha se `.env` existir)
+- `npm run env:dev:force`: Sobrescreve `.env` com `.env.example`
+- `npm run env:prod:force`: Sobrescreve `.env` com `.env.production.example`
 - `npm run lint`: Verifica padroes de codigo (ESLint)
 - `npm run test`: Executa suite principal de testes (unitarios + integracao)
 - `npm run test:roles`: Executa testes de autorizacao e permissoes (RBAC)
@@ -108,10 +123,12 @@ Endpoint: `GET /api/health`
 
 Comportamento:
 - `status: "ok"`: Banco e Redis saudaveis
-- `status: "degraded"`: Servico opcional degradado (ex.: `REDIS_URL` ausente/falha)
+- `status: "degraded"`: Configuracao invalida/ambiente incompleto (ex.: `REDIS_URL` ausente)
 - `status: "down"` (HTTP 503): Dependencia critica indisponivel
 - Sem `Authorization: Bearer <HEALTHCHECK_TOKEN>`, o endpoint retorna apenas status resumido.
 - Com token valido (ou em ambiente nao-producao sem token configurado), retorna detalhes de servicos.
+
+Observacao: em producao, Redis deve ser tratado como dependencia obrigatoria para rate limit distribuido.
 
 ## Deploy
 
