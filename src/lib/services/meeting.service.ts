@@ -1,45 +1,26 @@
 import { Lead, Meeting, Prisma, User } from '@prisma/client';
 import { addMinutes } from 'date-fns';
 import { logAudit } from '@/lib/audit';
-import { sendEmail } from '@/lib/email';
+import { sendMeetingConfirmationToLead, sendMeetingNotificationToConsultor } from '@/lib/email';
 import { prisma } from '@/lib/prisma';
 import { isMeetingOverlapError } from '@/lib/meeting-conflict';
 import { graphService } from './microsoft-graph.service';
 
-function escapeHtml(value: unknown): string {
-    const text = String(value ?? '');
-    return text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
-
-function sanitizeUrl(url?: string): string | null {
-    if (!url) return null;
-    try {
-        const parsed = new URL(url);
-        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
-        return parsed.toString();
-    } catch {
-        return null;
-    }
-}
-
-function formatPtBrDateTime(value: unknown): string {
-    if (value instanceof Date && !Number.isNaN(value.getTime())) {
-        return value.toLocaleString('pt-BR');
-    }
-
-    if (typeof value === 'string' || typeof value === 'number') {
-        const parsed = new Date(value);
-        if (!Number.isNaN(parsed.getTime())) {
-            return parsed.toLocaleString('pt-BR');
+function resolveInternalAppUrl(): string | undefined {
+    const candidates = [process.env.NEXT_PUBLIC_APP_URL, process.env.NEXTAUTH_URL];
+    for (const candidate of candidates) {
+        const value = candidate?.trim();
+        if (!value) continue;
+        try {
+            const parsed = new URL(value);
+            if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+                return parsed.toString().replace(/\/$/, '');
+            }
+        } catch {
+            continue;
         }
     }
-
-    return 'A confirmar';
+    return undefined;
 }
 
 export interface CreateMeetingParams {
@@ -179,6 +160,7 @@ export class MeetingService {
             lead,
             consultant,
             joinUrl: teamsJoinUrl || undefined,
+            leadNotes: params.leadNotes,
         });
 
         return {
@@ -261,44 +243,51 @@ export class MeetingService {
     }
 
     private async sendConfirmationEmails(params: {
-        meeting: Pick<Meeting, 'startTime'>;
-        lead: Pick<Lead, 'email' | 'name' | 'company'>;
+        meeting: Pick<Meeting, 'startTime' | 'endTime'>;
+        lead: Pick<Lead, 'id' | 'email' | 'name' | 'company' | 'phone' | 'score' | 'grade'>;
         consultant: Pick<User, 'email' | 'name'>;
         joinUrl?: string;
+        leadNotes?: string;
     }) {
-        const meetingLinkHtml = params.joinUrl
-            ? `<p><strong>Link da Reuniao (Teams):</strong> <a href="${sanitizeUrl(params.joinUrl) || '#'}">Clique aqui para entrar</a></p>`
-            : '<p><strong>Link:</strong> A confirmar</p>';
-
-        const meetingLinkHtmlConsultant = params.joinUrl
-            ? `<p><strong>Link Teams:</strong> <a href="${sanitizeUrl(params.joinUrl) || '#'}">Entrar na Reuniao</a></p>`
-            : '';
-
-        await sendEmail({
-            to: params.lead.email,
-            subject: 'Confirmacao de Reuniao - Hiperfarma',
-            html: `
-        <h1>Ola ${escapeHtml(params.lead.name)},</h1>
-        <p>Sua reuniao com <strong>${escapeHtml(params.consultant.name)}</strong> foi agendada com sucesso.</p>
-        <p><strong>Data:</strong> ${escapeHtml(formatPtBrDateTime(params.meeting.startTime))}</p>
-        ${meetingLinkHtml}
-        <br/>
-        <p>Atenciosamente,<br/>Expansao Hiperfarma</p>
-      `,
+        const appUrl = resolveInternalAppUrl();
+        const date = params.meeting.startTime.toLocaleDateString('pt-BR', {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
         });
+        const startHour = params.meeting.startTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const endHour = params.meeting.endTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const time = `${startHour} - ${endHour}`;
+        const leadCrmUrl = appUrl ? `${appUrl}/dashboard/leads/${params.lead.id}` : undefined;
 
-        await sendEmail({
-            to: params.consultant.email,
-            subject: `Novo Agendamento: ${escapeHtml(params.lead.name)}`,
-            html: `
-        <h1>Ola ${escapeHtml(params.consultant.name)},</h1>
-        <p>Um novo lead agendou uma apresentacao com voce.</p>
-        <p><strong>Lead:</strong> ${escapeHtml(params.lead.name)}</p>
-        <p><strong>Empresa:</strong> ${escapeHtml(params.lead.company || 'Nao informada')}</p>
-        <p><strong>Data:</strong> ${escapeHtml(formatPtBrDateTime(params.meeting.startTime))}</p>
-        ${meetingLinkHtmlConsultant}
-      `,
-        });
+        await Promise.all([
+            sendMeetingConfirmationToLead({
+                leadName: params.lead.name,
+                leadEmail: params.lead.email,
+                consultorName: params.consultant.name,
+                date,
+                time,
+                meetingLink: params.joinUrl,
+                appUrl,
+            }),
+            sendMeetingNotificationToConsultor({
+                consultorEmail: params.consultant.email,
+                consultorName: params.consultant.name,
+                leadName: params.lead.name,
+                leadEmail: params.lead.email,
+                leadPhone: params.lead.phone || undefined,
+                leadCompany: params.lead.company || undefined,
+                score: params.lead.score ?? undefined,
+                grade: params.lead.grade ?? undefined,
+                date,
+                time,
+                meetingLink: params.joinUrl,
+                leadNotes: params.leadNotes,
+                leadCrmUrl,
+                appUrl,
+            }),
+        ]);
     }
 }
 

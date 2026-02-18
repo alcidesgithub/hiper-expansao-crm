@@ -388,6 +388,7 @@ export async function POST(request: Request) {
             day: 'numeric',
         });
         const timeFormatted = `${time} - ${endTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+        const appUrl = resolveAppUrl(request);
 
         sendMeetingConfirmationToLead({
             leadName: lead.name,
@@ -396,9 +397,9 @@ export async function POST(request: Request) {
             date: dateFormatted,
             time: timeFormatted,
             meetingLink: meeting.teamsJoinUrl || undefined,
+            appUrl,
         }).catch((err) => console.error('[Schedule] Email to lead failed:', err));
 
-        const appUrl = resolveAppUrl(request);
         sendMeetingNotificationToConsultor({
             consultorEmail: consultor.email,
             consultorName: consultor.name,
@@ -415,6 +416,7 @@ export async function POST(request: Request) {
             meetingLink: meeting.teamsJoinUrl || undefined,
             leadNotes: notes || undefined,
             leadCrmUrl: `${appUrl}/dashboard/leads/${leadId}`,
+            appUrl,
         }).catch((err) => console.error('[Schedule] Email to consultor failed:', err));
 
         await logAudit({
