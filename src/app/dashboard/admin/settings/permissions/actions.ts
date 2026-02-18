@@ -11,8 +11,32 @@ export interface UpdateRolePermissionsResult {
     updatedPermissions?: Permission[];
 }
 
+type AuthHandler = typeof auth;
+type UpdateSingleRolePermissionsHandler = typeof PermissionService.updateSingleRolePermissions;
+type RevalidatePathHandler = typeof revalidatePath;
+
+let authHandler: AuthHandler = auth;
+let updateSingleRolePermissionsHandler: UpdateSingleRolePermissionsHandler = PermissionService.updateSingleRolePermissions;
+let revalidatePathHandler: RevalidatePathHandler = revalidatePath;
+
+export function __setPermissionActionsHandlersForTests(handlers: {
+    authHandler?: AuthHandler;
+    updateSingleRolePermissionsHandler?: UpdateSingleRolePermissionsHandler;
+    revalidatePathHandler?: RevalidatePathHandler;
+}): void {
+    if (handlers.authHandler) authHandler = handlers.authHandler;
+    if (handlers.updateSingleRolePermissionsHandler) updateSingleRolePermissionsHandler = handlers.updateSingleRolePermissionsHandler;
+    if (handlers.revalidatePathHandler) revalidatePathHandler = handlers.revalidatePathHandler;
+}
+
+export function __resetPermissionActionsHandlersForTests(): void {
+    authHandler = auth;
+    updateSingleRolePermissionsHandler = PermissionService.updateSingleRolePermissions;
+    revalidatePathHandler = revalidatePath;
+}
+
 export async function updateRolePermissions(role: string, permissions: Permission[]): Promise<UpdateRolePermissionsResult> {
-    const session = await auth();
+    const session = await authHandler();
 
     const hasPermission = can({ role: session?.user?.role, permissions: session?.user?.permissions }, 'system:configure');
 
@@ -36,8 +60,8 @@ export async function updateRolePermissions(role: string, permissions: Permissio
             (ALL_PERMISSIONS as readonly string[]).includes(permission)
         );
 
-        await PermissionService.updateSingleRolePermissions(role, normalizedPermissions);
-        revalidatePath('/dashboard/admin/settings/permissions');
+        await updateSingleRolePermissionsHandler(role, normalizedPermissions);
+        revalidatePathHandler('/dashboard/admin/settings/permissions');
         return { success: true, updatedPermissions: normalizedPermissions };
     } catch (error) {
         console.error('Error updating permissions:', error);
