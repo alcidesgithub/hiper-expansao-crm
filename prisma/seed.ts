@@ -42,6 +42,20 @@ async function main() {
     });
     console.log('  ok Admin user:', admin.email);
 
+    const manager = await prisma.user.upsert({
+        where: { email: 'gerente@hiperfarma.com.br' },
+        update: {},
+        create: {
+            email: 'gerente@hiperfarma.com.br',
+            name: 'Marina Oliveira',
+            role: UserRole.MANAGER,
+            status: UserStatus.ACTIVE,
+            password: hashedPassword,
+            phone: '(41) 99999-0002',
+        },
+    });
+    console.log('  ok Manager user:', manager.email);
+
 
     const consultant = await prisma.user.upsert({
         where: { email: 'consultor@hiperfarma.com.br' },
@@ -188,6 +202,8 @@ async function main() {
     console.log('');
     console.log('Login credentials:');
     console.log('   Admin: admin@hiperfarma.com.br / <SEED_DEFAULT_PASSWORD>');
+    console.log('   Manager: gerente@hiperfarma.com.br / <SEED_DEFAULT_PASSWORD>');
+    console.log('   Consultant: consultor@hiperfarma.com.br / <SEED_DEFAULT_PASSWORD>');
 
 }
 
