@@ -284,16 +284,24 @@ export async function cancelTeamsMeeting(params: {
     const config = getTeamsConfig();
     if (!config) return;
 
-    const response = await fetchGraph(
-        `/users/${encodeURIComponent(params.organizerEmail)}/events/${encodeURIComponent(params.externalEventId)}`,
-        { method: 'DELETE' }
-    );
+    const eventPath = `/users/${encodeURIComponent(params.organizerEmail)}/events/${encodeURIComponent(params.externalEventId)}`;
+    const cancelResponse = await fetchGraph(`${eventPath}/cancel`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ Comment: 'Cancelado via CRM' }),
+    });
 
-    if (response.status === 404) return;
-    if (!response.ok) {
-        const detail = await response.text();
-        throw new Error(`Falha ao cancelar reuniao Teams: ${response.status} ${detail}`);
-    }
+    if (cancelResponse.ok || cancelResponse.status === 404) return;
+
+    // Fallback para tenants/cenarios onde a action /cancel nao estiver disponivel.
+    const deleteResponse = await fetchGraph(eventPath, { method: 'DELETE' });
+    if (deleteResponse.ok || deleteResponse.status === 404) return;
+
+    const cancelDetail = await cancelResponse.text();
+    const deleteDetail = await deleteResponse.text();
+    throw new Error(
+        `Falha ao cancelar reuniao Teams: cancel=${cancelResponse.status} ${cancelDetail}; delete=${deleteResponse.status} ${deleteDetail}`
+    );
 }
 
 export async function createTeamsEventSubscription(

@@ -28,6 +28,18 @@ test('GET /api/integrations/teams/webhook should return validation token as text
     assert.equal(body, 'abc123');
 });
 
+test('POST /api/integrations/teams/webhook should return validation token as text', async () => {
+    const response = await postTeamsWebhookRoute(
+        new Request('http://localhost:3000/api/integrations/teams/webhook?validationToken=abc123', {
+            method: 'POST',
+        })
+    );
+
+    assert.equal(response.status, 200);
+    const body = await response.text();
+    assert.equal(body, 'abc123');
+});
+
 test('POST /api/integrations/teams/webhook should return 400 for invalid payload', async () => {
     const response = await postTeamsWebhookRoute(
         new Request('http://localhost:3000/api/integrations/teams/webhook', {
@@ -277,4 +289,3 @@ test('POST /api/integrations/teams/webhook should reschedule meeting when times 
         __resetTeamsWebhookHandlersForTests();
     }
 });
-

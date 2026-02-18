@@ -5,6 +5,7 @@ import { auth } from '@/auth';
 import { meetingCreateSchema } from '@/lib/validation';
 import { buildLeadScope, mergeLeadWhere } from '@/lib/lead-scope';
 import { can } from '@/lib/permissions';
+import { isMeetingOverlapError } from '@/lib/meeting-conflict';
 import { createTeamsMeeting, isTeamsConfigured } from '@/lib/teams';
 
 const MEETING_STATUSES = ['SCHEDULED', 'COMPLETED', 'CANCELLED', 'NO_SHOW', 'RESCHEDULED'] as const;
@@ -233,11 +234,13 @@ export async function POST(request: Request) {
             const message = error instanceof Error ? error.message : 'Falha ao agendar reunião';
             const normalized = message.toLowerCase();
             const status =
-                normalized.includes('nao configurada')
-                    ? 503
-                    : normalized.includes('falha ao criar reuniao no teams') || normalized.includes('sem link da reuniao')
-                        ? 502
-                        : 500;
+                isMeetingOverlapError(error) || normalized.includes('horario nao disponivel')
+                    ? 409
+                    : normalized.includes('nao configurada')
+                        ? 503
+                        : normalized.includes('falha ao criar reuniao no teams') || normalized.includes('sem link da reuniao')
+                            ? 502
+                            : 500;
             return NextResponse.json({ error: message }, { status });
         }
     } catch (error) {

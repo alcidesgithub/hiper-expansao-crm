@@ -66,6 +66,12 @@ function parseResource(resource?: string): ParsedResource {
     return { organizer: null, externalEventId: null };
 }
 
+function readValidationToken(request: Request): string | null {
+    const token = new URL(request.url).searchParams.get('validationToken');
+    if (!token) return null;
+    return token;
+}
+
 function isValidChangeType(changeType?: string): boolean {
     return changeType === 'created' || changeType === 'updated' || changeType === 'deleted';
 }
@@ -245,8 +251,7 @@ async function processNotification(notification: TeamsGraphNotification): Promis
 
 // GET /api/integrations/teams/webhook
 export async function GET(request: Request) {
-    const { searchParams } = new URL(request.url);
-    const validationToken = searchParams.get('validationToken');
+    const validationToken = readValidationToken(request);
 
     if (!validationToken) {
         return NextResponse.json({ error: 'validationToken ausente' }, { status: 400 });
@@ -262,6 +267,16 @@ export async function GET(request: Request) {
 
 // POST /api/integrations/teams/webhook
 export async function POST(request: Request) {
+    const validationToken = readValidationToken(request);
+    if (validationToken) {
+        return new Response(validationToken, {
+            status: 200,
+            headers: {
+                'content-type': 'text/plain',
+            },
+        });
+    }
+
     try {
         const body = await request.json() as { value?: TeamsGraphNotification[] };
         const notifications = Array.isArray(body?.value) ? body.value : null;

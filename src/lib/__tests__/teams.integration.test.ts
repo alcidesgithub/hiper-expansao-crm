@@ -227,6 +227,48 @@ test('cancelTeamsMeeting should accept 404 from Graph', { concurrency: false }, 
     }
 });
 
+test('cancelTeamsMeeting should fallback to DELETE when /cancel is not available', { concurrency: false }, async () => {
+    const restoreEnv = setEnv({
+        MS_TEAMS_CLIENT_ID: 'client-id',
+        MS_TEAMS_CLIENT_SECRET: 'client-secret',
+        MS_TEAMS_TENANT_ID: 'tenant-id',
+    });
+
+    const calls: Array<{ url: string; method: string | undefined }> = [];
+    const restoreFetch = mockFetch(async (url, init) => {
+        calls.push({ url, method: init?.method });
+        if (url.includes('/oauth2/v2.0/token')) {
+            return new Response(JSON.stringify({ access_token: 'token-123' }), { status: 200 });
+        }
+        if (url.includes('/events/event-fallback/cancel')) {
+            return new Response('not-allowed', { status: 405 });
+        }
+        if (url.includes('/events/event-fallback') && init?.method === 'DELETE') {
+            return new Response(null, { status: 204 });
+        }
+        return new Response('not-found', { status: 404 });
+    });
+
+    try {
+        await cancelTeamsMeeting({
+            organizerEmail: 'consultor@empresa.com',
+            externalEventId: 'event-fallback',
+        });
+
+        assert.equal(
+            calls.some((call) => call.url.includes('/events/event-fallback/cancel') && call.method === 'POST'),
+            true
+        );
+        assert.equal(
+            calls.some((call) => call.url.includes('/events/event-fallback') && !call.url.endsWith('/cancel') && call.method === 'DELETE'),
+            true
+        );
+    } finally {
+        restoreFetch();
+        restoreEnv();
+    }
+});
+
 test('getTeamsEvent should return event payload and parse UTC dates', { concurrency: false }, async () => {
     const restoreEnv = setEnv({
         MS_TEAMS_CLIENT_ID: 'client-id',

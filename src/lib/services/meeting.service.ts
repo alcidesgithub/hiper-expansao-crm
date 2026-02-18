@@ -3,6 +3,7 @@ import { addMinutes } from 'date-fns';
 import { logAudit } from '@/lib/audit';
 import { sendEmail } from '@/lib/email';
 import { prisma } from '@/lib/prisma';
+import { isMeetingOverlapError } from '@/lib/meeting-conflict';
 import { graphService } from './microsoft-graph.service';
 
 function escapeHtml(value: unknown): string {
@@ -138,9 +139,18 @@ export class MeetingService {
             meetingData.teamsEventId = teamsEventId;
         }
 
-        const meeting = await prisma.meeting.create({
-            data: meetingData,
-        });
+        const meeting = await (async () => {
+            try {
+                return await prisma.meeting.create({
+                    data: meetingData,
+                });
+            } catch (error) {
+                if (isMeetingOverlapError(error)) {
+                    throw new Error('Horario nao disponivel para este consultor');
+                }
+                throw error;
+            }
+        })();
 
         await prisma.lead.update({
             where: { id: params.leadId },

@@ -10,6 +10,7 @@ Este repositorio concentra:
 - **CRM Interno**: Dashboard administrativo (`/dashboard/*`) para acompanhamento de leads, agenda e operacao.
 - **Autenticacao & RBAC**: Controle de acesso granular (Admin, Consultor) via NextAuth.
 - **Agendamento**: Gestao de reunioes e integracao com Microsoft Teams.
+- **Confiabilidade de Agenda**: Guardrail no Postgres para bloquear sobreposicao de reunioes por consultor.
 - **Infraestrutura**: Pipeline de deploy com migracao + seed automatizados (Docker/Coolify).
 
 ## Stack
@@ -102,6 +103,7 @@ O seed cria usuarios padrao para o ambiente de desenvolvimento/teste:
 - `npm run start`: Inicia servidor de producao
 - `npm run db:setup`: Reset, migrate e seed do banco de dados
 - `npm run db:migrate`: Aplica migrations pendentes
+- `npx prisma migrate status`: Confere se o banco esta alinhado com as migrations versionadas
 - `npm run db:seed`: Executa o script de seed
 - `npm run env:dev`: Copia `.env.example` para `.env` (falha se `.env` existir)
 - `npm run env:prod`: Copia `.env.production.example` para `.env` (falha se `.env` existir)
@@ -140,6 +142,10 @@ Servicos inclusos:
 - `app`
 
 Consulte `DEPLOY.md` e `coolify.yaml` para mais detalhes.
+
+Observacao para Teams em producao:
+- `MS_TEAMS_WEBHOOK_CLIENT_STATE` deve ter pelo menos 32 caracteres.
+- O endpoint `/api/integrations/teams/webhook` responde ao `validationToken` do Microsoft Graph via `GET` e `POST`.
 
 ## Estrutura do Projeto
 

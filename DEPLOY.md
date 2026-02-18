@@ -68,7 +68,7 @@ MS_TEAMS_CLIENT_SECRET=
 MS_TEAMS_TENANT_ID=
 MS_TEAMS_GRAPH_SCOPE=https://graph.microsoft.com/.default
 MS_TEAMS_WEBHOOK_URL=https://crm.seudominio.com/api/integrations/teams/webhook
-MS_TEAMS_WEBHOOK_CLIENT_STATE=<segredo-forte-unico>
+MS_TEAMS_WEBHOOK_CLIENT_STATE=<segredo-forte-unico-min-32-chars>
 TEAMS_SYNC_CRON_TOKEN=<token-forte>
 
 # Seed (obrigatoria no migrate em producao)
@@ -80,6 +80,8 @@ Notas importantes:
 - Em `DATABASE_URL`, use host `postgres` (nao `localhost`).
 - `NEXT_PUBLIC_APP_URL` precisa existir tanto no runtime quanto em Build Argument.
 - `SEED_DEFAULT_PASSWORD` e obrigatoria em producao e deve ter no minimo 12 caracteres.
+- `MS_TEAMS_WEBHOOK_CLIENT_STATE` deve ter no minimo 32 caracteres (validacao de seguranca no backend).
+- `MS_TEAMS_WEBHOOK_URL` e opcional quando `NEXTAUTH_URL` esta correto; o sistema usa fallback automatico para `/api/integrations/teams/webhook`.
 - Configure `HEALTHCHECK_TOKEN` para liberar detalhes no `/api/health` somente para chamadas autorizadas.
 - Nao versione `.env` real no Git.
 
@@ -105,6 +107,8 @@ Notas importantes:
    - validar envio (se `RESEND_API_KEY` estiver configurada).
 5. Agendamento:
    - validar criacao de reuniao e link de lead no CRM.
+6. Teams webhook (se habilitado):
+   - validar desafio do Graph com `GET/POST /api/integrations/teams/webhook?validationToken=abc` retornando `abc` em `text/plain`.
 
 Sobre o `/api/health`:
 
@@ -153,6 +157,7 @@ Respostas esperadas:
 
 - Verifique se `DATABASE_URL` esta correta.
 - Verifique se `SEED_DEFAULT_PASSWORD` existe e possui 12+ chars.
+- Em upgrades recentes, confirme que a migration `20260218123000_meeting_no_overlap_guardrail` foi aplicada (constraint anti-overlap de reunioes).
 - O `prisma.config.ts` deve estar presente na raiz (o Dockerfile ja o copia para o estagio `migrator`).
 - Consulte logs do servico `migrate`.
 

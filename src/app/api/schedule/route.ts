@@ -5,6 +5,7 @@ import { rateLimit, getClientIp } from '@/lib/rateLimit';
 import { sendMeetingConfirmationToLead, sendMeetingNotificationToConsultor } from '@/lib/email';
 import { logAudit } from '@/lib/audit';
 import { getPublicAvailabilitySlotsForDate, validateConsultorAvailabilityWindow } from '@/lib/availability';
+import { isMeetingOverlapError } from '@/lib/meeting-conflict';
 import { cancelTeamsMeeting, createTeamsMeeting, isTeamsConfigured, type TeamsMeetingPayload } from '@/lib/teams';
 
 interface StageProgression {
@@ -281,53 +282,63 @@ export async function POST(request: Request) {
             }
         }
 
-        const booking = await prisma.$transaction(async (tx) => {
-            const leadLockKey = `schedule:lead:${leadId}`;
-            const slotLockKey = `schedule:${consultorId}:${date}:${time}`;
-            await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${leadLockKey}))`;
-            await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${slotLockKey}))`;
+        const booking = await (async () => {
+            try {
+                return await prisma.$transaction(async (tx) => {
+                    const leadLockKey = `schedule:lead:${leadId}`;
+                    const slotLockKey = `schedule:${consultorId}:${date}:${time}`;
+                    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${leadLockKey}))`;
+                    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${slotLockKey}))`;
 
-            const existingLeadMeeting = await tx.meeting.findFirst({
-                where: {
-                    leadId,
-                    status: { in: ['SCHEDULED', 'RESCHEDULED'] },
-                },
-                select: { id: true },
-            });
-            if (existingLeadMeeting) {
-                return { kind: 'LEAD_CONFLICT' as const };
+                    const existingLeadMeeting = await tx.meeting.findFirst({
+                        where: {
+                            leadId,
+                            status: { in: ['SCHEDULED', 'RESCHEDULED'] },
+                        },
+                        select: { id: true },
+                    });
+                    if (existingLeadMeeting) {
+                        return { kind: 'LEAD_CONFLICT' as const };
+                    }
+
+                    const conflict = await tx.meeting.findFirst({
+                        where: {
+                            userId: consultorId,
+                            status: { in: ['SCHEDULED', 'RESCHEDULED'] },
+                            startTime: { lt: endTime },
+                            endTime: { gt: startTime },
+                        },
+                        select: { id: true },
+                    });
+
+                    if (conflict) return { kind: 'SLOT_CONFLICT' as const };
+
+                    const meeting = await tx.meeting.create({
+                        data: {
+                            leadId,
+                            userId: consultorId,
+                            title: `Reuniao de Expansao - ${lead.name}`,
+                            description: notes || null,
+                            startTime,
+                            endTime,
+                            selfScheduled: true,
+                            status: 'SCHEDULED',
+                            teamsJoinUrl: teamsMeeting?.meetingLink ?? null,
+                            teamsEventId: teamsMeeting?.externalEventId ?? null,
+                            provider: teamsMeeting?.provider ?? 'local',
+                        },
+                    });
+
+                    return { kind: 'CREATED' as const, meeting };
+                });
+            } catch (error) {
+                if (isMeetingOverlapError(error)) {
+                    rollbackTeamsMeeting();
+                    return { kind: 'SLOT_CONFLICT' as const };
+                }
+                throw error;
             }
-
-            const conflict = await tx.meeting.findFirst({
-                where: {
-                    userId: consultorId,
-                    status: { in: ['SCHEDULED', 'RESCHEDULED'] },
-                    startTime: { lt: endTime },
-                    endTime: { gt: startTime },
-                },
-                select: { id: true },
-            });
-
-            if (conflict) return { kind: 'SLOT_CONFLICT' as const };
-
-            const meeting = await tx.meeting.create({
-                data: {
-                    leadId,
-                    userId: consultorId,
-                    title: `Reuniao de Expansao - ${lead.name}`,
-                    description: notes || null,
-                    startTime,
-                    endTime,
-                    selfScheduled: true,
-                    status: 'SCHEDULED',
-                    teamsJoinUrl: teamsMeeting?.meetingLink ?? null,
-                    teamsEventId: teamsMeeting?.externalEventId ?? null,
-                    provider: teamsMeeting?.provider ?? 'local',
-                },
-            });
-
-            return { kind: 'CREATED' as const, meeting };
-        });
+        })();
 
         if (booking.kind === 'LEAD_CONFLICT') {
             rollbackTeamsMeeting();
