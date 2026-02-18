@@ -52,6 +52,7 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       NODE_ENV: production
       SEED_DEFAULT_PASSWORD: ${SEED_DEFAULT_PASSWORD}
+      RUN_DB_SEED: ${RUN_DB_SEED:-false}
     depends_on:
       postgres:
         condition: service_healthy

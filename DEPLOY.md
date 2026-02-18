@@ -15,13 +15,13 @@ O `coolify.yaml` sobe os servicos:
 
 - `postgres`: banco PostgreSQL com volume persistente.
 - `redis`: cache Redis com volume persistente.
-- `migrate`: job one-shot que executa migration + seed.
+- `migrate`: job one-shot que executa migration e, opcionalmente, seed.
 - `app`: Next.js (sobe apenas depois do `migrate` concluir com sucesso).
 
 Ordem esperada:
 
 1. `postgres` e `redis` sobem e ficam healthy.
-2. `migrate` roda `prisma migrate deploy` e `prisma db seed`.
+2. `migrate` roda `prisma migrate deploy` (e roda seed apenas se `RUN_DB_SEED=true`).
 3. `app` inicia com `depends_on` do `migrate`.
 
 ## 3. Configuracao no Coolify
@@ -71,7 +71,8 @@ MS_TEAMS_WEBHOOK_URL=https://crm.seudominio.com/api/integrations/teams/webhook
 MS_TEAMS_WEBHOOK_CLIENT_STATE=<segredo-forte-unico-min-32-chars>
 TEAMS_SYNC_CRON_TOKEN=<token-forte>
 
-# Seed (obrigatoria no migrate em producao)
+# Seed (opcional: habilite apenas no bootstrap/manutencao)
+RUN_DB_SEED=false
 SEED_DEFAULT_PASSWORD=<senha-forte-12+-chars>
 ```
 
@@ -79,7 +80,8 @@ Notas importantes:
 
 - Em `DATABASE_URL`, use host `postgres` (nao `localhost`).
 - `NEXT_PUBLIC_APP_URL` precisa existir tanto no runtime quanto em Build Argument.
-- `SEED_DEFAULT_PASSWORD` e obrigatoria em producao e deve ter no minimo 12 caracteres.
+- `RUN_DB_SEED=false` evita sobrescrever configuracoes operacionais a cada deploy.
+- `SEED_DEFAULT_PASSWORD` e obrigatoria apenas quando `RUN_DB_SEED=true`, com no minimo 12 caracteres.
 - `MS_TEAMS_WEBHOOK_CLIENT_STATE` deve ter no minimo 32 caracteres (validacao de seguranca no backend).
 - `MS_TEAMS_WEBHOOK_URL` e opcional quando `NEXTAUTH_URL` esta correto; o sistema usa fallback automatico para `/api/integrations/teams/webhook`.
 - Configure `HEALTHCHECK_TOKEN` para liberar detalhes no `/api/health` somente para chamadas autorizadas.
@@ -102,7 +104,8 @@ Notas importantes:
 2. Login:
    - acessar `/login` e validar autenticacao.
 3. Banco e seed:
-   - confirmar no log do `migrate` que migration e seed finalizaram.
+   - confirmar no log do `migrate` que migrations finalizaram.
+   - se `RUN_DB_SEED=true`, confirmar que o seed tambem finalizou.
 4. Email:
    - validar envio (se `RESEND_API_KEY` estiver configurada).
 5. Agendamento:
@@ -156,8 +159,8 @@ Respostas esperadas:
 ### Migrate falha
 
 - Verifique se `DATABASE_URL` esta correta.
-- Verifique se `SEED_DEFAULT_PASSWORD` existe e possui 12+ chars.
-- Em upgrades recentes, confirme que a migration `20260218123000_meeting_no_overlap_guardrail` foi aplicada (constraint anti-overlap de reunioes).
+- Se `RUN_DB_SEED=true`, verifique se `SEED_DEFAULT_PASSWORD` existe e possui 12+ chars.
+- Em upgrades recentes, confirme que as migrations `20260218123000_meeting_no_overlap_guardrail` e `20260218150000_teams_webhook_jobs_table` foram aplicadas.
 - O `prisma.config.ts` deve estar presente na raiz (o Dockerfile ja o copia para o estagio `migrator`).
 - Consulte logs do servico `migrate`.
 

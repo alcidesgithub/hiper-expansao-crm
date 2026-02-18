@@ -1,6 +1,7 @@
 'use client';
 
 import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { submitStepOne } from './actions';
 import { useForm } from 'react-hook-form';
@@ -242,7 +243,16 @@ function FunnelStepOneContent() {
                             )}
                         </button>
                         <p className="text-xs text-center text-slate-400 mt-4">
-                            Ao continuar, você concorda com nossa Política de Privacidade.
+                            Ao continuar, você concorda com nossa{' '}
+                            <Link
+                                href="/privacidade"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="underline hover:text-slate-600 transition-colors"
+                            >
+                                Política de Privacidade
+                            </Link>
+                            .
                         </p>
                     </div>
                 </form>

@@ -4,6 +4,7 @@ set -e
 MAX_RETRIES="${MIGRATION_MAX_RETRIES:-30}"
 RETRY_DELAY_SECONDS="${MIGRATION_RETRY_DELAY_SECONDS:-2}"
 CURRENT_ATTEMPT=1
+RUN_DB_SEED="${RUN_DB_SEED:-false}"
 
 echo "Starting migration script..."
 echo "Waiting for database..."
@@ -20,6 +21,10 @@ while ! npx prisma migrate deploy; do
 done
 
 echo "Migration successful."
-echo "Starting seed..."
-npx prisma db seed
-echo "Seed finished."
+if [ "$RUN_DB_SEED" = "true" ]; then
+  echo "RUN_DB_SEED=true. Starting seed..."
+  npx prisma db seed
+  echo "Seed finished."
+else
+  echo "RUN_DB_SEED=false. Skipping seed."
+fi

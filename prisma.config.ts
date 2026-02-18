@@ -1,5 +1,10 @@
-import "dotenv/config";
 import { defineConfig } from "prisma/config";
+
+try {
+  require("dotenv/config");
+} catch {
+  // In containerized production, env vars are injected by the runtime.
+}
 
 export default defineConfig({
   schema: "prisma/schema.prisma",

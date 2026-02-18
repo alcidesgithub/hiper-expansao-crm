@@ -590,8 +590,8 @@ export default function LandingPage() {
           <div className="border-t border-gray-200 pt-8 flex flex-col md:flex-row justify-center items-center gap-6 text-xs text-gray-500">
             <p>© {new Date().getFullYear()} Hiperfarma. Todos os direitos reservados.</p>
             <div className="flex gap-6">
-              <button onClick={() => navigateTo('privacy')} className="hover:text-gray-900 transition-colors">Política de Privacidade</button>
-              <button onClick={() => navigateTo('terms')} className="hover:text-gray-900 transition-colors">Termos de Uso</button>
+              <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="hover:text-gray-900 transition-colors">Política de Privacidade</a>
+              <a href="/termos" target="_blank" rel="noopener noreferrer" className="hover:text-gray-900 transition-colors">Termos de Uso</a>
             </div>
           </div>
         </div>
