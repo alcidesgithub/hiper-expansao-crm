@@ -544,6 +544,28 @@ model SystemSettings {
   updatedAt   DateTime @updatedAt
 }
 
+enum TeamsWebhookJobStatus {
+  PENDING
+  PROCESSING
+  FAILED
+}
+
+model TeamsWebhookJob {
+  id          String                @id @default(cuid())
+  status      TeamsWebhookJobStatus @default(PENDING)
+  notification Json
+  attempts    Int                   @default(0)
+  nextRunAt   DateTime              @default(now())
+  lockedAt    DateTime?
+  lastError   String?               @db.Text
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@index([status, nextRunAt])
+  @@index([status, lockedAt])
+  @@index([createdAt])
+}
+
 // ==========================================
 // AUDITORIA E LOGS
 // ==========================================

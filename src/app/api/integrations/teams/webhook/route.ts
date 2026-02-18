@@ -24,10 +24,18 @@ interface ParsedResource {
 
 type GetTeamsEventHandler = typeof getTeamsEvent;
 type GetClientStateHandler = typeof getTeamsWebhookClientState;
+type TeamsWebhookProcessingMode = 'background' | 'sync';
 const MAX_NOTIFICATIONS_PER_REQUEST = 100;
+const QUEUE_BATCH_SIZE = 25;
+const QUEUE_MAX_ATTEMPTS = 5;
+const QUEUE_RETRY_BASE_MS = 30_000;
+const QUEUE_STALE_PROCESSING_MS = 5 * 60 * 1000;
 
 let getTeamsEventHandler: GetTeamsEventHandler = getTeamsEvent;
 let getClientStateHandler: GetClientStateHandler = getTeamsWebhookClientState;
+let processingMode: TeamsWebhookProcessingMode = 'background';
+let queueDrainInFlight = false;
+let queueDrainRequested = false;
 
 export function __setTeamsWebhookHandlersForTests(handlers: {
     getTeamsEvent?: GetTeamsEventHandler;
@@ -40,6 +48,13 @@ export function __setTeamsWebhookHandlersForTests(handlers: {
 export function __resetTeamsWebhookHandlersForTests(): void {
     getTeamsEventHandler = getTeamsEvent;
     getClientStateHandler = getTeamsWebhookClientState;
+    processingMode = 'background';
+    queueDrainInFlight = false;
+    queueDrainRequested = false;
+}
+
+export function __setTeamsWebhookProcessingModeForTests(mode: TeamsWebhookProcessingMode): void {
+    processingMode = mode;
 }
 
 function parseResource(resource?: string): ParsedResource {
@@ -84,6 +99,20 @@ function safeTokenCompare(expected: string, provided?: string): boolean {
     if (expectedBuffer.length !== providedBuffer.length) return false;
 
     return timingSafeEqual(expectedBuffer, providedBuffer);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function parseNotification(value: Prisma.JsonValue): TeamsGraphNotification | null {
+    if (!isRecord(value)) return null;
+    return value as TeamsGraphNotification;
+}
+
+function buildRetryDate(attempts: number): Date {
+    const delay = Math.min(QUEUE_RETRY_BASE_MS * Math.max(attempts, 1), 30 * 60 * 1000);
+    return new Date(Date.now() + delay);
 }
 
 function buildMeetingUpdate(
@@ -249,6 +278,130 @@ async function processNotification(notification: TeamsGraphNotification): Promis
     return 'updated';
 }
 
+async function processNotifications(notifications: TeamsGraphNotification[]): Promise<void> {
+    for (const notification of notifications) {
+        try {
+            await processNotification(notification);
+        } catch (error) {
+            console.error('Error processing Teams webhook notification:', error);
+        }
+    }
+}
+
+function scheduleQueueDrain(): void {
+    if (queueDrainInFlight) {
+        queueDrainRequested = true;
+        return;
+    }
+
+    queueDrainRequested = false;
+    setTimeout(() => {
+        void drainQueue();
+    }, 0);
+}
+
+async function enqueueNotifications(notifications: TeamsGraphNotification[]): Promise<void> {
+    if (!notifications.length) return;
+
+    await prisma.teamsWebhookJob.createMany({
+        data: notifications.map((notification) => ({
+            status: 'PENDING',
+            attempts: 0,
+            nextRunAt: new Date(),
+            notification: notification as unknown as Prisma.InputJsonValue,
+        })),
+    });
+}
+
+async function drainQueueBatch(): Promise<number> {
+    const staleLockCutoff = new Date(Date.now() - QUEUE_STALE_PROCESSING_MS);
+    const rows = await prisma.teamsWebhookJob.findMany({
+        where: {
+            OR: [
+                {
+                    status: 'PENDING',
+                    nextRunAt: { lte: new Date() },
+                },
+                {
+                    status: 'PROCESSING',
+                    lockedAt: { lte: staleLockCutoff },
+                },
+            ],
+        },
+        orderBy: [
+            { nextRunAt: 'asc' },
+            { createdAt: 'asc' },
+        ],
+        take: QUEUE_BATCH_SIZE,
+    });
+
+    let processed = 0;
+    for (const row of rows) {
+        const notification = parseNotification(row.notification as Prisma.JsonValue);
+        if (!notification) {
+            await prisma.teamsWebhookJob.delete({ where: { id: row.id } }).catch(() => undefined);
+            continue;
+        }
+
+        const now = new Date();
+        const claim = await prisma.teamsWebhookJob.updateMany({
+            where: {
+                id: row.id,
+                updatedAt: row.updatedAt,
+            },
+            data: {
+                status: 'PROCESSING',
+                attempts: { increment: 1 },
+                lockedAt: now,
+                nextRunAt: now,
+            },
+        });
+        if (claim.count === 0) continue;
+
+        try {
+            await processNotification(notification);
+            await prisma.teamsWebhookJob.delete({ where: { id: row.id } });
+        } catch (error) {
+            const attempts = row.attempts + 1;
+            const exhausted = attempts >= QUEUE_MAX_ATTEMPTS;
+            await prisma.teamsWebhookJob.update({
+                where: { id: row.id },
+                data: {
+                    status: exhausted ? 'FAILED' : 'PENDING',
+                    nextRunAt: exhausted ? new Date() : buildRetryDate(attempts),
+                    lockedAt: null,
+                    lastError: error instanceof Error ? error.message : String(error),
+                },
+            }).catch(() => undefined);
+        }
+
+        processed += 1;
+    }
+
+    return processed;
+}
+
+async function drainQueue(): Promise<void> {
+    if (queueDrainInFlight) {
+        queueDrainRequested = true;
+        return;
+    }
+
+    queueDrainInFlight = true;
+    try {
+        while (true) {
+            const processed = await drainQueueBatch();
+            if (processed === 0) break;
+        }
+    } finally {
+        queueDrainInFlight = false;
+        if (queueDrainRequested) {
+            queueDrainRequested = false;
+            scheduleQueueDrain();
+        }
+    }
+}
+
 // GET /api/integrations/teams/webhook
 export async function GET(request: Request) {
     const validationToken = readValidationToken(request);
@@ -287,13 +440,14 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Muitas notificacoes no payload' }, { status: 413 });
         }
 
-        let processed = 0;
-        for (const notification of notifications) {
-            const result = await processNotification(notification);
-            if (result === 'updated') processed += 1;
+        if (processingMode === 'sync') {
+            await processNotifications(notifications);
+        } else {
+            await enqueueNotifications(notifications);
+            scheduleQueueDrain();
         }
 
-        return NextResponse.json({ accepted: true, processed }, { status: 202 });
+        return NextResponse.json({ accepted: true, queued: notifications.length }, { status: 202 });
     } catch (error) {
         console.error('Error processing Teams webhook:', error);
         return NextResponse.json({ error: 'Erro ao processar webhook do Teams' }, { status: 500 });

@@ -181,6 +181,23 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Muitas tentativas de agendamento' }, { status: 429 });
     }
 
+    let rollbackAttempted = false;
+    let meetingPersisted = false;
+    let teamsRollbackContext: { organizerEmail: string; externalEventId: string } | null = null;
+    const rollbackTeamsMeeting = async () => {
+        if (rollbackAttempted) return;
+        rollbackAttempted = true;
+        if (!teamsRollbackContext) return;
+        try {
+            await cancelTeamsMeetingHandler({
+                organizerEmail: teamsRollbackContext.organizerEmail,
+                externalEventId: teamsRollbackContext.externalEventId,
+            });
+        } catch (error) {
+            console.error('Failed to rollback Teams meeting:', error);
+        }
+    };
+
     try {
         const body = await request.json();
         const parsed = scheduleBookingSchema.safeParse(body);
@@ -258,13 +275,6 @@ export async function POST(request: Request) {
         }
 
         let teamsMeeting: TeamsMeetingPayload | null = null;
-        const rollbackTeamsMeeting = () => {
-            if (!teamsMeeting?.externalEventId) return;
-            cancelTeamsMeetingHandler({
-                organizerEmail: consultor.email,
-                externalEventId: teamsMeeting.externalEventId,
-            }).catch((error) => console.error('Failed to rollback Teams meeting:', error));
-        };
         if (isTeamsConfiguredHandler()) {
             try {
                 teamsMeeting = await createTeamsMeetingHandler({
@@ -276,6 +286,10 @@ export async function POST(request: Request) {
                     startTime,
                     endTime,
                 });
+                teamsRollbackContext = {
+                    organizerEmail: consultor.email,
+                    externalEventId: teamsMeeting.externalEventId,
+                };
             } catch (error) {
                 console.error('Error creating Teams meeting. Proceeding with internal schedule:', error);
                 teamsMeeting = null;
@@ -333,7 +347,7 @@ export async function POST(request: Request) {
                 });
             } catch (error) {
                 if (isMeetingOverlapError(error)) {
-                    rollbackTeamsMeeting();
+                    await rollbackTeamsMeeting();
                     return { kind: 'SLOT_CONFLICT' as const };
                 }
                 throw error;
@@ -341,15 +355,16 @@ export async function POST(request: Request) {
         })();
 
         if (booking.kind === 'LEAD_CONFLICT') {
-            rollbackTeamsMeeting();
+            await rollbackTeamsMeeting();
             return NextResponse.json({ error: 'Este lead ja possui reuniao agendada' }, { status: 409 });
         }
         if (booking.kind === 'SLOT_CONFLICT') {
-            rollbackTeamsMeeting();
+            await rollbackTeamsMeeting();
             return NextResponse.json({ error: 'Horario indisponivel' }, { status: 409 });
         }
 
         const meeting = booking.meeting;
+        meetingPersisted = true;
         const progression = await resolveMeetingProgression(leadId);
         await prisma.lead.update({
             where: { id: leadId },
@@ -420,6 +435,9 @@ export async function POST(request: Request) {
             },
         }, { status: 201 });
     } catch (error) {
+        if (!meetingPersisted) {
+            await rollbackTeamsMeeting();
+        }
         console.error('Error booking meeting:', error);
         return NextResponse.json({ error: 'Erro ao agendar reuniao' }, { status: 500 });
     }

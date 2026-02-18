@@ -454,6 +454,54 @@ test('POST /api/schedule should return 409 when consultor slot is busy', async (
     }
 });
 
+test('POST /api/schedule should rollback Teams meeting on unexpected persistence error', async () => {
+    const token = '1234567890123456';
+    const restoreBase = setupScheduleBaseMocks(token);
+    const restores: RestoreFn[] = [];
+    const { date, time } = nextBusinessDayAt(11, 0);
+    let cancelCalled = 0;
+
+    setScheduleTeamsHandlers({
+        isTeamsConfigured: () => true,
+        createTeamsMeeting: async () => ({
+            provider: 'teams',
+            meetingLink: 'https://teams.example/rollback-1',
+            externalEventId: 'event-rollback-1',
+        }),
+        cancelTeamsMeeting: async () => {
+            cancelCalled += 1;
+        },
+    });
+
+    restores.push(
+        mockMethod(
+            prisma,
+            '$transaction',
+            (async () => {
+                throw new Error('db write failed');
+            }) as typeof prisma.$transaction
+        )
+    );
+
+    try {
+        const request = buildScheduleRequest({
+            leadId: 'lead-1',
+            token,
+            consultorId: 'consultor-1',
+            date,
+            time,
+            notes: '',
+        }, '10.0.0.66');
+
+        const response = await postScheduleRoute(request);
+        assert.equal(response.status, 500);
+        assert.equal(cancelCalled, 1);
+    } finally {
+        for (const restore of restores.reverse()) restore();
+        restoreBase();
+    }
+});
+
 test('POST /api/schedule should return 409 when consultor is blocked in availability window', async () => {
     const token = '1234567890123456';
     const restoreBase = setupScheduleBaseMocks(token);

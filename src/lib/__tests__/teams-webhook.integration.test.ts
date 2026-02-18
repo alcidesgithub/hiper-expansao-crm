@@ -6,6 +6,7 @@ import {
     POST as postTeamsWebhookRoute,
     __resetTeamsWebhookHandlersForTests,
     __setTeamsWebhookHandlersForTests,
+    __setTeamsWebhookProcessingModeForTests,
 } from '@/app/api/integrations/teams/webhook/route';
 
 type RestoreFn = () => void;
@@ -52,10 +53,64 @@ test('POST /api/integrations/teams/webhook should return 400 for invalid payload
     assert.equal(response.status, 400);
 });
 
+test('POST /api/integrations/teams/webhook should enqueue notifications in background mode', async () => {
+    __setTeamsWebhookHandlersForTests({
+        getClientState: () => 'expected-state',
+    });
+
+    const restores: RestoreFn[] = [];
+    let enqueuedCount = 0;
+
+    restores.push(
+        mockMethod(
+            prisma.teamsWebhookJob,
+            'createMany',
+            (async (args: { data?: unknown[] }) => {
+                enqueuedCount = Array.isArray(args.data) ? args.data.length : 0;
+                return { count: enqueuedCount };
+            }) as unknown as typeof prisma.teamsWebhookJob.createMany
+        )
+    );
+
+    restores.push(
+        mockMethod(
+            prisma.teamsWebhookJob,
+            'findMany',
+            (async () => []) as unknown as typeof prisma.teamsWebhookJob.findMany
+        )
+    );
+
+    try {
+        const response = await postTeamsWebhookRoute(
+            new Request('http://localhost:3000/api/integrations/teams/webhook', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({
+                    value: [{
+                        changeType: 'updated',
+                        clientState: 'expected-state',
+                        resource: '/users/consultor@empresa.com/events/event-queue-1',
+                    }],
+                }),
+            })
+        );
+
+        assert.equal(response.status, 202);
+        const payload = await response.json() as { queued?: number };
+        assert.equal(payload.queued, 1);
+        assert.equal(enqueuedCount, 1);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+    } finally {
+        for (const restore of restores.reverse()) restore();
+        __resetTeamsWebhookHandlersForTests();
+    }
+});
+
 test('POST /api/integrations/teams/webhook should ignore notification with invalid clientState', async () => {
     __setTeamsWebhookHandlersForTests({
         getClientState: () => 'expected-state',
     });
+    __setTeamsWebhookProcessingModeForTests('sync');
 
     const restores: RestoreFn[] = [];
     restores.push(
@@ -84,8 +139,8 @@ test('POST /api/integrations/teams/webhook should ignore notification with inval
         );
 
         assert.equal(response.status, 202);
-        const payload = await response.json() as { processed?: number };
-        assert.equal(payload.processed, 0);
+        const payload = await response.json() as { queued?: number };
+        assert.equal(payload.queued, 1);
     } finally {
         for (const restore of restores.reverse()) restore();
         __resetTeamsWebhookHandlersForTests();
@@ -96,6 +151,7 @@ test('POST /api/integrations/teams/webhook should cancel meeting on deleted even
     __setTeamsWebhookHandlersForTests({
         getClientState: () => 'expected-state',
     });
+    __setTeamsWebhookProcessingModeForTests('sync');
 
     const restores: RestoreFn[] = [];
     let meetingUpdated = false;
@@ -174,8 +230,8 @@ test('POST /api/integrations/teams/webhook should cancel meeting on deleted even
         );
 
         assert.equal(response.status, 202);
-        const payload = await response.json() as { processed?: number };
-        assert.equal(payload.processed, 1);
+        const payload = await response.json() as { queued?: number };
+        assert.equal(payload.queued, 1);
         assert.equal(meetingUpdated, true);
         assert.equal(activityCreated, true);
         assert.equal(auditCreated, true);
@@ -197,6 +253,7 @@ test('POST /api/integrations/teams/webhook should reschedule meeting when times 
             lastModifiedAt: new Date('2026-03-10T10:00:00.000Z'),
         }),
     });
+    __setTeamsWebhookProcessingModeForTests('sync');
 
     const restores: RestoreFn[] = [];
     let updatedStatus: unknown;
@@ -276,8 +333,8 @@ test('POST /api/integrations/teams/webhook should reschedule meeting when times 
         );
 
         assert.equal(response.status, 202);
-        const payload = await response.json() as { processed?: number };
-        assert.equal(payload.processed, 1);
+        const payload = await response.json() as { queued?: number };
+        assert.equal(payload.queued, 1);
         assert.equal(updatedStatus, 'RESCHEDULED');
         assert.ok(updatedStartTime instanceof Date);
         assert.ok(updatedEndTime instanceof Date);
