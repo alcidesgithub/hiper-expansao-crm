@@ -4,8 +4,6 @@ import {
     BookOpen,
     Calendar,
     CheckCircle2,
-    Mail,
-    Phone,
     Settings,
     ShieldCheck,
     Users,
@@ -14,7 +12,7 @@ import {
 const ROLE_CARDS = [
     {
         role: 'ADMIN',
-        focus: 'Governanca, configuracao e controle de acesso',
+        focus: 'Governança, configuração e controle de acesso',
         highlights: [
             'Acesso completo aos modulos',
             'Matriz de permissoes',
@@ -23,16 +21,16 @@ const ROLE_CARDS = [
     },
     {
         role: 'DIRECTOR',
-        focus: 'Visao executiva e acompanhamento de performance',
+        focus: 'Visão executiva e acompanhamento de performance',
         highlights: [
             'Dashboard e relatorios',
             'Leitura ampla de operacao',
-            'Apoio a decisao estrategica',
+            'Apoio à decisão estratégica',
         ],
     },
     {
         role: 'MANAGER',
-        focus: 'Atuacao tatico-operacional na carteira e agenda',
+        focus: 'Atuação tático-operacional na carteira e agenda',
         highlights: [
             'Operacao de leads e pipeline',
             'Gestao de agenda comercial',
@@ -51,11 +49,11 @@ const ROLE_CARDS = [
 ] as const;
 
 const PUBLIC_JOURNEY = [
-    'Gate de decisao',
-    'Etapa 1: identificacao',
+    'Gate de decisão',
+    'Etapa 1: identificação',
     'Etapa 2: perfil empresarial',
-    'Etapa 3: desafios e motivacao',
-    'Etapa 4: urgencia e historico',
+    'Etapa 3: desafios e motivação',
+    'Etapa 4: urgência e histórico',
     'Etapa 5: investimento',
     'Resultado por grade (A/B/C/D/F)',
     'Agendamento para leads aptos',
@@ -65,35 +63,35 @@ const INTERNAL_MODULES = [
     {
         name: 'Dashboard',
         route: '/dashboard',
-        description: 'Metricas gerais, funil, fontes, grades e reunioes futuras.',
+        description: 'Métricas gerais, funil, fontes, grades e reuniões futuras.',
         icon: BarChart3,
     },
     {
         name: 'Leads CRM',
         route: '/dashboard/leads',
-        description: 'Kanban, detalhe do lead, notas, tarefas e evolucao de etapa.',
+        description: 'Kanban, detalhe do lead, notas, tarefas e evolução de etapa.',
         icon: Users,
     },
     {
         name: 'Agenda',
         route: '/dashboard/agenda',
-        description: 'Calendario operacional em mes/semana/dia, com criacao e cancelamento.',
+        description: 'Calendário operacional em mês/semana/dia, com criação e cancelamento.',
         icon: Calendar,
     },
     {
         name: 'Configuracoes',
         route: '/dashboard/config',
-        description: 'Scoring, automacoes e configuracao de pipeline.',
+        description: 'Scoring, automações e configuração de pipeline.',
         icon: Settings,
     },
 ] as const;
 
 const BUSINESS_RULES = [
-    'Score e grade do lead dependem dos criterios ativos de scoring.',
-    'Automacoes podem mover etapa, atribuir responsavel e notificar equipe.',
-    'Agendamento publico aceita apenas dias uteis e exige antecedencia minima.',
-    'Escopo de visualizacao e edicao depende das permissoes do perfil.',
-    'Eventos criticos de operacao ficam registrados em auditoria.',
+    'Score e grade do lead dependem dos critérios ativos de scoring.',
+    'Automações podem mover etapa, atribuir responsável e notificar equipe.',
+    'Agendamento público aceita apenas dias úteis e exige antecedência mínima.',
+    'Escopo de visualização e edição depende das permissões do perfil.',
+    'Eventos críticos de operação ficam registrados em auditoria.',
 ] as const;
 
 const PLAYBOOK = [
@@ -101,9 +99,9 @@ const PLAYBOOK = [
         role: 'Consultor',
         flow: [
             'Monitorar novos leads no Kanban.',
-            'Atualizar etapa do pipeline conforme andamento.',
+            'Atualizar etapa do pipeline conforme o andamento.',
             'Registrar notas e tarefas no detalhe do lead.',
-            'Gerenciar agenda de reunioes e proximos passos.',
+            'Gerenciar agenda de reuniões e próximos passos.',
             'Manter disponibilidade atualizada.',
         ],
     },
@@ -112,18 +110,18 @@ const PLAYBOOK = [
         flow: [
             'Operar carteira e agenda junto ao time.',
             'Analisar gargalos por etapa do funil.',
-            'Priorizar leads por score/grade e urgencia.',
+            'Priorizar leads por score/grade e urgência.',
             'Acompanhar indicadores e apoiar execucao.',
-            'Ajustar operacao com base em relatorios.',
+            'Ajustar operação com base em relatórios.',
         ],
     },
     {
         role: 'Admin',
         flow: [
-            'Gerenciar usuarios, papeis e permissoes.',
+            'Gerenciar usuários, papéis e permissões.',
             'Ajustar scoring, automacoes e pipeline.',
             'Configurar tabela ativa de mensalidades.',
-            'Garantir consistencia operacional do sistema.',
+            'Garantir consistência operacional do sistema.',
             'Acompanhar trilhas de auditoria.',
         ],
     },
@@ -135,26 +133,21 @@ const COMMON_ERRORS = [
         fix: 'Confirmar email/senha e status ACTIVE do usuario.',
     },
     {
-        error: 'Sem permissao para acessar tela',
-        fix: 'Solicitar ajuste na matriz de permissoes.',
+        error: 'Sem permissão para acessar tela',
+        fix: 'Solicitar ajuste na matriz de permissões.',
     },
     {
-        error: 'Horario indisponivel no agendamento',
+        error: 'Horário indisponível no agendamento',
         fix: 'Selecionar outro slot valido para o consultor.',
     },
     {
-        error: 'Lead ja possui reuniao agendada',
-        fix: 'Reagendar ou cancelar a reuniao ativa antes de criar outra.',
+        error: 'Lead já possui reunião agendada',
+        fix: 'Reagendar ou cancelar a reunião ativa antes de criar outra.',
     },
     {
-        error: 'Falha ao excluir usuario',
-        fix: 'Inativar usuario quando houver vinculos operacionais.',
+        error: 'Falha ao excluir usuário',
+        fix: 'Inativar usuário quando houver vínculos operacionais.',
     },
-] as const;
-
-const SUPPORT_CONTACTS = [
-    { label: 'Telefone', value: '(41) 3330-1300', icon: Phone },
-    { label: 'Email', value: 'expansao@redehiperfarma.com.br', icon: Mail },
 ] as const;
 
 export default function DocumentacaoPage() {
@@ -166,9 +159,9 @@ export default function DocumentacaoPage() {
                         <BookOpen size={22} />
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Documentacao do Sistema</h1>
+                        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Documentação do Sistema</h1>
                         <p className="text-sm text-slate-500 mt-1">
-                            Referencia oficial para usuarios logados do CRM de Expansao.
+                            Referência oficial para usuários logados do CRM de Expansão.
                         </p>
                     </div>
                 </div>
@@ -192,7 +185,7 @@ export default function DocumentacaoPage() {
             <section id="perfis" className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
                 <div className="flex items-center gap-2 mb-4">
                     <ShieldCheck className="text-primary" size={18} />
-                    <h2 className="text-lg font-bold text-slate-900">Perfis e responsabilidades</h2>
+                    <h2 className="text-lg font-bold text-slate-900">Perfis e Responsabilidades</h2>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -216,11 +209,11 @@ export default function DocumentacaoPage() {
             <section id="jornada" className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
                 <div className="flex items-center gap-2 mb-4">
                     <Calendar className="text-primary" size={18} />
-                    <h2 className="text-lg font-bold text-slate-900">Jornada publica de qualificacao</h2>
+                    <h2 className="text-lg font-bold text-slate-900">Jornada Pública de Qualificação</h2>
                 </div>
 
                 <p className="text-sm text-gray-600 mb-4">
-                    Fluxo utilizado pelo lead externo antes da entrada na operacao comercial interna.
+                    Fluxo utilizado pelo lead externo antes da entrada na operação comercial interna.
                 </p>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -236,7 +229,7 @@ export default function DocumentacaoPage() {
             <section id="modulos" className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
                 <div className="flex items-center gap-2 mb-4">
                     <BarChart3 className="text-primary" size={18} />
-                    <h2 className="text-lg font-bold text-slate-900">Modulos principais do CRM</h2>
+                    <h2 className="text-lg font-bold text-slate-900">Módulos Principais do CRM</h2>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -259,7 +252,7 @@ export default function DocumentacaoPage() {
             <section id="regras" className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
                 <div className="flex items-center gap-2 mb-4">
                     <Settings className="text-primary" size={18} />
-                    <h2 className="text-lg font-bold text-slate-900">Regras de negocio criticas</h2>
+                    <h2 className="text-lg font-bold text-slate-900">Regras de Negócio Críticas</h2>
                 </div>
 
                 <ul className="space-y-2 text-sm text-gray-700">
@@ -274,7 +267,7 @@ export default function DocumentacaoPage() {
             <section id="fluxos" className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
                 <div className="flex items-center gap-2 mb-4">
                     <Users className="text-primary" size={18} />
-                    <h2 className="text-lg font-bold text-slate-900">Fluxo recomendado por perfil</h2>
+                    <h2 className="text-lg font-bold text-slate-900">Fluxo Recomendado por Perfil</h2>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -297,7 +290,7 @@ export default function DocumentacaoPage() {
             <section id="erros" className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
                 <div className="flex items-center gap-2 mb-4">
                     <AlertTriangle className="text-primary" size={18} />
-                    <h2 className="text-lg font-bold text-slate-900">Erros comuns e resolucao</h2>
+                    <h2 className="text-lg font-bold text-slate-900">Erros Comuns e Resolução</h2>
                 </div>
 
                 <div className="space-y-3">
@@ -307,29 +300,6 @@ export default function DocumentacaoPage() {
                             <p className="text-sm text-amber-800 mt-1">{item.fix}</p>
                         </div>
                     ))}
-                </div>
-            </section>
-
-            <section id="suporte" className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-                <h2 className="text-lg font-bold text-slate-900 mb-3">Suporte</h2>
-                <p className="text-sm text-gray-600 mb-4">
-                    Em caso de duvidas operacionais, use os canais oficiais de atendimento:
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {SUPPORT_CONTACTS.map((contact) => {
-                        const Icon = contact.icon;
-                        return (
-                            <div key={contact.label} className="border border-gray-200 rounded-lg px-4 py-3 flex items-center gap-3">
-                                <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                                    <Icon size={16} />
-                                </div>
-                                <div>
-                                    <p className="text-xs text-gray-500">{contact.label}</p>
-                                    <p className="text-sm font-semibold text-gray-900">{contact.value}</p>
-                                </div>
-                            </div>
-                        );
-                    })}
                 </div>
             </section>
         </div>

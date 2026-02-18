@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React from 'react';
 import Link from 'next/link';
@@ -38,13 +38,13 @@ const NAV_ITEMS: readonly NavItem[] = [
     { href: '/dashboard', icon: <LayoutDashboard size={20} />, label: 'Dashboard', roles: ['ADMIN', 'DIRECTOR', 'MANAGER'] },
     { href: '/dashboard/leads', icon: <Users size={20} />, label: 'Leads CRM', roles: ['ADMIN', 'DIRECTOR', 'MANAGER', 'CONSULTANT'] },
     { href: '/dashboard/agenda', icon: <CalendarIcon size={20} />, label: 'Agenda', roles: ['ADMIN', 'DIRECTOR', 'MANAGER', 'CONSULTANT'] },
-    { href: '/dashboard/documentacao', icon: <FileText size={20} />, label: 'Documentacao', roles: ['ADMIN', 'DIRECTOR', 'MANAGER', 'CONSULTANT'] },
     { href: '/dashboard/disponibilidade', icon: <CalendarIcon size={20} />, label: 'Disponibilidade', roles: ['ADMIN', 'CONSULTANT'] },
     { href: '/dashboard/relatorios', icon: <BarChart3 size={20} />, label: 'Relatórios', roles: ['ADMIN', 'DIRECTOR', 'MANAGER'] },
     { href: '/dashboard/usuarios', icon: <UserCog size={20} />, label: 'Gestão de Usuários', roles: ['ADMIN'] },
     { href: '/dashboard/pricing', icon: <DollarSign size={20} />, label: 'Mensalidades', roles: ['ADMIN', 'DIRECTOR', 'MANAGER'] },
     { href: '/dashboard/config', icon: <Settings size={20} />, label: 'Configurações', roles: ['ADMIN'] },
     { href: '/dashboard/admin/settings/permissions', icon: <ShieldCheck size={20} />, label: 'Permissões', roles: ['ADMIN'] },
+    { href: '/dashboard/documentacao', icon: <FileText size={20} />, label: 'Documentação', roles: ['ADMIN', 'DIRECTOR', 'MANAGER', 'CONSULTANT'] },
 ];
 
 function isAppRole(role: string | null | undefined): role is AppRole {
@@ -145,3 +145,4 @@ const NavButton = ({ href, active, icon, label, onClick }: NavButtonProps) => {
         </Link>
     );
 };
+
