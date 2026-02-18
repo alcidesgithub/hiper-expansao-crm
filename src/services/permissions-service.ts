@@ -31,6 +31,13 @@ function normalizePermissions(raw: unknown): Permission[] {
     return [...ALL_PERMISSIONS].filter((permission) => unique.has(permission));
 }
 
+function enforceRolePermissionConstraints(role: AppRole, permissions: Permission[]): Permission[] {
+    if (role === 'MANAGER') {
+        return permissions.filter((permission) => permission !== 'leads:read:all');
+    }
+    return permissions;
+}
+
 function normalizeMatrix(raw: unknown): Record<AppRole, Permission[]> {
     const matrix = toMutableRolePermissions(ROLE_PERMISSIONS);
 
@@ -41,7 +48,7 @@ function normalizeMatrix(raw: unknown): Record<AppRole, Permission[]> {
     const source = raw as Partial<Record<AppRole, unknown>>;
     (Object.keys(matrix) as AppRole[]).forEach((role) => {
         if (source[role] !== undefined) {
-            matrix[role] = normalizePermissions(source[role]);
+            matrix[role] = enforceRolePermissionConstraints(role, normalizePermissions(source[role]));
         }
     });
 
@@ -114,7 +121,7 @@ export async function updateSingleRolePermissions(role: AppRole, permissions: Pe
     const currentMatrix = await getRolePermissions();
     const newMatrix = {
         ...currentMatrix,
-        [role]: normalizePermissions(permissions),
+        [role]: enforceRolePermissionConstraints(role, normalizePermissions(permissions)),
     };
     await updateRolePermissions(newMatrix);
 }

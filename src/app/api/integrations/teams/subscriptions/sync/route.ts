@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { timingSafeEqual } from 'crypto';
 import { logAudit } from '@/lib/audit';
 import { syncTeamsEventSubscriptions, type TeamsSubscriptionSyncResult } from '@/lib/teams-sync';
 
@@ -27,7 +28,12 @@ function isAuthorizedCronRequest(request: Request): boolean {
     if (!expectedToken) return false;
     const providedToken = readBearerToken(request);
     if (!providedToken) return false;
-    return providedToken === expectedToken;
+
+    const expectedBuffer = Buffer.from(expectedToken);
+    const providedBuffer = Buffer.from(providedToken);
+    if (expectedBuffer.length !== providedBuffer.length) return false;
+
+    return timingSafeEqual(expectedBuffer, providedBuffer);
 }
 
 // POST /api/integrations/teams/subscriptions/sync
@@ -71,4 +77,3 @@ export async function POST(request: Request) {
         }, { status: 500 });
     }
 }
-

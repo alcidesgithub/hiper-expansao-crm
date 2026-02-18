@@ -138,7 +138,8 @@ function setupScheduleBaseMocks(token: string): RestoreFn {
 test('getPublicAvailabilitySlotsForDate should expose default 09:00-16:00 slots when no custom config exists', async () => {
     const restore = setupDefaultAvailabilityMocks();
     try {
-        const result = await getPublicAvailabilitySlotsForDate('2026-02-16', { minAdvanceHours: 0 }); // Monday
+        const { date } = nextBusinessDayAt(9, 0);
+        const result = await getPublicAvailabilitySlotsForDate(date, { minAdvanceHours: 0 });
         assert.equal(result.ok, true);
         if (!result.ok) return;
 
@@ -260,7 +261,8 @@ test('GET /api/availability/slots should return 400 for invalid date', async () 
 test('GET /api/schedule should return slots for valid date', async () => {
     const restore = setupDefaultAvailabilityMocks();
     try {
-        const request = new Request('http://localhost:3000/api/schedule?date=2026-02-16', {
+        const { date } = nextBusinessDayAt(9, 0);
+        const request = new Request(`http://localhost:3000/api/schedule?date=${date}`, {
             headers: { 'x-real-ip': '10.0.0.2' },
         });
         const response = await getScheduleRoute(request);

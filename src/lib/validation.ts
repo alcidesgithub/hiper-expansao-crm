@@ -123,7 +123,7 @@ export const userCreateSchema = z.object({
     status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED']).default('ACTIVE'),
     department: z.string().max(120).optional().nullable(),
     phone: z.string().max(40).optional().nullable(),
-    password: z.string().min(6, 'Senha deve ter ao menos 6 caracteres'),
+    password: z.string().min(12, 'Senha deve ter ao menos 12 caracteres'),
 });
 
 export const userUpdateSchema = z.object({
@@ -133,6 +133,6 @@ export const userUpdateSchema = z.object({
     status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED']).optional(),
     department: z.string().max(120).optional().nullable(),
     phone: z.string().max(40).optional().nullable(),
-    password: z.string().min(6).optional(),
+    password: z.string().min(12).optional(),
 });
 

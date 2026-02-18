@@ -18,20 +18,16 @@ export async function getManagerScopedUserIds(managerId: string): Promise<string
 
     const scoped = new Set<string>(members.map((member) => member.userId));
     scoped.add(managerId);
-    const result = Array.from(scoped);
-    console.log('[LeadScope] Manager scoped IDs:', result);
-    return result;
+    return Array.from(scoped);
 }
 
 export async function buildLeadScope(user: LeadScopeUser): Promise<Prisma.LeadWhereInput> {
-    console.log('[LeadScope] Building scope for user:', { id: user.id, role: user.role, permCount: user.permissions?.length || 0 });
     if (!user.id) {
         return { id: '__no-access__' };
     }
 
     // 1. Can read all leads? (Admin/Director)
     if (can(user, 'leads:read:all')) {
-        console.log('[LeadScope] User has leads:read:all, returning full scope');
         return {};
     }
 

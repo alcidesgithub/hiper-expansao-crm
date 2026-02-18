@@ -14,14 +14,7 @@ export interface UpdateRolePermissionsResult {
 export async function updateRolePermissions(role: string, permissions: Permission[]): Promise<UpdateRolePermissionsResult> {
     const session = await auth();
 
-    console.log('[updateRolePermissions] Session user:', {
-        id: session?.user?.id,
-        role: session?.user?.role,
-        permissionsCount: session?.user?.permissions?.length
-    });
-
     const hasPermission = can({ role: session?.user?.role, permissions: session?.user?.permissions }, 'system:configure');
-    console.log('[updateRolePermissions] Has system:configure:', hasPermission);
 
     // Check if user is admin or director (users with permission to manage permissions)
     // For bootstrapping, we might need a specific permission like 'system:configure'

@@ -60,27 +60,13 @@ export const authConfig = {
             }
             return true;
         },
-        jwt({ token, user, trigger, session }) {
+        jwt({ token, user }) {
             if (user) {
                 const tokenUser = user as TokenUser;
                 token.id = tokenUser.id;
                 token.role = tokenUser.role;
                 if (Array.isArray(tokenUser.permissions)) {
                     token.permissions = tokenUser.permissions;
-                }
-            }
-
-            if (trigger === 'update' && session) {
-                const sessionUser = (session as { user?: SessionUser; permissions?: string[] }).user;
-                if (sessionUser?.role) {
-                    token.role = sessionUser.role;
-                }
-                if (Array.isArray(sessionUser?.permissions)) {
-                    token.permissions = sessionUser.permissions;
-                }
-                const rootPermissions = (session as { permissions?: string[] }).permissions;
-                if (Array.isArray(rootPermissions)) {
-                    token.permissions = rootPermissions;
                 }
             }
 

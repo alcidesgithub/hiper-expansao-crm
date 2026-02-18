@@ -157,9 +157,19 @@ function getStartDate(period: string) {
     }
 }
 
-export async function getDashboardMetrics(period: string = '30d') {
+async function ensureDashboardAnalyticsAccess() {
     const session = await auth();
     if (!session?.user) throw new Error('Unauthorized');
+
+    if (!canAny(session.user, ['dashboard:executive', 'dashboard:operational'])) {
+        throw new Error('Forbidden');
+    }
+
+    return session;
+}
+
+export async function getDashboardMetrics(period: string = '30d') {
+    await ensureDashboardAnalyticsAccess();
 
     const startDate = getStartDate(period);
 
@@ -301,6 +311,7 @@ export async function getLeadById(id: string) {
 }
 
 export async function getFunnelMetrics(period: string = '30d') {
+    await ensureDashboardAnalyticsAccess();
     const startDate = getStartDate(period);
 
     // Simplificado para os status do enum LeadStatus
@@ -366,6 +377,7 @@ export async function getUpcomingMeetings(limit: number = 5) {
 }
 
 export async function getFunnelGateAnalytics(period: string = '30d') {
+    await ensureDashboardAnalyticsAccess();
     const startDate = getStartDate(period);
 
     const roleRows = await prisma.$queryRaw<Array<{ role: string; count: number }>>`
@@ -765,8 +777,7 @@ export async function deleteMeeting(id: string) {
 // --- Relatórios (Reports) Actions ---
 
 async function ensureReportsAccess() {
-    const session = await auth();
-    if (!session?.user) throw new Error('Unauthorized');
+    await ensureDashboardAnalyticsAccess();
 }
 
 async function getFinancialMetricsData(startDate: Date) {

@@ -55,6 +55,7 @@ NEXTAUTH_SECRET=<mesmo-valor-do-AUTH_SECRET>
 NEXTAUTH_URL=https://crm.seudominio.com
 NEXT_PUBLIC_APP_URL=https://crm.seudominio.com
 AUTH_TRUST_HOST=true
+HEALTHCHECK_TOKEN=<token-forte-para-health-detalhado>
 
 # Email
 RESEND_API_KEY=<chave-resend>
@@ -79,6 +80,7 @@ Notas importantes:
 - Em `DATABASE_URL`, use host `postgres` (nao `localhost`).
 - `NEXT_PUBLIC_APP_URL` precisa existir tanto no runtime quanto em Build Argument.
 - `SEED_DEFAULT_PASSWORD` e obrigatoria em producao e deve ter no minimo 12 caracteres.
+- Configure `HEALTHCHECK_TOKEN` para liberar detalhes no `/api/health` somente para chamadas autorizadas.
 - Nao versione `.env` real no Git.
 
 ## 5. Fluxo de Deploy
@@ -109,6 +111,7 @@ Sobre o `/api/health`:
 - `status: "ok"` quando DB/Redis estao saudaveis.
 - `status: "degraded"` quando algum servico opcional esta degradado.
 - `status: "down"` retorna HTTP `503`.
+- Sem `Authorization: Bearer <HEALTHCHECK_TOKEN>`, a resposta e resumida.
 
 ## 7. Auto-Deploy
 

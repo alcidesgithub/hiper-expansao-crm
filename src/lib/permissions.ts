@@ -58,7 +58,6 @@ export const ROLE_PERMISSIONS: Record<AppRole, readonly Permission[]> = {
         'dashboard:operational',
     ],
     MANAGER: [
-        'leads:read:all',
         'leads:read:team',
         'leads:read:own',
         'leads:write:own',

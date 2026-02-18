@@ -48,7 +48,9 @@ test('GET /api/meetings should enforce own scope for CONSULTANT and keep lead pa
             'findMany',
             (async (args: Prisma.MeetingFindManyArgs) => {
                 capturedWhere = args.where as Prisma.MeetingWhereInput;
-                capturedLeadSelect = ((args.include as { lead?: { select?: Record<string, unknown> } }).lead?.select);
+                const fromInclude = (args.include as { lead?: { select?: Record<string, unknown> } } | undefined)?.lead?.select;
+                const fromSelect = (args.select as { lead?: { select?: Record<string, unknown> } } | undefined)?.lead?.select;
+                capturedLeadSelect = fromInclude || fromSelect;
                 return [] as unknown as Awaited<ReturnType<typeof prisma.meeting.findMany>>;
             }) as unknown as typeof prisma.meeting.findMany
         )
@@ -152,15 +154,21 @@ test('POST /api/meetings should create meeting for in-scope lead with safe lead 
         mockMethod(
             prisma.user,
             'findUnique',
-            (async () => ({ email: 'consultor@empresa.com' })) as unknown as typeof prisma.user.findUnique
+            (async () => ({ id: ROLE_USER_IDS.CONSULTANT, email: 'consultor@empresa.com', name: 'Consultor' })) as unknown as typeof prisma.user.findUnique
+        )
+    );
+    restores.push(
+        mockMethod(
+            prisma.meeting,
+            'findMany',
+            (async () => []) as unknown as typeof prisma.meeting.findMany
         )
     );
     restores.push(
         mockMethod(
             prisma.meeting,
             'create',
-            (async (args: Prisma.MeetingCreateArgs) => {
-                capturedLeadSelect = ((args.include as { lead?: { select?: Record<string, unknown> } }).lead?.select);
+            (async () => {
                 return {
                     id: 'meeting-1',
                     leadId: 'lead-1',
@@ -171,6 +179,36 @@ test('POST /api/meetings should create meeting for in-scope lead with safe lead 
                     user: { id: ROLE_USER_IDS.CONSULTANT, name: 'Consultor' },
                 } as unknown as Awaited<ReturnType<typeof prisma.meeting.create>>;
             }) as unknown as typeof prisma.meeting.create
+        )
+    );
+    restores.push(
+        mockMethod(
+            prisma.meeting,
+            'findUnique',
+            (async (args: Prisma.MeetingFindUniqueArgs) => {
+                capturedLeadSelect = ((args.select as { lead?: { select?: Record<string, unknown> } } | undefined)?.lead?.select);
+                return {
+                    id: 'meeting-1',
+                    title: 'ReuniÃƒÂ£o',
+                    startTime: new Date('2026-03-10T13:00:00.000Z'),
+                    endTime: new Date('2026-03-10T14:00:00.000Z'),
+                    leadId: 'lead-1',
+                    description: null,
+                    meetingType: 'DIAGNOSTICO',
+                    provider: 'local',
+                    teamsJoinUrl: null,
+                    status: 'SCHEDULED',
+                    selfScheduled: false,
+                    location: null,
+                    attendees: null,
+                    createdAt: new Date('2026-03-10T12:00:00.000Z'),
+                    updatedAt: new Date('2026-03-10T12:00:00.000Z'),
+                    completedAt: null,
+                    cancelledAt: null,
+                    lead: { id: 'lead-1', name: 'Lead 1', company: 'Empresa', grade: 'A' },
+                    user: { id: ROLE_USER_IDS.CONSULTANT, name: 'Consultor' },
+                } as unknown as Awaited<ReturnType<typeof prisma.meeting.findUnique>>;
+            }) as unknown as typeof prisma.meeting.findUnique
         )
     );
     restores.push(

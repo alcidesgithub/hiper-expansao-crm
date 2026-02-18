@@ -7,6 +7,7 @@ import bcrypt from 'bcryptjs';
 import { User } from '@prisma/client';
 import { getRolePermissions } from '@/services/permissions-service';
 import { AppRole, getDefaultPermissionsForRole } from '@/lib/permissions';
+import { rateLimit } from '@/lib/rateLimit';
 
 async function getUser(email: string): Promise<User | null> {
     try {
@@ -18,6 +19,40 @@ async function getUser(email: string): Promise<User | null> {
     }
 }
 
+async function syncTokenRoleAndPermissions(token: {
+    id?: unknown;
+    role?: unknown;
+    permissions?: unknown;
+    exp?: number;
+}): Promise<void> {
+    if (typeof token.id !== 'string' || !token.id) return;
+
+    const dbUser = await prisma.user.findUnique({
+        where: { id: token.id },
+        select: { id: true, role: true, status: true },
+    });
+
+    if (!dbUser || dbUser.status !== 'ACTIVE') {
+        // Invalidate JWT for disabled/deleted users.
+        token.exp = 0;
+        token.id = undefined;
+        token.role = undefined;
+        token.permissions = [];
+        return;
+    }
+
+    token.role = dbUser.role;
+
+    try {
+        const allPermissions = await getRolePermissions();
+        const role = dbUser.role as AppRole;
+        token.permissions = (allPermissions[role] || []) as string[];
+    } catch (error) {
+        console.error('[Auth JWT] Failed to sync permissions:', error);
+        token.permissions = [...getDefaultPermissionsForRole(dbUser.role)];
+    }
+}
+
 export const { auth, signIn, signOut, handlers } = NextAuth({
     ...authConfig,
     // Backward-compatible secret resolution during env transition.
@@ -26,13 +61,19 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
         Credentials({
             async authorize(credentials) {
                 const parsedCredentials = z
-                    .object({ email: z.string().email(), password: z.string().min(6) })
+                    .object({ email: z.string().email(), password: z.string().min(12) })
                     .safeParse(credentials);
 
                 if (parsedCredentials.success) {
-                    const { email, password } = parsedCredentials.data;
+                    const email = parsedCredentials.data.email.trim().toLowerCase();
+                    const { password } = parsedCredentials.data;
+
+                    const accountRateLimit = await rateLimit(`auth:login:account:${email}`, { limit: 10, windowSec: 300 });
+                    if (!accountRateLimit.allowed) return null;
+
                     const user = await getUser(email);
                     if (!user) return null;
+                    if (user.status !== 'ACTIVE') return null;
 
                     // Assuming passwords are hashed. If stored as plain text during dev, compare directly.
                     // But production should always be hashed.
@@ -40,49 +81,27 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
 
                     if (passwordsMatch) return user;
                 }
-                console.log('Invalid credentials');
                 return null;
             },
         }),
     ],
     callbacks: {
         ...authConfig.callbacks,
-        async jwt({ token, user, trigger, session }) {
+        async jwt({ token, user, trigger }) {
             // Initial sign in
             if (user) {
                 token.id = user.id;
-                if ('role' in user && typeof user.role === 'string') {
-                    token.role = user.role;
-                }
-                console.log('[Auth JWT] Initial sign in for user:', { email: user.email, role: token.role });
             }
 
-            // Aggressively fetch/sync permissions if role exists
-            if (token.role) {
-                try {
-                    const allPermissions = await getRolePermissions();
-                    const role = token.role as AppRole;
-                    token.permissions = (allPermissions[role] || []) as string[];
-                    // console.log('[Auth JWT] Aggressive sync for role:', role, 'count:', token.permissions.length);
-                } catch (error) {
-                    console.error('[Auth JWT] Failed to sync permissions:', error);
-                }
+            // Ignore role/permission fields from session.update payload and always sync from DB.
+            if (trigger === 'update') {
+                // no-op by design
             }
+
+            await syncTokenRoleAndPermissions(token);
+
             if (!Array.isArray(token.permissions)) {
                 token.permissions = [...getDefaultPermissionsForRole(token.role as string)];
-            }
-
-            // Update session trigger
-            if (trigger === "update") {
-                if (session?.user?.permissions) {
-                    token.permissions = session.user.permissions;
-                } else if (session?.permissions) {
-                    token.permissions = session.permissions;
-                }
-                if (session?.user?.role) {
-                    token.role = session.user.role;
-                }
-                console.log('[Auth JWT] Update trigger. New role:', token.role, 'Perm count:', (token.permissions as string[])?.length);
             }
 
             return token;

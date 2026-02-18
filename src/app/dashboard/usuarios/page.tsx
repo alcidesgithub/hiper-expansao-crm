@@ -381,7 +381,7 @@ export default function UsersPage() {
                                 <input value={form.department} onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))} placeholder="Departamento" className="w-full border rounded-lg px-3 py-2 text-sm" />
                                 <input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="Telefone" className="w-full border rounded-lg px-3 py-2 text-sm" />
                             </div>
-                            <input value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder={editingUser ? 'Nova senha (opcional)' : 'Senha'} type="password" minLength={6} required={!editingUser} className="w-full border rounded-lg px-3 py-2 text-sm" />
+                            <input value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} placeholder={editingUser ? 'Nova senha (opcional)' : 'Senha'} type="password" minLength={12} required={!editingUser} className="w-full border rounded-lg px-3 py-2 text-sm" />
                             {formError && <p className="text-sm text-red-600">{formError}</p>}
                             <div className="flex justify-end gap-2 pt-2">
                                 <button type="button" onClick={() => setModalOpen(false)} className="px-3 py-2 border rounded-lg text-sm">Cancelar</button>

@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { NextResponse } from 'next/server';
+import { timingSafeEqual } from 'crypto';
 import { prisma } from '@/lib/prisma';
 import { logAudit } from '@/lib/audit';
 import { getTeamsEvent, type TeamsEventPayload } from '@/lib/teams';
@@ -23,6 +24,7 @@ interface ParsedResource {
 
 type GetTeamsEventHandler = typeof getTeamsEvent;
 type GetClientStateHandler = typeof getTeamsWebhookClientState;
+const MAX_NOTIFICATIONS_PER_REQUEST = 100;
 
 let getTeamsEventHandler: GetTeamsEventHandler = getTeamsEvent;
 let getClientStateHandler: GetClientStateHandler = getTeamsWebhookClientState;
@@ -62,6 +64,20 @@ function parseResource(resource?: string): ParsedResource {
     }
 
     return { organizer: null, externalEventId: null };
+}
+
+function isValidChangeType(changeType?: string): boolean {
+    return changeType === 'created' || changeType === 'updated' || changeType === 'deleted';
+}
+
+function safeTokenCompare(expected: string, provided?: string): boolean {
+    if (!provided) return false;
+
+    const expectedBuffer = Buffer.from(expected);
+    const providedBuffer = Buffer.from(provided);
+    if (expectedBuffer.length !== providedBuffer.length) return false;
+
+    return timingSafeEqual(expectedBuffer, providedBuffer);
 }
 
 function buildMeetingUpdate(
@@ -153,7 +169,8 @@ async function syncCancellation(meeting: {
 async function processNotification(notification: TeamsGraphNotification): Promise<'updated' | 'ignored'> {
     const expectedClientState = getClientStateHandler();
     if (!expectedClientState) return 'ignored';
-    if (notification.clientState !== expectedClientState) return 'ignored';
+    if (!safeTokenCompare(expectedClientState, notification.clientState)) return 'ignored';
+    if (!isValidChangeType(notification.changeType)) return 'ignored';
 
     const parsed = parseResource(notification.resource);
     const teamsEventId = parsed.externalEventId || notification.resourceData?.id || null;
@@ -250,6 +267,9 @@ export async function POST(request: Request) {
         const notifications = Array.isArray(body?.value) ? body.value : null;
         if (!notifications) {
             return NextResponse.json({ error: 'Payload invalido' }, { status: 400 });
+        }
+        if (notifications.length > MAX_NOTIFICATIONS_PER_REQUEST) {
+            return NextResponse.json({ error: 'Muitas notificacoes no payload' }, { status: 413 });
         }
 
         let processed = 0;

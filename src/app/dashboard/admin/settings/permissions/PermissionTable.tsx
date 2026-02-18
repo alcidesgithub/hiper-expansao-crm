@@ -52,14 +52,7 @@ export function PermissionTable({ rolePermissions, roles, permissionsByResource 
                     // If the updated role is the current user's role, refresh the session
                     if (session?.user?.role === role) {
                         try {
-                            const updatedPermissions = result.updatedPermissions ?? newPermissions;
-                            await update({
-                                ...session,
-                                user: {
-                                    ...session.user,
-                                    permissions: updatedPermissions
-                                }
-                            });
+                            await update();
                         } catch (e) {
                             console.error('Failed to update session:', e);
                         }

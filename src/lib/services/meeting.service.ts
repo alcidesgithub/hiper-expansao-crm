@@ -5,6 +5,42 @@ import { addMinutes } from 'date-fns';
 import { logAudit } from '@/lib/audit';
 import { Lead, Meeting, Prisma, User } from '@prisma/client';
 
+function escapeHtml(value: unknown): string {
+    const text = String(value ?? '');
+    return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function sanitizeUrl(url?: string): string | null {
+    if (!url) return null;
+    try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+        return parsed.toString();
+    } catch {
+        return null;
+    }
+}
+
+function formatPtBrDateTime(value: unknown): string {
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+        return value.toLocaleString('pt-BR');
+    }
+
+    if (typeof value === 'string' || typeof value === 'number') {
+        const parsed = new Date(value);
+        if (!Number.isNaN(parsed.getTime())) {
+            return parsed.toLocaleString('pt-BR');
+        }
+    }
+
+    return 'A confirmar';
+}
+
 export interface CreateMeetingParams {
     leadId: string;
     consultantId: string;
@@ -255,11 +291,11 @@ export class MeetingService {
         // Como não quero quebrar se não houver templates específicos, vou usar uma lógica básica
 
         const meetingLinkHtml = params.joinUrl
-            ? `<p><strong>Link da Reunião (Teams):</strong> <a href="${params.joinUrl}">Clique aqui para entrar</a></p>`
+            ? `<p><strong>Link da Reunião (Teams):</strong> <a href="${sanitizeUrl(params.joinUrl) || '#'}">Clique aqui para entrar</a></p>`
             : '<p><strong>Local:</strong> A confirmar (Reunião Presencial/Telefone)</p>';
 
         const meetingLinkHtmlConsultant = params.joinUrl
-            ? `<p><strong>Link Teams:</strong> <a href="${params.joinUrl}">Entrar na Reunião</a></p>`
+            ? `<p><strong>Link Teams:</strong> <a href="${sanitizeUrl(params.joinUrl) || '#'}">Entrar na Reunião</a></p>`
             : '';
 
         // Email para o Lead
@@ -267,9 +303,9 @@ export class MeetingService {
             to: params.lead.email,
             subject: 'Confirmação de Reunião - Hiperfarma',
             html: `
-        <h1>Olá ${params.lead.name},</h1>
-        <p>Sua reunião com <strong>${params.consultant.name}</strong> foi agendada com sucesso.</p>
-        <p><strong>Data:</strong> ${params.meeting.startTime.toLocaleString('pt-BR')}</p>
+        <h1>Olá ${escapeHtml(params.lead.name)},</h1>
+        <p>Sua reunião com <strong>${escapeHtml(params.consultant.name)}</strong> foi agendada com sucesso.</p>
+        <p><strong>Data:</strong> ${escapeHtml(formatPtBrDateTime(params.meeting.startTime))}</p>
         ${meetingLinkHtml}
         <br/>
         <p>Atenciosamente,<br/>Expansão Hiperfarma</p>
@@ -279,13 +315,13 @@ export class MeetingService {
         // Email para o Consultor
         await sendEmail({
             to: params.consultant.email,
-            subject: `Novo Agendamento: ${params.lead.name}`,
+            subject: `Novo Agendamento: ${escapeHtml(params.lead.name)}`,
             html: `
-        <h1>Olá ${params.consultant.name},</h1>
+        <h1>Olá ${escapeHtml(params.consultant.name)},</h1>
         <p>Um novo lead agendou uma apresentação com você.</p>
-        <p><strong>Lead:</strong> ${params.lead.name}</p>
-        <p><strong>Empresa:</strong> ${params.lead.company || 'Não informada'}</p>
-        <p><strong>Data:</strong> ${params.meeting.startTime.toLocaleString('pt-BR')}</p>
+        <p><strong>Lead:</strong> ${escapeHtml(params.lead.name)}</p>
+        <p><strong>Empresa:</strong> ${escapeHtml(params.lead.company || 'Não informada')}</p>
+        <p><strong>Data:</strong> ${escapeHtml(formatPtBrDateTime(params.meeting.startTime))}</p>
         ${meetingLinkHtmlConsultant}
       `,
         });
@@ -293,3 +329,5 @@ export class MeetingService {
 }
 
 export const meetingService = new MeetingService();
+
+

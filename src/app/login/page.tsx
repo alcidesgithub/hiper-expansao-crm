@@ -82,7 +82,7 @@ export default function LoginPage() {
                                 <label className="block text-sm font-medium text-slate-700 mb-1">Senha</label>
                                 <div className="relative rounded-md shadow-sm">
                                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400"><Lock size={20} /></div>
-                                    <input name="password" type="password" required className="block w-full pl-10 pr-10 py-2.5 border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent sm:text-sm transition-shadow" placeholder="••••••••" />
+                                    <input name="password" type="password" minLength={12} required className="block w-full pl-10 pr-10 py-2.5 border border-slate-300 rounded-lg text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-secondary focus:border-transparent sm:text-sm transition-shadow" placeholder="••••••••" />
                                     <div className="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer text-slate-400 hover:text-slate-600"><Eye size={20} /></div>
                                 </div>
                             </div>

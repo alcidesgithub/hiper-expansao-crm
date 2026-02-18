@@ -57,6 +57,31 @@ interface RateLimitResult {
     resetIn: number; // seconds until reset
 }
 
+function normalizeCandidateIp(value: string | null): string | null {
+    if (!value) return null;
+    const candidate = value.trim();
+    if (!candidate) return null;
+
+    const ipv4 = /^(?:\d{1,3}\.){3}\d{1,3}$/;
+    const ipv6 = /^(?:[A-Fa-f0-9:]+:+)+[A-Fa-f0-9]+$/;
+
+    if (ipv4.test(candidate)) return candidate;
+    if (ipv6.test(candidate)) return candidate;
+    return null;
+}
+
+function getForwardedIp(forwardedFor: string | null): string | null {
+    if (!forwardedFor) return null;
+    const parts = forwardedFor
+        .split(',')
+        .map((part) => normalizeCandidateIp(part))
+        .filter((part): part is string => Boolean(part));
+
+    // Use the right-most entry because most proxies append the true client IP at the end.
+    if (parts.length === 0) return null;
+    return parts[parts.length - 1];
+}
+
 function rateLimitInMemory(
     key: string,
     options: RateLimitOptions = { limit: 10, windowSec: 60 }
@@ -142,12 +167,14 @@ return {current, ttl}
  * Get IP address from request headers.
  * Works with Cloudflare, Vercel, and standard proxies.
  */
+export function getClientIpFromHeaders(headers: Headers): string {
+    const xRealIp = normalizeCandidateIp(headers.get('x-real-ip'));
+    const forwardedIp = getForwardedIp(headers.get('x-forwarded-for'));
+    const cloudflareIp = normalizeCandidateIp(headers.get('cf-connecting-ip'));
+
+    return xRealIp || forwardedIp || cloudflareIp || 'unknown';
+}
+
 export function getClientIp(request: Request): string {
-    const headers = new Headers(request.headers);
-    return (
-        headers.get('cf-connecting-ip') ||
-        headers.get('x-real-ip') ||
-        headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-        'unknown'
-    );
+    return getClientIpFromHeaders(new Headers(request.headers));
 }

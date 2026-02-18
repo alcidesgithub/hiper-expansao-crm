@@ -81,7 +81,7 @@ O seed cria usuarios padrao para o ambiente de desenvolvimento/teste:
 **Senha:**
 
 - Usa `SEED_DEFAULT_PASSWORD` quando definido no `.env`.
-- Em desenvolvimento (`NODE_ENV != production`), o fallback e `admin123` se a variavel nao existir.
+- Em desenvolvimento (`NODE_ENV != production`), o fallback e `admin12345678` se a variavel nao existir.
 - Em producao, `SEED_DEFAULT_PASSWORD` e obrigatoria (minimo de 12 caracteres).
 
 ## Scripts Principais
@@ -110,6 +110,8 @@ Comportamento:
 - `status: "ok"`: Banco e Redis saudaveis
 - `status: "degraded"`: Servico opcional degradado (ex.: `REDIS_URL` ausente/falha)
 - `status: "down"` (HTTP 503): Dependencia critica indisponivel
+- Sem `Authorization: Bearer <HEALTHCHECK_TOKEN>`, o endpoint retorna apenas status resumido.
+- Com token valido (ou em ambiente nao-producao sem token configurado), retorna detalhes de servicos.
 
 ## Deploy
 

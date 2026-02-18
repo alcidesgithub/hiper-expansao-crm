@@ -62,6 +62,12 @@ export default function ProfilePage() {
             return;
         }
 
+        if (form.newPassword && form.newPassword.length < 12) {
+            toast.error('A nova senha deve ter no mÃ­nimo 12 caracteres');
+            setLoading(false);
+            return;
+        }
+
         try {
             const userId = sessionUser?.id;
             if (!userId) {
@@ -240,10 +246,10 @@ export default function ProfilePage() {
                                     <label className="text-xs font-semibold text-gray-500 uppercase">Nova Senha</label>
                                     <input
                                         type="password"
-                                        placeholder="Min. 6 caracteres"
+                                        placeholder="Min. 12 caracteres"
                                         value={form.newPassword}
                                         onChange={e => setForm(f => ({ ...f, newPassword: e.target.value }))}
-                                        minLength={6}
+                                        minLength={12}
                                         className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                                     />
                                 </div>
@@ -254,7 +260,7 @@ export default function ProfilePage() {
                                         placeholder="Repita a nova senha"
                                         value={form.confirmPassword}
                                         onChange={e => setForm(f => ({ ...f, confirmPassword: e.target.value }))}
-                                        minLength={6}
+                                        minLength={12}
                                         className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-primary/20 outline-none transition-all"
                                     />
                                 </div>

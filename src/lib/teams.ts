@@ -157,19 +157,59 @@ function parseGraphEvent(payload: GraphEventPayload): TeamsEventPayload | null {
     };
 }
 
-import { graphService } from './services/microsoft-graph.service';
-
 export async function createTeamsMeeting(params: CreateTeamsMeetingParams): Promise<TeamsMeetingPayload> {
-    const meeting = await graphService.createOnlineMeeting({
-        subject: params.subject,
-        startDateTime: params.startTime,
-        endDateTime: params.endTime,
-        organizerEmail: params.organizerEmail,
+    const response = await fetchGraph(`/users/${encodeURIComponent(params.organizerEmail)}/events`, {
+        method: 'POST',
+        headers: {
+            'content-type': 'application/json',
+            Prefer: 'outlook.timezone="UTC"',
+        },
+        body: JSON.stringify({
+            subject: params.subject,
+            body: {
+                contentType: 'Text',
+                content: params.description || '',
+            },
+            start: {
+                dateTime: params.startTime.toISOString(),
+                timeZone: 'UTC',
+            },
+            end: {
+                dateTime: params.endTime.toISOString(),
+                timeZone: 'UTC',
+            },
+            attendees: [
+                {
+                    emailAddress: {
+                        address: params.leadEmail,
+                        name: params.leadName,
+                    },
+                    type: 'required',
+                },
+            ],
+            isOnlineMeeting: true,
+            onlineMeetingProvider: 'teamsForBusiness',
+        }),
     });
 
+    if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(`Falha ao criar reuniao Teams: ${response.status} ${detail}`);
+    }
+
+    const payload = await response.json() as GraphEventPayload;
+    if (!payload.id) {
+        throw new Error('Graph retornou evento sem id');
+    }
+
+    const meetingLink = payload.onlineMeeting?.joinUrl || payload.webLink;
+    if (!meetingLink) {
+        throw new Error('Graph retornou evento sem link da reuniao');
+    }
+
     return {
-        externalEventId: meeting.id!,
-        meetingLink: meeting.joinWebUrl!,
+        externalEventId: payload.id,
+        meetingLink,
         provider: 'teams',
     };
 }
@@ -204,7 +244,19 @@ export async function cancelTeamsMeeting(params: {
     organizerEmail: string;
     externalEventId: string;
 }): Promise<void> {
-    await graphService.cancelCalendarEvent(params.organizerEmail, params.externalEventId);
+    const config = getTeamsConfig();
+    if (!config) return;
+
+    const response = await fetchGraph(
+        `/users/${encodeURIComponent(params.organizerEmail)}/events/${encodeURIComponent(params.externalEventId)}`,
+        { method: 'DELETE' }
+    );
+
+    if (response.status === 404) return;
+    if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(`Falha ao cancelar reuniao Teams: ${response.status} ${detail}`);
+    }
 }
 
 export async function createTeamsEventSubscription(
@@ -276,4 +328,3 @@ export async function deleteTeamsSubscription(subscriptionId: string): Promise<v
         throw new Error(`Falha ao remover subscription Teams: ${response.status} ${detail}`);
     }
 }
-

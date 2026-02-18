@@ -18,7 +18,7 @@ function resolveSeedPassword(): string {
         throw new Error('SEED_DEFAULT_PASSWORD is required in production.');
     }
 
-    return 'admin123';
+    return 'admin12345678';
 }
 
 async function main() {

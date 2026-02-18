@@ -371,14 +371,14 @@ test('PATCH /api/leads/[id] should keep deep sensitive fields hidden for CONSULT
     }
 });
 
-test('DELETE /api/leads/[id] should return 403 for MANAGER', async () => {
+test('DELETE /api/leads/[id] should return 404 for MANAGER when lead is out of scope', async () => {
     const restoreAuth = withAuthSession(setLeadByIdAuth, resetLeadByIdAuth, sessionForRole('MANAGER'));
     try {
         const response = await deleteLeadByIdRoute(
             new Request('http://localhost:3000/api/leads/lead-1', { method: 'DELETE' }),
             withRouteIdParam('lead-1')
         );
-        assert.equal(response.status, 403);
+        assert.equal(response.status, 404);
     } finally {
         restoreAuth();
     }

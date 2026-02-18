@@ -1,5 +1,6 @@
 import Redis from 'ioredis';
 import { NextResponse } from 'next/server';
+import { timingSafeEqual } from 'crypto';
 import { prisma } from '@/lib/prisma';
 
 export const runtime = 'nodejs';
@@ -87,7 +88,32 @@ function resolveOverallStatus(services: ServiceHealth[]): ServiceState {
     return 'ok';
 }
 
-export async function GET() {
+function readBearerToken(request: Request): string | null {
+    const authorization = request.headers.get('authorization');
+    if (!authorization) return null;
+    const [scheme, token] = authorization.split(' ');
+    if (!scheme || !token) return null;
+    if (scheme.toLowerCase() !== 'bearer') return null;
+    return token.trim();
+}
+
+function canReadDetailedHealth(request: Request): boolean {
+    const expectedToken = process.env.HEALTHCHECK_TOKEN?.trim();
+    if (!expectedToken) {
+        return process.env.NODE_ENV !== 'production';
+    }
+
+    const providedToken = readBearerToken(request);
+    if (!providedToken) return false;
+
+    const expectedBuffer = Buffer.from(expectedToken);
+    const providedBuffer = Buffer.from(providedToken);
+    if (expectedBuffer.length !== providedBuffer.length) return false;
+
+    return timingSafeEqual(expectedBuffer, providedBuffer);
+}
+
+export async function GET(request: Request) {
     const startedAt = Date.now();
     const [database, redis] = await Promise.all([
         checkDatabase(),
@@ -95,16 +121,22 @@ export async function GET() {
     ]);
 
     const status = resolveOverallStatus([database, redis]);
-
-    return NextResponse.json({
+    const payloadBase = {
         status,
         timestamp: new Date().toISOString(),
         uptimeSec: Math.round(process.uptime()),
         responseTimeMs: Date.now() - startedAt,
+    };
+
+    if (!canReadDetailedHealth(request)) {
+        return NextResponse.json(payloadBase, { status: status === 'down' ? 503 : 200 });
+    }
+
+    return NextResponse.json({
+        ...payloadBase,
         services: {
             database,
             redis,
         },
     }, { status: status === 'down' ? 503 : 200 });
 }
-

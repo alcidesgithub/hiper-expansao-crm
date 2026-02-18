@@ -89,12 +89,9 @@ function buildWebhookUrl(): string | null {
 
 export function getTeamsWebhookClientState(): string | null {
     const explicit = process.env.MS_TEAMS_WEBHOOK_CLIENT_STATE?.trim();
-    if (explicit) return explicit;
-
-    const fallback = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
-    if (!fallback) return null;
-
-    return fallback;
+    if (!explicit) return null;
+    if (explicit.length < 32) return null;
+    return explicit;
 }
 
 export function getTeamsSubscriptionConfig() {
