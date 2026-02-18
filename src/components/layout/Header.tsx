@@ -113,6 +113,7 @@ export function Header({ onMenuClick, user, initialNotifications = [] }: HeaderP
         if (pathname === '/dashboard') return 'Visão Geral';
         if (pathname.startsWith('/dashboard/leads')) return 'Funil de Vendas';
         if (pathname.startsWith('/dashboard/agenda')) return 'Agenda';
+        if (pathname.startsWith('/dashboard/documentacao')) return 'Documentacao';
         if (pathname.startsWith('/dashboard/config')) return 'Configurações';
         if (pathname.startsWith('/dashboard/relatorios')) return 'Analytics Pro';
         if (pathname.startsWith('/dashboard/usuarios')) return 'Gestão de Acesso';

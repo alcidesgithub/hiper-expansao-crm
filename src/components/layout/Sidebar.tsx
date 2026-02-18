@@ -10,6 +10,7 @@ import {
     Calendar as CalendarIcon,
     Settings,
     BarChart3,
+    FileText,
     Home,
     LogOut,
     UserCog,
@@ -37,6 +38,7 @@ const NAV_ITEMS: readonly NavItem[] = [
     { href: '/dashboard', icon: <LayoutDashboard size={20} />, label: 'Dashboard', roles: ['ADMIN', 'DIRECTOR', 'MANAGER'] },
     { href: '/dashboard/leads', icon: <Users size={20} />, label: 'Leads CRM', roles: ['ADMIN', 'DIRECTOR', 'MANAGER', 'CONSULTANT'] },
     { href: '/dashboard/agenda', icon: <CalendarIcon size={20} />, label: 'Agenda', roles: ['ADMIN', 'DIRECTOR', 'MANAGER', 'CONSULTANT'] },
+    { href: '/dashboard/documentacao', icon: <FileText size={20} />, label: 'Documentacao', roles: ['ADMIN', 'DIRECTOR', 'MANAGER', 'CONSULTANT'] },
     { href: '/dashboard/disponibilidade', icon: <CalendarIcon size={20} />, label: 'Disponibilidade', roles: ['ADMIN', 'CONSULTANT'] },
     { href: '/dashboard/relatorios', icon: <BarChart3 size={20} />, label: 'Relatórios', roles: ['ADMIN', 'DIRECTOR', 'MANAGER'] },
     { href: '/dashboard/usuarios', icon: <UserCog size={20} />, label: 'Gestão de Usuários', roles: ['ADMIN'] },
@@ -143,4 +145,3 @@ const NavButton = ({ href, active, icon, label, onClick }: NavButtonProps) => {
         </Link>
     );
 };
-
