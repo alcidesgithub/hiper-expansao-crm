@@ -2,6 +2,9 @@ import { prisma } from '@/lib/prisma';
 import { ALL_PERMISSIONS, AppRole, Permission, ROLE_PERMISSIONS } from '@/lib/permissions';
 
 const SYSTEM_SETTINGS_KEY = 'role_permissions_matrix';
+const PERMISSIONS_CACHE_TTL_MS = Number(process.env.ROLE_PERMISSIONS_CACHE_TTL_MS ?? '60000');
+
+let cachedPermissionsMatrix: { value: Record<AppRole, Permission[]>; expiresAt: number } | null = null;
 
 function toMutableRolePermissions(source: Record<AppRole, readonly Permission[]>): Record<AppRole, Permission[]> {
     return {
@@ -53,6 +56,35 @@ function normalizeMatrix(raw: unknown): Record<AppRole, Permission[]> {
     return matrix;
 }
 
+function cloneMatrix(matrix: Record<AppRole, Permission[]>): Record<AppRole, Permission[]> {
+    return {
+        ADMIN: [...matrix.ADMIN],
+        DIRECTOR: [...matrix.DIRECTOR],
+        MANAGER: [...matrix.MANAGER],
+        CONSULTANT: [...matrix.CONSULTANT],
+    };
+}
+
+function readPermissionsCache(): Record<AppRole, Permission[]> | null {
+    if (!cachedPermissionsMatrix) return null;
+    if (Date.now() > cachedPermissionsMatrix.expiresAt) {
+        cachedPermissionsMatrix = null;
+        return null;
+    }
+    return cloneMatrix(cachedPermissionsMatrix.value);
+}
+
+function writePermissionsCache(value: Record<AppRole, Permission[]>): void {
+    cachedPermissionsMatrix = {
+        value: cloneMatrix(value),
+        expiresAt: Date.now() + PERMISSIONS_CACHE_TTL_MS,
+    };
+}
+
+function clearPermissionsCache(): void {
+    cachedPermissionsMatrix = null;
+}
+
 export const PERMISSIONS_BY_RESOURCE: Record<string, Permission[]> = {
     'Gestão de Leads': [
         'leads:read:all',
@@ -86,19 +118,26 @@ export const PERMISSIONS_BY_RESOURCE: Record<string, Permission[]> = {
 };
 
 export async function getRolePermissions(): Promise<Record<AppRole, Permission[]>> {
+    const cached = readPermissionsCache();
+    if (cached) return cached;
+
     try {
         const setting = await prisma.systemSettings.findUnique({
             where: { key: SYSTEM_SETTINGS_KEY },
         });
 
         if (setting?.value) {
-            return normalizeMatrix(setting.value);
+            const normalized = normalizeMatrix(setting.value);
+            writePermissionsCache(normalized);
+            return cloneMatrix(normalized);
         }
     } catch (error) {
         console.error('Failed to fetch permission matrix, using defaults', error);
     }
 
-    return toMutableRolePermissions(ROLE_PERMISSIONS);
+    const defaults = toMutableRolePermissions(ROLE_PERMISSIONS);
+    writePermissionsCache(defaults);
+    return cloneMatrix(defaults);
 }
 
 export async function updateRolePermissions(matrix: Record<AppRole, Permission[]>) {
@@ -112,6 +151,8 @@ export async function updateRolePermissions(matrix: Record<AppRole, Permission[]
             value: normalized,
         },
     });
+
+    clearPermissionsCache();
 }
 
 export async function updateSingleRolePermissions(role: AppRole, permissions: Permission[]) {

@@ -176,6 +176,10 @@ model Lead {
   @@index([pipelineStageId])
   @@index([score])
   @@index([createdAt])
+  @@index([updatedAt])
+  @@index([status, createdAt])
+  @@index([createdAt, source])
+  @@index([createdAt, grade])
 }
 
 // ==========================================
@@ -329,6 +333,8 @@ model Meeting {
   @@index([userId])
   @@index([startTime])
   @@index([status])
+  @@index([status, startTime])
+  @@index([leadId, status, createdAt])
   @@index([teamsEventId])
 }
 
@@ -586,6 +592,7 @@ model AuditLog {
   @@index([userId])
   @@index([entity, entityId])
   @@index([createdAt])
+  @@index([entity, action, createdAt])
 }
 
 // ==========================================
@@ -644,4 +651,5 @@ model Notification {
 
   @@index([userId])
   @@index([read])
+  @@index([userId, read, createdAt])
 }

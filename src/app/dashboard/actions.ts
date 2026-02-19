@@ -3,13 +3,15 @@
 import { auth } from '@/auth';
 import { prisma } from '@/lib/prisma';
 import { LeadSource, LeadPriority, LeadStatus, Lead } from '@prisma/client';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, unstable_cache } from 'next/cache';
 import { can, canAny, getLeadPermissions } from '@/lib/permissions';
 import { buildLeadScope, mergeLeadWhere } from '@/lib/lead-scope';
 import { subDays } from 'date-fns';
 import { calculateLeadScore, calcularScore, type QualificationData, type DynamicScoringCriterion } from '@/lib/scoring';
 import { DEFAULT_SCORING_CRITERIA } from '@/lib/config-options';
 import { notifyActiveManagers } from '@/lib/crm-notifications';
+
+const DASHBOARD_ANALYTICS_REVALIDATE_SEC = Number(process.env.DASHBOARD_ANALYTICS_REVALIDATE_SEC ?? '60');
 
 export async function searchLeads(query: string) {
     const session = await auth();
@@ -248,9 +250,7 @@ function asRecord(value: unknown): Record<string, unknown> {
     return value as Record<string, unknown>;
 }
 
-export async function getDashboardMetrics(period: string = '30d') {
-    await ensureDashboardAnalyticsAccess();
-
+const getDashboardMetricsCached = unstable_cache(async (period: string = '30d') => {
     const startDate = getStartDate(period);
 
     const [
@@ -288,6 +288,13 @@ export async function getDashboardMetrics(period: string = '30d') {
         gradeDistribution: gradeGrouped.map(g => ({ grade: g.grade as string, count: g._count._all })),
         sourceDistribution: sourceGrouped.map(s => ({ source: s.source, count: s._count._all }))
     };
+}, ['dashboard-metrics-v1'], {
+    revalidate: DASHBOARD_ANALYTICS_REVALIDATE_SEC,
+});
+
+export async function getDashboardMetrics(period: string = '30d') {
+    await ensureDashboardAnalyticsAccess();
+    return getDashboardMetricsCached(period);
 }
 
 export async function getRecentLeads() {
@@ -476,8 +483,7 @@ export async function getFunnelMetrics(period: string = '30d') {
     };
 }
 
-export async function getAcquisitionFunnelMetrics(period: string = '30d'): Promise<AcquisitionFunnelMetrics> {
-    await ensureDashboardAnalyticsAccess();
+const getAcquisitionFunnelMetricsCached = unstable_cache(async (period: string = '30d'): Promise<AcquisitionFunnelMetrics> => {
     const startDate = getStartDate(period);
     const startDateIso = startDate.toISOString();
 
@@ -652,6 +658,13 @@ export async function getAcquisitionFunnelMetrics(period: string = '30d'): Promi
         cards,
         bySourceCampaign,
     };
+}, ['dashboard-acquisition-funnel-v1'], {
+    revalidate: DASHBOARD_ANALYTICS_REVALIDATE_SEC,
+});
+
+export async function getAcquisitionFunnelMetrics(period: string = '30d'): Promise<AcquisitionFunnelMetrics> {
+    await ensureDashboardAnalyticsAccess();
+    return getAcquisitionFunnelMetricsCached(period);
 }
 
 export async function getUpcomingMeetings(limit: number = 5) {
@@ -682,8 +695,7 @@ export async function getUpcomingMeetings(limit: number = 5) {
     });
 }
 
-export async function getFunnelGateAnalytics(period: string = '30d') {
-    await ensureDashboardAnalyticsAccess();
+const getFunnelGateAnalyticsCached = unstable_cache(async (period: string = '30d') => {
     const startDate = getStartDate(period);
 
     const gateRows = await prisma.$queryRaw<Array<{ gateProfile: string; count: number }>>`
@@ -738,6 +750,13 @@ export async function getFunnelGateAnalytics(period: string = '30d') {
             decisorRate
         }
     };
+}, ['dashboard-gate-analytics-v1'], {
+    revalidate: DASHBOARD_ANALYTICS_REVALIDATE_SEC,
+});
+
+export async function getFunnelGateAnalytics(period: string = '30d') {
+    await ensureDashboardAnalyticsAccess();
+    return getFunnelGateAnalyticsCached(period);
 }
 
 export async function getKanbanData() {

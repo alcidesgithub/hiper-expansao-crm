@@ -24,8 +24,19 @@ async function syncTokenRoleAndPermissions(token: {
     role?: unknown;
     permissions?: unknown;
     exp?: number;
+    permissionsSyncedAt?: unknown;
 }): Promise<void> {
     if (typeof token.id !== 'string' || !token.id) return;
+
+    const nowSec = Math.floor(Date.now() / 1000);
+    const lastSyncSec = typeof token.permissionsSyncedAt === 'number' ? token.permissionsSyncedAt : 0;
+    const hasCachedRole = typeof token.role === 'string' && token.role.length > 0;
+    const hasCachedPermissions = Array.isArray(token.permissions);
+
+    // Avoid hitting the database on every request for active sessions.
+    if (hasCachedRole && hasCachedPermissions && nowSec - lastSyncSec < 300) {
+        return;
+    }
 
     const dbUser = await prisma.user.findUnique({
         where: { id: token.id },
@@ -38,6 +49,7 @@ async function syncTokenRoleAndPermissions(token: {
         token.id = undefined;
         token.role = undefined;
         token.permissions = [];
+        token.permissionsSyncedAt = nowSec;
         return;
     }
 
@@ -51,6 +63,8 @@ async function syncTokenRoleAndPermissions(token: {
         console.error('[Auth JWT] Failed to sync permissions:', error);
         token.permissions = [...getDefaultPermissionsForRole(dbUser.role)];
     }
+
+    token.permissionsSyncedAt = nowSec;
 }
 
 export const { auth, signIn, signOut, handlers } = NextAuth({

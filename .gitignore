@@ -63,3 +63,5 @@ next-env.d.ts
 
 #skills
 /.agent
+
+/.playwright-cli
