@@ -393,78 +393,79 @@ export default function LandingPage() {
       </section>
 
       {/* OLs e Marca Propria */}
-      <section className="py-20 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 relative overflow-hidden" id="ols">
-        <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-10 left-10 w-64 h-64 bg-primary rounded-full blur-[120px]"></div>
-          <div className="absolute bottom-10 right-10 w-80 h-80 bg-secondary rounded-full blur-[120px]"></div>
+      <section className="py-24 bg-gray-50 border-y border-gray-100 relative overflow-hidden" id="ols">
+        <div className="absolute inset-0 opacity-40">
+          <div className="absolute top-10 left-10 w-64 h-64 bg-primary/10 rounded-full blur-[120px]"></div>
+          <div className="absolute bottom-10 right-10 w-80 h-80 bg-secondary/10 rounded-full blur-[120px]"></div>
         </div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-              <div className="inline-flex items-center px-3 py-1 rounded-full bg-primary/20 text-primary text-sm font-semibold mb-4 border border-primary/30">
+              <div className="inline-flex items-center px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-semibold mb-4 border border-primary/20">
                 <Package size={16} className="mr-2" />
                 Diferencial Exclusivo
               </div>
-              <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-6 leading-tight">
+              <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 mb-6 leading-tight">
                 Ofertas de Laboratório e <span className="text-primary">Marca Própria</span>
               </h2>
-              <p className="text-lg text-gray-300 mb-8 leading-relaxed">
+              <p className="text-lg text-slate-600 mb-8 leading-relaxed">
                 Além das negociações em bloco, nossos associados têm acesso a ofertas exclusivas de laboratórios (OLs) e produtos de marca própria com margens superiores às do mercado.
               </p>
               <div className="space-y-6">
                 <div className="flex gap-4 items-start">
-                  <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
+                  <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
                     <Percent className="text-primary" size={24} />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-white">Margem Superior</h3>
-                    <p className="text-gray-400 mt-1">Produtos com margens de 40-60%, muito acima dos genéricos tradicionais. Mais lucro por unidade vendida.</p>
+                    <h3 className="text-lg font-bold text-slate-900">Margem Superior</h3>
+                    <p className="text-slate-500 mt-1">Produtos com margens de 40-60%, muito acima dos genéricos tradicionais. Mais lucro por unidade vendida.</p>
                   </div>
                 </div>
                 <div className="flex gap-4 items-start">
-                  <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-secondary/20 flex items-center justify-center">
+                  <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center">
                     <ShieldCheck className="text-secondary" size={24} />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-white">Exclusividade Regional</h3>
-                    <p className="text-gray-400 mt-1">Ofertas negociadas exclusivamente para a rede — seus concorrentes não têm acesso às mesmas condições.</p>
+                    <h3 className="text-lg font-bold text-slate-900">Exclusividade Regional</h3>
+                    <p className="text-slate-500 mt-1">Ofertas negociadas exclusivamente para a rede — seus concorrentes não têm acesso às mesmas condições.</p>
                   </div>
                 </div>
                 <div className="flex gap-4 items-start">
-                  <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
-                    <Users className="text-green-400" size={24} />
+                  <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center">
+                    <Users className="text-green-600" size={24} />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-white">Suporte de Implantação</h3>
-                    <p className="text-gray-400 mt-1">Treinamento de equipe, material de PDV e apoio do departamento comercial para maximizar suas vendas.</p>
+                    <h3 className="text-lg font-bold text-slate-900">Suporte de Implantação</h3>
+                    <p className="text-slate-500 mt-1">Treinamento de equipe, material de PDV e apoio do departamento comercial para maximizar suas vendas.</p>
                   </div>
                 </div>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 text-center hover:border-primary/50 transition-colors">
-                <div className="w-14 h-14 bg-primary/20 rounded-xl flex items-center justify-center mx-auto mb-4">
+              <div className="bg-white border border-gray-200 rounded-2xl p-6 text-center hover:shadow-lg transition-all shadow-sm">
+                <div className="w-14 h-14 bg-primary/10 rounded-xl flex items-center justify-center mx-auto mb-4">
                   <Package className="text-primary" size={28} />
                 </div>
-                <p className="text-2xl font-extrabold text-white mb-1">OLs</p>
-                <p className="text-gray-400 text-sm">Ofertas de Laboratório com desconto exclusivo</p>
+                <p className="text-2xl font-extrabold text-slate-900 mb-1">OLs</p>
+                <p className="text-slate-500 text-sm leading-snug">Ofertas de Laboratório com desconto exclusivo</p>
               </div>
-              <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 text-center hover:border-primary/50 transition-colors">
-                <div className="w-14 h-14 bg-secondary/20 rounded-xl flex items-center justify-center mx-auto mb-4">
+              <div className="bg-white border border-gray-200 rounded-2xl p-6 text-center hover:shadow-lg transition-all shadow-sm">
+                <div className="w-14 h-14 bg-secondary/10 rounded-xl flex items-center justify-center mx-auto mb-4">
                   <Store className="text-secondary" size={28} />
                 </div>
-                <p className="text-2xl font-extrabold text-white mb-1">Marca Própria</p>
-                <p className="text-gray-400 text-sm">Produtos exclusivos da rede Hiperfarma</p>
+                <p className="text-2xl font-extrabold text-slate-900 mb-1">Marca Própria</p>
+                <p className="text-slate-500 text-sm leading-snug">Produtos exclusivos da rede Hiperfarma</p>
               </div>
-              <div className="col-span-2 bg-gradient-to-r from-primary/10 to-secondary/10 backdrop-blur-sm border border-white/10 rounded-2xl p-6 text-center hover:border-primary/50 transition-colors">
-                <p className="text-3xl font-extrabold text-white mb-2">40-60%</p>
-                <p className="text-gray-300 text-sm">Margens médias em produtos de marca própria</p>
-                <p className="text-gray-500 text-xs mt-2">vs. 15-25% em genéricos convencionais</p>
+              <div className="col-span-2 bg-gradient-to-r from-red-50 to-blue-50 border border-red-100 rounded-2xl p-6 text-center hover:shadow-lg transition-all shadow-sm">
+                <p className="text-4xl font-extrabold text-primary mb-2">40-60%</p>
+                <p className="font-bold text-slate-800 text-sm">Margens médias em produtos de marca própria</p>
+                <p className="text-slate-500 text-xs mt-2 italic">vs. 15-25% em genéricos convencionais</p>
               </div>
             </div>
           </div>
         </div>
       </section>
+
 
       {/* Ferramentas e Convenios */}
       <section className="py-20 bg-white border-y border-gray-100 scroll-mt-24" id="ferramentas">
