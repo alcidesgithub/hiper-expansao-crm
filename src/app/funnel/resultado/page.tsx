@@ -3,7 +3,7 @@
 import React, { useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { CheckCircle2, Calendar, Mail, Clock, ArrowRight, BookOpen } from 'lucide-react';
+import { CheckCircle2, Calendar, Mail, Clock, ArrowRight } from 'lucide-react';
 import { clearDraft } from '../_utils/draft';
 
 function ResultadoPageContent() {
@@ -95,15 +95,17 @@ function ResultadoPageContent() {
                     </div>
 
                     <p className="text-slate-500 text-sm mb-4">
-                        Enquanto isso, confira nossos conteúdos sobre o mercado farmacêutico:
+                        Enquanto isso, fale com nossa equipe:
                     </p>
 
-                    <Link
-                        href="/funnel/educacao"
-                        className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-6 py-3 rounded-xl font-semibold hover:bg-blue-100 transition-all"
+                    <a
+                        href="https://wa.me/5541999990001"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 bg-green-50 text-green-700 px-6 py-3 rounded-xl font-semibold hover:bg-green-100 transition-all"
                     >
-                        <BookOpen size={18} /> Ver conteúdos
-                    </Link>
+                        Falar no WhatsApp
+                    </a>
                 </div>
             </div>
         );

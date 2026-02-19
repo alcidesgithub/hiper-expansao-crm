@@ -169,6 +169,85 @@ async function ensureDashboardAnalyticsAccess() {
     return session;
 }
 
+type AcquisitionStageKey =
+    | 'lpView'
+    | 'ctaClick'
+    | 'step1'
+    | 'step2'
+    | 'step3'
+    | 'step5'
+    | 'resultAB'
+    | 'agendamento';
+
+type AcquisitionStage = {
+    key: AcquisitionStageKey;
+    label: string;
+    count: number;
+    conversionFromPrevious: number | null;
+};
+
+type AcquisitionBreakdownRow = {
+    utmSource: string;
+    utmCampaign: string;
+    lpView: number;
+    ctaClick: number;
+    step1: number;
+    step2: number;
+    step3: number;
+    step5: number;
+    resultAB: number;
+    agendamento: number;
+};
+
+type AcquisitionFunnelMetrics = {
+    period: {
+        from: string;
+        to: string;
+    };
+    stages: AcquisitionStage[];
+    cards: {
+        lpToStep1: number;
+        step1ToStep2: number;
+        step5ToAB: number;
+        abToAgendamento: number;
+    };
+    bySourceCampaign: AcquisitionBreakdownRow[];
+};
+
+const STAGE_ORDER: Array<{ key: AcquisitionStageKey; label: string }> = [
+    { key: 'lpView', label: 'Visitas na LP' },
+    { key: 'ctaClick', label: 'Cliques no CTA' },
+    { key: 'step1', label: 'Cadastro' },
+    { key: 'step2', label: 'Perfil Empresarial' },
+    { key: 'step3', label: 'Desafios e Motivação' },
+    { key: 'step5', label: 'Investimento' },
+    { key: 'resultAB', label: 'Aprovados (A/B)' },
+    { key: 'agendamento', label: 'Agendamentos' },
+];
+
+function safeDivisionRate(numerator: number, denominator: number): number {
+    if (denominator <= 0) return 0;
+    return Number(((numerator / denominator) * 100).toFixed(2));
+}
+
+function parseIsoDateLike(value: unknown): Date | null {
+    if (typeof value !== 'string' || value.trim().length === 0) return null;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function normalizeDimension(value: unknown, fallback: string): string {
+    if (typeof value !== 'string') return fallback;
+    const trimmed = value.trim();
+    if (!trimmed) return fallback;
+    return trimmed.slice(0, 150);
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    return value as Record<string, unknown>;
+}
+
 export async function getDashboardMetrics(period: string = '30d') {
     await ensureDashboardAnalyticsAccess();
 
@@ -331,38 +410,247 @@ export async function getLeadById(id: string) {
 export async function getFunnelMetrics(period: string = '30d') {
     await ensureDashboardAnalyticsAccess();
     const startDate = getStartDate(period);
+    const startDateIso = startDate.toISOString();
 
-    // Simplificado para os status do enum LeadStatus
-    const statusCounts = await prisma.lead.groupBy({
-        by: ['status'],
-        where: { createdAt: { gte: startDate } },
-        _count: { _all: true }
-    });
+    // 1. Contadores de eventos de aquisição (AuditLog)
+    const auditCounts = await prisma.$queryRaw<Array<{
+        lpView: bigint;
+        ctaClick: bigint;
+    }>>`
+        SELECT
+            COUNT(DISTINCT "entityId") FILTER (WHERE "action" = 'LP_VIEW') as "lpView",
+            COUNT(DISTINCT "entityId") FILTER (WHERE "action" = 'LP_CTA_CLICK') as "ctaClick"
+        FROM "AuditLog"
+        WHERE "entity" = 'AcquisitionEvent'
+          AND "action" IN ('LP_VIEW', 'LP_CTA_CLICK')
+          AND "createdAt" >= ${startDate}
+    `;
 
-    const funnelSteps = [
-        { status: 'NEW', label: 'Novo Lead' },
-        { status: 'CONTACTED', label: 'Em Contato' },
-        { status: 'QUALIFIED', label: 'Qualificado' },
-        { status: 'PROPOSAL', label: 'Proposta' },
-        { status: 'NEGOTIATION', label: 'Negociação' },
-        { status: 'WON', label: 'Convertido' }
+    // 2. Contadores de etapas do funil (qualificationData no Lead)
+    const leadCounts = await prisma.$queryRaw<Array<{
+        step1: bigint;
+        step2: bigint;
+        step3: bigint;
+        step5: bigint;
+        resultAB: bigint;
+        agendamento: bigint;
+    }>>`
+        SELECT
+            COUNT(*) FILTER (WHERE "qualificationData"->>'step1CompletedAt' >= ${startDateIso} OR "createdAt" >= ${startDate}) as "step1",
+            COUNT(*) FILTER (WHERE "qualificationData"->>'step2CompletedAt' >= ${startDateIso}) as "step2",
+            COUNT(*) FILTER (WHERE "qualificationData"->>'step3CompletedAt' >= ${startDateIso}) as "step3",
+            COUNT(*) FILTER (WHERE "qualificationData"->>'step5CompletedAt' >= ${startDateIso}) as "step5",
+            COUNT(*) FILTER (WHERE ("grade" = 'A' OR "grade" = 'B') AND "qualificationData"->>'step5CompletedAt' >= ${startDateIso}) as "resultAB",
+            COUNT(*) FILTER (WHERE ("grade" = 'A' OR "grade" = 'B') AND EXISTS (
+                SELECT 1 FROM "Meeting" m
+                WHERE m."leadId" = "Lead".id
+                AND m."createdAt" >= ${startDate}
+                AND m."status" IN ('SCHEDULED', 'RESCHEDULED', 'COMPLETED')
+            )) as "agendamento"
+        FROM "Lead"
+        WHERE "createdAt" >= ${startDate}
+           OR "updatedAt" >= ${startDate}
+    `;
+
+    const audit = auditCounts[0] || { lpView: BigInt(0), ctaClick: BigInt(0) };
+    const leads = leadCounts[0] || { step1: BigInt(0), step2: BigInt(0), step3: BigInt(0), step5: BigInt(0), resultAB: BigInt(0), agendamento: BigInt(0) };
+
+    const funnel = [
+        { step: 'Visita LP', count: Number(audit.lpView) },
+        { step: 'Clique CTA', count: Number(audit.ctaClick) },
+        { step: 'Cadastro', count: Number(leads.step1) },
+        { step: 'Perfil', count: Number(leads.step2) },
+        { step: 'Desafios', count: Number(leads.step3) },
+        { step: 'Investimento', count: Number(leads.step5) },
+        { step: 'Aprovados (A/B)', count: Number(leads.resultAB) },
+        { step: 'Agendamento', count: Number(leads.agendamento) },
     ];
 
-    const funnel = funnelSteps.map(step => {
-        const data = statusCounts.find(s => s.status === step.status);
-        return {
-            step: step.label,
-            count: data?._count._all || 0
-        };
-    });
-
-    const newLeads = funnel[0].count;
-    const wonLeads = funnel[funnel.length - 1].count;
-    const dropoffRate = newLeads > 0 ? Math.round(((newLeads - wonLeads) / newLeads) * 100) : 0;
+    const topCount = funnel[0].count;
+    const bottomCount = funnel[funnel.length - 1].count;
+    const dropoffRate = topCount > 0 ? Math.round(((topCount - bottomCount) / topCount) * 100) : 0;
 
     return {
         funnel,
         dropoffRate
+    };
+}
+
+export async function getAcquisitionFunnelMetrics(period: string = '30d'): Promise<AcquisitionFunnelMetrics> {
+    await ensureDashboardAnalyticsAccess();
+    const startDate = getStartDate(period);
+    const startDateIso = startDate.toISOString();
+
+    // 1. AuditLog Aggregation (LP Views & Clicks)
+    // Agrupa por Source/Campaign e conta sessões únicas (entityId)
+    const auditMetrics = await prisma.$queryRaw<Array<{
+        utmSource: string | null;
+        utmCampaign: string | null;
+        lpView: bigint;
+        ctaClick: bigint;
+    }>>`
+        SELECT 
+            "changes"->>'utmSource' as "utmSource", 
+            "changes"->>'utmCampaign' as "utmCampaign", 
+            COUNT(DISTINCT "entityId") FILTER (WHERE "action" = 'LP_VIEW') as "lpView",
+            COUNT(DISTINCT "entityId") FILTER (WHERE "action" = 'LP_CTA_CLICK') as "ctaClick"
+        FROM "AuditLog"
+        WHERE "entity" = 'AcquisitionEvent' 
+          AND "action" IN ('LP_VIEW', 'LP_CTA_CLICK')
+          AND "createdAt" >= ${startDate}
+        GROUP BY 1, 2
+    `;
+
+    // 2. Lead Aggregation (Steps & Conversions)
+    // Agrupa por Source/Campaign (coalesce coluna e JSON)
+    const leadMetrics = await prisma.$queryRaw<Array<{
+        utmSource: string | null;
+        utmCampaign: string | null;
+        step1: bigint;
+        step2: bigint;
+        step3: bigint;
+        step5: bigint;
+        resultAB: bigint;
+        agendamento: bigint;
+    }>>`
+        SELECT 
+            COALESCE("utmSource", "qualificationData"->'attribution'->>'utmSource') as "utmSource",
+            COALESCE("utmCampaign", "qualificationData"->'attribution'->>'utmCampaign') as "utmCampaign",
+            COUNT(*) FILTER (WHERE "qualificationData"->>'step1CompletedAt' >= ${startDateIso} OR "createdAt" >= ${startDate}) as "step1",
+            COUNT(*) FILTER (WHERE "qualificationData"->>'step2CompletedAt' >= ${startDateIso}) as "step2",
+            COUNT(*) FILTER (WHERE "qualificationData"->>'step3CompletedAt' >= ${startDateIso}) as "step3",
+            COUNT(*) FILTER (WHERE "qualificationData"->>'step5CompletedAt' >= ${startDateIso}) as "step5",
+            COUNT(*) FILTER (WHERE ("grade" = 'A' OR "grade" = 'B') AND "qualificationData"->>'step5CompletedAt' >= ${startDateIso}) as "resultAB",
+            COUNT(*) FILTER (WHERE ("grade" = 'A' OR "grade" = 'B') AND EXISTS (
+                SELECT 1 FROM "Meeting" m 
+                WHERE m."leadId" = "Lead".id 
+                AND m."createdAt" >= ${startDate}
+                AND m."status" IN ('SCHEDULED', 'RESCHEDULED', 'COMPLETED')
+            )) as "agendamento"
+        FROM "Lead"
+        WHERE "createdAt" >= ${startDate} 
+           OR "updatedAt" >= ${startDate}
+        GROUP BY 1, 2
+    `;
+
+    // 3. Merge & Process Data
+    const breakdownMap = new Map<string, AcquisitionBreakdownRow>();
+
+    const normalizeKey = (s: string | null, c: string | null) => {
+        const source = s?.trim() || '(sem source)';
+        const campaign = c?.trim() || '(sem campanha)';
+        return { key: `${source}|||${campaign}`, source, campaign };
+    };
+
+    const ensureRow = (key: string, source: string, campaign: string) => {
+        if (!breakdownMap.has(key)) {
+            breakdownMap.set(key, {
+                utmSource: source,
+                utmCampaign: campaign,
+                lpView: 0,
+                ctaClick: 0,
+                step1: 0,
+                step2: 0,
+                step3: 0,
+                step5: 0,
+                resultAB: 0,
+                agendamento: 0,
+            });
+        }
+        return breakdownMap.get(key)!;
+    };
+
+    // Process Audit Metrics
+    const totalCounts = {
+        lpView: 0,
+        ctaClick: 0,
+        step1: 0,
+        step2: 0,
+        step3: 0,
+        step5: 0,
+        resultAB: 0,
+        agendamento: 0,
+    };
+
+    for (const row of auditMetrics) {
+        const { key, source, campaign } = normalizeKey(row.utmSource, row.utmCampaign);
+        const mapRow = ensureRow(key, source, campaign);
+
+        const lpView = Number(row.lpView);
+        const ctaClick = Number(row.ctaClick);
+
+        mapRow.lpView += lpView;
+        mapRow.ctaClick += ctaClick;
+
+        totalCounts.lpView += lpView;
+        totalCounts.ctaClick += ctaClick;
+    }
+
+    // Process Lead Metrics
+    for (const row of leadMetrics) {
+        const { key, source, campaign } = normalizeKey(row.utmSource, row.utmCampaign);
+        const mapRow = ensureRow(key, source, campaign);
+
+        const step1 = Number(row.step1);
+        const step2 = Number(row.step2);
+        const step3 = Number(row.step3);
+        const step5 = Number(row.step5);
+        const resultAB = Number(row.resultAB);
+        const agendamento = Number(row.agendamento);
+
+        mapRow.step1 += step1;
+        mapRow.step2 += step2;
+        mapRow.step3 += step3;
+        mapRow.step5 += step5;
+        mapRow.resultAB += resultAB;
+        mapRow.agendamento += agendamento;
+
+        totalCounts.step1 += step1;
+        totalCounts.step2 += step2;
+        totalCounts.step3 += step3;
+        totalCounts.step5 += step5;
+        totalCounts.resultAB += resultAB;
+        totalCounts.agendamento += agendamento;
+    }
+
+    // 4. Construct Final Result
+    const stages: AcquisitionStage[] = STAGE_ORDER.map((stage, index) => {
+        const count = totalCounts[stage.key];
+        if (index === 0) {
+            return { key: stage.key, label: stage.label, count, conversionFromPrevious: null };
+        }
+        const previousKey = STAGE_ORDER[index - 1].key;
+        const prevCount = totalCounts[previousKey];
+        return {
+            key: stage.key,
+            label: stage.label,
+            count,
+            conversionFromPrevious: safeDivisionRate(count, prevCount)
+        };
+    });
+
+    const cards = {
+        lpToStep1: safeDivisionRate(totalCounts.step1, totalCounts.lpView),
+        step1ToStep2: safeDivisionRate(totalCounts.step2, totalCounts.step1),
+        step5ToAB: safeDivisionRate(totalCounts.resultAB, totalCounts.step5),
+        abToAgendamento: safeDivisionRate(totalCounts.agendamento, totalCounts.resultAB),
+    };
+
+    const bySourceCampaign = Array.from(breakdownMap.values())
+        .sort((a, b) => {
+            if (b.step1 !== a.step1) return b.step1 - a.step1; // Conversões primeiro
+            return b.lpView - a.lpView; // Trafego depois
+        })
+        .slice(0, 100);
+
+    return {
+        period: {
+            from: startDate.toISOString(),
+            to: new Date().toISOString(),
+        },
+        stages,
+        cards,
+        bySourceCampaign,
     };
 }
 
@@ -398,8 +686,8 @@ export async function getFunnelGateAnalytics(period: string = '30d') {
     await ensureDashboardAnalyticsAccess();
     const startDate = getStartDate(period);
 
-    const roleRows = await prisma.$queryRaw<Array<{ role: string; count: number }>>`
-        SELECT LOWER(COALESCE("qualificationData"->>'role', '')) AS role, COUNT(*)::int AS count
+    const gateRows = await prisma.$queryRaw<Array<{ gateProfile: string; count: number }>>`
+        SELECT LOWER(COALESCE("qualificationData"->>'gateProfile', "qualificationData"->>'role', '')) AS "gateProfile", COUNT(*)::int AS count
         FROM "Lead"
         WHERE "createdAt" >= ${startDate}
           AND "qualificationData" IS NOT NULL
@@ -414,11 +702,32 @@ export async function getFunnelGateAnalytics(period: string = '30d') {
         pesquisador: 0
     };
 
-    roleRows.forEach(({ role, count }) => {
+    gateRows.forEach(({ gateProfile, count }) => {
+        if (!gateProfile) return;
+
         totals.total += Number(count);
-        if (role === 'decisor' || role === 'proprietário' || role === 'socio') totals.decisor += Number(count);
-        else if (role === 'influenciador' || role === 'gerente') totals.influenciador += Number(count);
-        else totals.pesquisador += Number(count);
+        if (
+            gateProfile === 'decisor' ||
+            gateProfile === 'proprietario' ||
+            gateProfile === 'proprietário' ||
+            gateProfile === 'socio' ||
+            gateProfile === 'sócio' ||
+            gateProfile === 'farmaceutico_rt' ||
+            gateProfile === 'gerente_geral'
+        ) {
+            totals.decisor += Number(count);
+            return;
+        }
+        if (
+            gateProfile === 'influenciador' ||
+            gateProfile === 'gerente' ||
+            gateProfile === 'gerente_comercial'
+        ) {
+            totals.influenciador += Number(count);
+            return;
+        }
+
+        totals.pesquisador += Number(count);
     });
 
     const decisorRate = totals.total > 0 ? Math.round((totals.decisor / totals.total) * 100) : 0;
@@ -490,7 +799,6 @@ interface CreateLeadData {
     state: string;
     motivacao: string;
     urgencia: string;
-    capacidadePagamentoTotal: string;
     compromisso: string;
     // Metadata
     expectedCloseDate: string;
@@ -531,14 +839,11 @@ export async function createLead(data: CreateLeadData) {
             localizacao: data.state,
             motivacao: data.motivacao,
             urgencia: data.urgencia,
-            capacidadePagamentoTotal: data.capacidadePagamentoTotal,
             compromisso: data.compromisso,
             desafios: [],
             historicoRedes: 'nunca',
             conscienciaInvestimento: 'quero-conhecer',
             reacaoValores: 'alto-saber-mais',
-            capacidadeMarketing: 'planejamento',
-            capacidadeAdmin: 'planejamento',
         };
 
         // Calculate Scores
@@ -688,15 +993,28 @@ export async function getAgendaInitialData(from?: Date, to?: Date) {
     const session = await auth();
     if (!session?.user) return { meetings: [], leads: [] };
 
+    const user = session.user as { id?: string; role?: string; permissions?: string[] };
+    const leadScope = await buildLeadScope(user);
+
+    const isPrivileged = user.role === 'ADMIN' || user.role === 'DIRECTOR' || user.role === 'MANAGER';
+
+    const meetingWhere: Record<string, unknown> = {
+        startTime: {
+            gte: from || subDays(new Date(), 30),
+            lte: to || subDays(new Date(), -30)
+        },
+        status: { not: 'CANCELLED' },
+        lead: { is: leadScope },
+    };
+
+    // Consultants only see their own meetings
+    if (!isPrivileged) {
+        meetingWhere.userId = user.id;
+    }
+
     const [meetings, leads] = await Promise.all([
         prisma.meeting.findMany({
-            where: {
-                startTime: {
-                    gte: from || subDays(new Date(), 30),
-                    lte: to || subDays(new Date(), -30)
-                },
-                status: { not: 'CANCELLED' }
-            },
+            where: meetingWhere,
             select: {
                 id: true,
                 title: true,
@@ -758,19 +1076,70 @@ export async function createMeeting(data: {
         };
 
         const meetingType = meetingTypeMap[data.type] || 'DIAGNOSTICO';
+        const userId = (session.user as { id: string }).id;
+
+        // Buscar o nome do lead para o título
+        const lead = await prisma.lead.findUnique({
+            where: { id: data.leadId },
+            select: { name: true, email: true }
+        });
+        if (!lead) return { success: false, error: 'Lead não encontrado' };
+
+        const typeLabels: Record<string, string> = {
+            'diagnostico': 'Diagnóstico',
+            'apresentacao': 'Apresentação',
+            'fechamento': 'Fechamento',
+            'followup': 'Follow-up'
+        };
+        const title = `${typeLabels[data.type] || data.type} - ${lead.name}`;
+
+        // Integração Teams real (se configurado e solicitado)
+        let teamsJoinUrl: string | null = null;
+        let teamsEventId: string | null = null;
+        let provider: string | null = null;
+
+        if (data.autoLink) {
+            try {
+                const { isTeamsConfigured, createTeamsMeeting } = await import('@/lib/teams');
+                if (isTeamsConfigured()) {
+                    const consultant = await prisma.user.findUnique({
+                        where: { id: userId },
+                        select: { email: true }
+                    });
+                    if (consultant?.email) {
+                        const teamsMeeting = await createTeamsMeeting({
+                            organizerEmail: consultant.email,
+                            leadEmail: lead.email,
+                            leadName: lead.name,
+                            subject: title,
+                            description: data.notes || null,
+                            startTime: start,
+                            endTime: end,
+                        });
+                        teamsJoinUrl = teamsMeeting.meetingLink;
+                        teamsEventId = teamsMeeting.externalEventId;
+                        provider = teamsMeeting.provider;
+                    }
+                }
+            } catch (teamsError) {
+                console.error('Teams integration failed, proceeding without:', teamsError);
+            }
+        }
 
         const meeting = await prisma.meeting.create({
             data: {
-                title: `${data.type.charAt(0).toUpperCase() + data.type.slice(1)} - Meeting`,
+                title,
                 startTime: start,
                 endTime: end,
                 leadId: data.leadId,
-                userId: (session.user as { id: string }).id,
+                userId,
                 description: data.notes,
                 status: 'SCHEDULED',
-                teamsJoinUrl: data.autoLink ? `https://teams.microsoft.com/l/meetup-join/mock-${Math.random().toString(36).substring(7)}` : null,
-                provider: data.autoLink ? 'TEAMS' : null,
-                meetingType: meetingType
+                teamsJoinUrl,
+                teamsEventId,
+                provider: provider || 'local',
+                meetingType,
+                duration: durationMinutes,
             }
         });
 
@@ -859,11 +1228,12 @@ export async function getReportsOverview(period: string = '30d') {
     await ensureReportsAccess();
 
     const startDate = getStartDate(period);
-    const [financial, leadsOverTime, funnel, source] = await Promise.all([
+    const [financial, leadsOverTime, funnel, source, acquisition] = await Promise.all([
         getFinancialMetricsData(startDate),
         getLeadsOverTimeData(startDate),
         getFunnelMetrics(period),
         getSourceDistributionData(startDate),
+        getAcquisitionFunnelMetrics(period),
     ]);
 
     return {
@@ -871,6 +1241,7 @@ export async function getReportsOverview(period: string = '30d') {
         leadsOverTime,
         funnel,
         source,
+        acquisition,
     };
 }
 

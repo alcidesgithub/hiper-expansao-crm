@@ -1,4 +1,5 @@
-﻿import { z } from 'zod';
+import { z } from 'zod';
+import { ACQUISITION_EVENT_NAMES } from '@/lib/acquisition';
 
 // ==========================================
 // LEAD SCHEMAS
@@ -30,9 +31,6 @@ const qualificationDataSchema = z.object({
     historicoRedes: z.string().optional(),
     conscienciaInvestimento: z.string().optional(),
     reacaoValores: z.string().optional(),
-    capacidadeMarketing: z.string().optional(),
-    capacidadeAdmin: z.string().optional(),
-    capacidadePagamentoTotal: z.string().optional(),
     compromisso: z.string().optional(),
     step2CompletedAt: dateInputSchema.optional().nullable(),
     step3CompletedAt: dateInputSchema.optional().nullable(),
@@ -87,6 +85,17 @@ export const meetingCreateSchema = z.object({
     location: z.string().optional().nullable(),
     provider: z.enum(['teams']).optional().default('teams'),
     selfScheduled: z.boolean().optional().default(false),
+}).superRefine((data, ctx) => {
+    const start = new Date(data.startTime);
+    const end = new Date(data.endTime);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return;
+    if (start >= end) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Data/hora final deve ser maior que a inicial',
+            path: ['endTime'],
+        });
+    }
 });
 
 export const meetingUpdateSchema = z.object({
@@ -99,6 +108,18 @@ export const meetingUpdateSchema = z.object({
     notes: z.string().optional().nullable(),
     nextSteps: z.string().optional().nullable(),
     outcome: z.string().optional().nullable(),
+}).superRefine((data, ctx) => {
+    if (!data.startTime || !data.endTime) return;
+    const start = new Date(data.startTime);
+    const end = new Date(data.endTime);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return;
+    if (start >= end) {
+        ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Data/hora final deve ser maior que a inicial',
+            path: ['endTime'],
+        });
+    }
 });
 
 // ==========================================
@@ -138,6 +159,24 @@ export const scheduleBookingSchema = z.object({
     notes: z.string().optional().default(''),
 });
 
+// ==========================================
+// ACQUISITION ANALYTICS SCHEMAS
+// ==========================================
+
+export const acquisitionEventSchema = z.object({
+    eventName: z.enum(ACQUISITION_EVENT_NAMES),
+    sessionId: z.string().min(8).max(120),
+    page: z.string().min(1).max(120),
+    ctaId: z.string().max(120).optional(),
+    variant: z.string().max(50).optional(),
+    utmSource: z.string().max(100).optional(),
+    utmMedium: z.string().max(100).optional(),
+    utmCampaign: z.string().max(150).optional(),
+    utmTerm: z.string().max(150).optional(),
+    utmContent: z.string().max(150).optional(),
+    timestamp: z.string().datetime().optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+});
 // ==========================================
 // PRICING SCHEMA
 // ==========================================

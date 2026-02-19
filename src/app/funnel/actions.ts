@@ -9,6 +9,8 @@ import { processAutomationRules, type AutomationRule } from '@/lib/automation';
 import { validateLeadContactPayload } from '@/lib/contact-validation';
 import { buildDefaultAutomationRules, DEFAULT_SCORING_CRITERIA } from '@/lib/config-options';
 import { notifyActiveManagers } from '@/lib/crm-notifications';
+import { logAudit } from '@/lib/audit';
+import { normalizeNullableText, normalizeSessionId } from '@/lib/acquisition';
 
 const FUNNEL_TOKEN_KEY = 'funnelToken';
 type GateProfile = 'DECISOR' | 'INFLUENCIADOR' | 'PESQUISADOR';
@@ -16,6 +18,17 @@ type GradeMeta = {
     label: string;
     prioridade: string;
     slaHoras: number | null;
+};
+
+type StepOneAttributionInput = {
+    sessionId?: string;
+    gateSessionId?: string;
+    landingVariant?: string;
+    utmSource?: string;
+    utmMedium?: string;
+    utmCampaign?: string;
+    utmTerm?: string;
+    utmContent?: string;
 };
 
 function isRedirectError(error: unknown): error is { digest: string } {
@@ -46,6 +59,85 @@ function normalizeScoringCriteria(value: unknown): DynamicScoringCriterion[] {
 function normalizeAutomationRules(value: unknown): AutomationRule[] {
     if (!Array.isArray(value)) return [];
     return value as AutomationRule[];
+}
+
+function compactRecord<T extends Record<string, string | undefined>>(record: T): Partial<T> {
+    const output: Partial<T> = {};
+    for (const [key, value] of Object.entries(record)) {
+        if (typeof value === 'string' && value.trim().length > 0) {
+            output[key as keyof T] = value as T[keyof T];
+        }
+    }
+    return output;
+}
+
+function buildStepOneAttribution(formData: StepOneAttributionInput) {
+    const sessionId = normalizeSessionId(formData.sessionId) || normalizeSessionId(formData.gateSessionId) || null;
+    const utmSource = normalizeNullableText(formData.utmSource, 100);
+    const utmMedium = normalizeNullableText(formData.utmMedium, 100);
+    const utmCampaign = normalizeNullableText(formData.utmCampaign, 150);
+    const utmTerm = normalizeNullableText(formData.utmTerm, 150);
+    const utmContent = normalizeNullableText(formData.utmContent, 150);
+    const landingVariant = normalizeNullableText(formData.landingVariant, 50);
+
+    const attribution = compactRecord({
+        sessionId: sessionId || undefined,
+        landingVariant,
+        utmSource,
+        utmMedium,
+        utmCampaign,
+        utmTerm,
+        utmContent,
+    });
+
+    return {
+        sessionId,
+        leadUtm: {
+            utmSource,
+            utmMedium,
+            utmCampaign,
+            utmTerm,
+            utmContent,
+        },
+        attribution: Object.keys(attribution).length > 0
+            ? {
+                ...attribution,
+                capturedAt: new Date().toISOString(),
+            }
+            : null,
+    };
+}
+
+function getAttributionSessionIdFromQualificationData(data: Record<string, unknown>): string | null {
+    const attributionRaw = data.attribution;
+    if (attributionRaw && typeof attributionRaw === 'object' && !Array.isArray(attributionRaw)) {
+        const candidate = normalizeSessionId((attributionRaw as Record<string, unknown>).sessionId as string | undefined);
+        if (candidate) return candidate;
+    }
+
+    return normalizeSessionId(data.gateSessionId as string | undefined) || null;
+}
+
+async function logStepCompletionEvent(params: {
+    leadId: string;
+    qualificationData: Record<string, unknown>;
+    stepNumber: 2 | 3 | 4 | 5;
+    metadata?: Record<string, unknown>;
+}): Promise<void> {
+    const sessionId = getAttributionSessionIdFromQualificationData(params.qualificationData);
+    await logAudit({
+        action: 'STEP_N_COMPLETE',
+        entity: 'AcquisitionEvent',
+        entityId: sessionId || params.leadId,
+        changes: {
+            eventName: 'STEP_N_COMPLETE',
+            sessionId: sessionId || null,
+            leadId: params.leadId,
+            stepNumber: params.stepNumber,
+            timestamp: new Date().toISOString(),
+            metadata: params.metadata || {},
+        },
+    });
 }
 
 function resolveGradeFromScore(score: number, forceF = false): LeadGrade {
@@ -105,6 +197,13 @@ export async function submitStepOne(formData: {
     isDecisionMaker?: string;
     gateProfile?: GateProfile;
     gateSessionId?: string;
+    sessionId?: string;
+    landingVariant?: string;
+    utmSource?: string;
+    utmMedium?: string;
+    utmCampaign?: string;
+    utmTerm?: string;
+    utmContent?: string;
 }) {
     if (!formData.email || !formData.fullName) {
         return { error: 'Dados incompletos.' };
@@ -116,8 +215,7 @@ export async function submitStepOne(formData: {
     const isDecisionMaker = formData.isDecisionMaker ?? (gateProfile === 'DECISOR' ? 'yes' : 'no');
 
     if (isDecisionMaker === 'no') {
-        const perfil = gateProfile === 'PESQUISADOR' ? 'pesquisador' : 'influenciador';
-        redirect(`/funnel/educacao?perfil=${perfil}`);
+        redirect('/');
     }
 
     try {
@@ -132,6 +230,7 @@ export async function submitStepOne(formData: {
 
         const { defaultStageId } = await resolvePipelineTargets();
         const funnelToken = randomUUID();
+        const stepOneAttribution = buildStepOneAttribution(formData);
 
         const lead = await prisma.lead.create({
             data: {
@@ -141,11 +240,17 @@ export async function submitStepOne(formData: {
                 company: formData.companyName.trim(),
                 source: LeadSource.WEBSITE,
                 status: LeadStatus.NEW,
+                utmSource: stepOneAttribution.leadUtm.utmSource,
+                utmMedium: stepOneAttribution.leadUtm.utmMedium,
+                utmCampaign: stepOneAttribution.leadUtm.utmCampaign,
+                utmTerm: stepOneAttribution.leadUtm.utmTerm,
+                utmContent: stepOneAttribution.leadUtm.utmContent,
                 pipelineStageId: defaultStageId,
                 qualificationData: {
                     isDecisionMaker: true,
                     gateProfile,
                     gateSessionId: formData.gateSessionId || null,
+                    attribution: stepOneAttribution.attribution,
                     step1CompletedAt: new Date().toISOString(),
                     contactValidation: {
                         emailDomain: validatedContact.meta.emailDomain,
@@ -154,6 +259,26 @@ export async function submitStepOne(formData: {
                     },
                     [FUNNEL_TOKEN_KEY]: funnelToken,
                 },
+            },
+        });
+
+        await logAudit({
+            action: 'STEP1_SUBMIT_SUCCESS',
+            entity: 'AcquisitionEvent',
+            entityId: stepOneAttribution.sessionId || lead.id,
+            changes: {
+                eventName: 'STEP1_SUBMIT_SUCCESS',
+                sessionId: stepOneAttribution.sessionId || null,
+                leadId: lead.id,
+                page: '/funnel',
+                ctaId: 'step1_submit',
+                variant: stepOneAttribution.attribution?.landingVariant || null,
+                utmSource: stepOneAttribution.leadUtm.utmSource || null,
+                utmMedium: stepOneAttribution.leadUtm.utmMedium || null,
+                utmCampaign: stepOneAttribution.leadUtm.utmCampaign || null,
+                utmTerm: stepOneAttribution.leadUtm.utmTerm || null,
+                utmContent: stepOneAttribution.leadUtm.utmContent || null,
+                timestamp: new Date().toISOString(),
             },
         });
 
@@ -215,6 +340,11 @@ export async function submitStepTwo(
                 },
             },
         });
+        await logStepCompletionEvent({
+            leadId,
+            qualificationData: existingData,
+            stepNumber: 2,
+        });
 
         redirect(buildFunnelUrl('/funnel/desafios', { leadId, token }));
     } catch (error) {
@@ -233,47 +363,6 @@ export async function submitStepThree(
     formData: {
         desafios: string[];
         motivacao: string;
-    }
-) {
-    if (!leadId || !token) return { error: 'Sessão de qualificação inválida.' };
-
-    try {
-        const lead = await prisma.lead.findUnique({ where: { id: leadId } });
-        if (!lead) return { error: 'Lead não encontrado.' };
-
-        const existingData = getQualificationData(lead.qualificationData);
-        if (!isValidFunnelToken(existingData, token)) {
-            return { error: 'Sessão de qualificação inválida.' };
-        }
-
-        await prisma.lead.update({
-            where: { id: leadId },
-            data: {
-                qualificationData: {
-                    ...existingData,
-                    desafios: formData.desafios,
-                    motivacao: formData.motivacao,
-                    [FUNNEL_TOKEN_KEY]: token,
-                    step3CompletedAt: new Date().toISOString(),
-                },
-            },
-        });
-
-        redirect(buildFunnelUrl('/funnel/urgencia', { leadId, token }));
-    } catch (error) {
-        if (isRedirectError(error)) throw error;
-        console.error('Error step 3:', error);
-        return { error: 'Erro ao atualizar dados.' };
-    }
-}
-
-// ==========================================
-// STEP 4: Urgency & History
-// ==========================================
-export async function submitStepFour(
-    leadId: string,
-    token: string,
-    formData: {
         urgencia: string;
         historicoRedes: string;
     }
@@ -294,24 +383,32 @@ export async function submitStepFour(
             data: {
                 qualificationData: {
                     ...existingData,
+                    desafios: formData.desafios,
+                    motivacao: formData.motivacao,
                     urgencia: formData.urgencia,
                     historicoRedes: formData.historicoRedes,
                     [FUNNEL_TOKEN_KEY]: token,
-                    step4CompletedAt: new Date().toISOString(),
+                    step3CompletedAt: new Date().toISOString(),
                 },
             },
+        });
+        await logStepCompletionEvent({
+            leadId,
+            qualificationData: existingData,
+            stepNumber: 3,
         });
 
         redirect(buildFunnelUrl('/funnel/investimento', { leadId, token }));
     } catch (error) {
         if (isRedirectError(error)) throw error;
-        console.error('Error step 4:', error);
+        console.error('Error step 3:', error);
         return { error: 'Erro ao atualizar dados.' };
     }
 }
 
 // ==========================================
-// STEP 5: Investment + FINAL SCORING
+// STEP 4: Investment + FINAL SCORING
+// (Antiga etapa 5, renumerada após merge das etapas 3+4)
 // ==========================================
 export async function submitStepFive(
     leadId: string,
@@ -319,9 +416,6 @@ export async function submitStepFive(
     formData: {
         conscienciaInvestimento: string;
         reacaoValores: string;
-        capacidadeMarketing: string;
-        capacidadeAdmin: string;
-        capacidadePagamentoTotal: string;
         compromisso: string;
     }
 ) {
@@ -353,7 +447,9 @@ export async function submitStepFive(
             motivacao: (existingData.motivacao as string) || '',
             urgencia: (existingData.urgencia as string) || 'sem-prazo',
             historicoRedes: (existingData.historicoRedes as string) || 'nunca',
-            ...formData,
+            conscienciaInvestimento: formData.conscienciaInvestimento,
+            reacaoValores: formData.reacaoValores,
+            compromisso: formData.compromisso,
         };
 
         const legacyScoringResult = calcularScore(fullData);
@@ -459,6 +555,16 @@ export async function submitStepFive(
                 pipelineStageId,
                 priority: resolvedPriority,
                 assignedUserId: automationResult.updates.assignedUserId || lead.assignedUserId,
+            },
+        });
+
+        await logStepCompletionEvent({
+            leadId,
+            qualificationData: existingData,
+            stepNumber: 5,
+            metadata: {
+                grade: resolvedGrade,
+                score: dynamicScore,
             },
         });
 

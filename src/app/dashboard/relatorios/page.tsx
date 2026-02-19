@@ -41,6 +41,19 @@ interface SourceDistributionItem {
     count: number;
 }
 
+interface AcquisitionSourceCampaignItem {
+    utmSource: string;
+    utmCampaign: string;
+    lpView: number;
+    ctaClick: number;
+    step1: number;
+    step2: number;
+    step3: number;
+    step5: number;
+    resultAB: number;
+    agendamento: number;
+}
+
 interface ExportLeadRow {
     name: string;
     email: string;
@@ -72,12 +85,12 @@ export default function ReportsPage() {
     const [mounted, setMounted] = useState(false);
     const [loading, setLoading] = useState(true);
     const [exporting, setExporting] = useState(false);
-    const [chartsEnabled, setChartsEnabled] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [metrics, setMetrics] = useState<FinancialMetrics | null>(null);
     const [leadsOverTime, setLeadsOverTime] = useState<LeadsOverTimePoint[]>([]);
     const [funnelData, setFunnelData] = useState<FunnelMetrics | null>(null);
     const [sourceData, setSourceData] = useState<SourceDistributionItem[]>([]);
+    const [sourceCampaignData, setSourceCampaignData] = useState<AcquisitionSourceCampaignItem[]>([]);
 
     const loadData = useCallback(async () => {
         setLoading(true);
@@ -89,6 +102,8 @@ export default function ReportsPage() {
             setLeadsOverTime((overview.leadsOverTime as LeadsOverTimePoint[]) ?? []);
             setFunnelData(overview.funnel as FunnelMetrics);
             setSourceData((overview.source as SourceDistributionItem[]) ?? []);
+            const acquisition = (overview as { acquisition?: { bySourceCampaign?: AcquisitionSourceCampaignItem[] } }).acquisition;
+            setSourceCampaignData(acquisition?.bySourceCampaign ?? []);
         } catch (fetchError) {
             console.error('Error fetching report data:', fetchError);
             setError('Nao foi possivel carregar os relatorios. Tente novamente.');
@@ -222,7 +237,7 @@ export default function ReportsPage() {
                                 <div className="p-3 bg-green-50 text-green-600 rounded-lg">
                                     <DollarSign size={24} />
                                 </div>
-                                <p className="text-sm text-gray-500 font-medium">Receita Total (Ganho)</p>
+                                <p className="text-sm text-gray-500 font-medium">Valor Estimado (Ganhos)</p>
                             </div>
                             <h3 className="text-2xl font-bold text-slate-900">{formatCurrency(metrics?.totalRevenue ?? 0)}</h3>
                         </div>
@@ -259,34 +274,60 @@ export default function ReportsPage() {
                         </div>
                     </div>
 
-                    {chartsEnabled ? (
-                        <ReportsCharts
-                            mounted={mounted}
-                            leadsOverTime={leadsOverTime}
-                            sourceData={sourceData}
-                            funnelData={funnelData}
-                        />
-                    ) : (
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                                <div>
-                                    <h3 className="text-lg font-bold text-gray-800">Visualizacoes de Grafico</h3>
-                                    <p className="text-sm text-gray-500 mt-1">
-                                        Carregue os graficos sob demanda para manter a pagina inicial mais leve.
-                                    </p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onMouseEnter={() => void import('./ReportsCharts')}
-                                    onFocus={() => void import('./ReportsCharts')}
-                                    onClick={() => setChartsEnabled(true)}
-                                    className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary-hover transition-colors"
-                                >
-                                    Carregar graficos
-                                </button>
+                    <ReportsCharts
+                        mounted={mounted}
+                        leadsOverTime={leadsOverTime}
+                        sourceData={sourceData}
+                        funnelData={funnelData}
+                    />
+
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <div className="flex items-center justify-between gap-3 mb-4">
+                            <div>
+                                <h3 className="text-lg font-bold text-gray-800">Aquisicao por Origem e Campanha</h3>
+                                <p className="text-sm text-gray-500">Funil por UTM para leitura comercial da qualidade de entrada.</p>
                             </div>
                         </div>
-                    )}
+
+                        {sourceCampaignData.length > 0 ? (
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full text-sm">
+                                    <thead>
+                                        <tr className="text-left text-gray-500 border-b border-gray-200">
+                                            <th className="py-2 pr-4 font-medium">Origem</th>
+                                            <th className="py-2 pr-4 font-medium">Campanha</th>
+                                            <th className="py-2 pr-4 font-medium">Visitas LP</th>
+                                            <th className="py-2 pr-4 font-medium">Cliques CTA</th>
+                                            <th className="py-2 pr-4 font-medium">Cadastro</th>
+                                            <th className="py-2 pr-4 font-medium">Perfil</th>
+                                            <th className="py-2 pr-4 font-medium">Desafios</th>
+                                            <th className="py-2 pr-4 font-medium">Investimento</th>
+                                            <th className="py-2 pr-4 font-medium">Aprovados</th>
+                                            <th className="py-2 pr-0 font-medium">Agendamentos</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {sourceCampaignData.slice(0, 20).map((row, index) => (
+                                            <tr key={`${row.utmSource}-${row.utmCampaign}-${index}`} className="border-b border-gray-100 last:border-b-0">
+                                                <td className="py-2 pr-4 text-gray-700">{row.utmSource}</td>
+                                                <td className="py-2 pr-4 text-gray-700">{row.utmCampaign}</td>
+                                                <td className="py-2 pr-4 font-medium">{row.lpView}</td>
+                                                <td className="py-2 pr-4 font-medium">{row.ctaClick}</td>
+                                                <td className="py-2 pr-4 font-medium">{row.step1}</td>
+                                                <td className="py-2 pr-4 font-medium">{row.step2}</td>
+                                                <td className="py-2 pr-4 font-medium">{row.step3}</td>
+                                                <td className="py-2 pr-4 font-medium">{row.step5}</td>
+                                                <td className="py-2 pr-4 font-medium">{row.resultAB}</td>
+                                                <td className="py-2 pr-0 font-medium">{row.agendamento}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ) : (
+                            <p className="text-sm text-gray-500">Sem dados de aquisicao por campanha no periodo.</p>
+                        )}
+                    </div>
                 </>
             )}
         </div>

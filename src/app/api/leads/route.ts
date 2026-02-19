@@ -146,6 +146,14 @@ function resolvePriorityFromGrade(grade: LeadGrade): LeadPriority {
     return 'LOW';
 }
 
+function requiresCargoSub(cargo: string): boolean {
+    return ['proprietario', 'farmaceutico_rt', 'gerente_geral'].includes(cargo);
+}
+
+function requiresLojasSub(numeroLojas: string): boolean {
+    return numeroLojas === '1';
+}
+
 function normalizeQualificationData(
     rawQualificationData: unknown,
     defaults: {
@@ -163,21 +171,37 @@ function normalizeQualificationData(
 
     const nowIso = new Date().toISOString();
     const cargo = normalizeText(qualificationData.cargo) || normalizeText(defaults.position) || '';
+    const cargoSub = normalizeText(qualificationData.cargoSub) || '';
     const numeroLojas = normalizeText(qualificationData.numeroLojas) || '';
+    const lojasSub = normalizeText(qualificationData.lojasSub) || '';
     const faturamento = normalizeText(qualificationData.faturamento) || '';
+    const localizacao = normalizeText(qualificationData.localizacao) || normalizeText(qualificationData.state) || '';
     const tempoMercado = normalizeText(qualificationData.tempoMercado) || '';
+    const urgencia = normalizeText(qualificationData.urgencia) || '';
+    const historicoRedes = normalizeText(qualificationData.historicoRedes) || '';
     const motivacao = normalizeText(qualificationData.motivacao) || '';
     const conscienciaInvestimento = normalizeText(qualificationData.conscienciaInvestimento) || '';
     const reacaoValores = normalizeText(qualificationData.reacaoValores) || '';
-    const capacidadePagamentoTotal = normalizeText(qualificationData.capacidadePagamentoTotal) || '';
     const compromisso = normalizeText(qualificationData.compromisso) || '';
     const desafios = Array.isArray(qualificationData.desafios)
         ? qualificationData.desafios.map((item) => String(item).trim()).filter(Boolean)
         : [];
 
-    const hasStep2 = Boolean(cargo && numeroLojas && faturamento && tempoMercado);
-    const hasStep3 = Boolean(motivacao || desafios.length > 0);
-    const hasStep5 = Boolean(capacidadePagamentoTotal || compromisso || conscienciaInvestimento || reacaoValores);
+    const hasStep2 = Boolean(
+        cargo &&
+        numeroLojas &&
+        faturamento &&
+        localizacao &&
+        tempoMercado &&
+        (!requiresCargoSub(cargo) || cargoSub) &&
+        (!requiresLojasSub(numeroLojas) || lojasSub)
+    );
+    const hasStep3 = Boolean(motivacao && desafios.length > 0 && urgencia && historicoRedes);
+    const hasStep5 = Boolean(
+        conscienciaInvestimento &&
+        reacaoValores &&
+        compromisso
+    );
 
     const normalized: Record<string, unknown> = {
         ...qualificationData,
@@ -194,23 +218,20 @@ function normalizeQualificationData(
         telefone: normalizeText(qualificationData.telefone) || normalizeText(defaults.phone) || '',
         empresa: normalizeText(qualificationData.empresa) || normalizeText(defaults.company) || '',
         cargo,
-        cargoSub: normalizeText(qualificationData.cargoSub) || '',
+        cargoSub,
         numeroLojas,
-        lojasSub: normalizeText(qualificationData.lojasSub) || '',
+        lojasSub,
         faturamento,
-        localizacao: normalizeText(qualificationData.localizacao) || normalizeText(qualificationData.state) || '',
+        localizacao,
         city: normalizeText(qualificationData.city) || '',
         state: normalizeText(qualificationData.state) || '',
         tempoMercado,
         desafios,
         motivacao,
-        urgencia: normalizeText(qualificationData.urgencia) || '',
-        historicoRedes: normalizeText(qualificationData.historicoRedes) || '',
+        urgencia,
+        historicoRedes,
         conscienciaInvestimento,
         reacaoValores,
-        capacidadeMarketing: normalizeText(qualificationData.capacidadeMarketing) || '',
-        capacidadeAdmin: normalizeText(qualificationData.capacidadeAdmin) || '',
-        capacidadePagamentoTotal,
         compromisso,
         step2CompletedAt: normalizeDateInputToIso(qualificationData.step2CompletedAt) || (hasStep2 ? nowIso : undefined),
         step3CompletedAt: normalizeDateInputToIso(qualificationData.step3CompletedAt) || (hasStep3 ? nowIso : undefined),

@@ -2,12 +2,13 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { scheduleBookingSchema } from '@/lib/validation';
 import { rateLimit, getClientIp } from '@/lib/rateLimit';
-import { sendMeetingConfirmationToLead, sendMeetingNotificationToConsultor } from '@/lib/email';
+import { sendMeetingConfirmationToLead } from '@/lib/email';
 import { logAudit } from '@/lib/audit';
 import { getPublicAvailabilitySlotsForDate, validateConsultorAvailabilityWindow } from '@/lib/availability';
 import { isMeetingOverlapError } from '@/lib/meeting-conflict';
 import { cancelTeamsMeeting, createTeamsMeeting, isTeamsConfigured, type TeamsMeetingPayload } from '@/lib/teams';
-import { createInAppNotifications, notifyActiveManagers } from '@/lib/crm-notifications';
+import { notifyActiveManagers } from '@/lib/crm-notifications';
+import { normalizeSessionId } from '@/lib/acquisition';
 
 interface StageProgression {
     pipelineStageId: string | null;
@@ -56,6 +57,19 @@ export function __resetTeamsHandlersForTests(): void {
 function getQualificationData(data: unknown): Record<string, unknown> {
     if (!data || typeof data !== 'object' || Array.isArray(data)) return {};
     return data as Record<string, unknown>;
+}
+
+function getAttributionSessionId(qualificationData: Record<string, unknown>): string | null {
+    const attribution = qualificationData.attribution;
+    if (attribution && typeof attribution === 'object' && !Array.isArray(attribution)) {
+        const candidate = normalizeSessionId(
+            (attribution as Record<string, unknown>).sessionId as string | undefined
+        );
+        if (candidate) return candidate;
+    }
+
+    const gateSessionId = normalizeSessionId(qualificationData.gateSessionId as string | undefined);
+    return gateSessionId || null;
 }
 
 function parseDateParts(date: string): DateParts | null {
@@ -370,7 +384,11 @@ export async function POST(request: Request) {
         const progression = await resolveMeetingProgression(leadId);
         await prisma.lead.update({
             where: { id: leadId },
-            data: progression,
+            data: {
+                // Lead remains unassigned after self-service booking; manager decides ownership later.
+                ...progression,
+                assignedUserId: null,
+            },
         });
 
         await prisma.activity.create({
@@ -402,41 +420,16 @@ export async function POST(request: Request) {
             appUrl,
         }).catch((err) => console.error('[Schedule] Email to lead failed:', err));
 
-        const shouldNotifyConsultant = lead.assignedUserId === consultorId;
-        if (shouldNotifyConsultant) {
-            sendMeetingNotificationToConsultor({
-                consultorEmail: consultor.email,
-                consultorName: consultor.name,
-                leadName: lead.name,
-                leadEmail: lead.email,
-                leadPhone: lead.phone || '',
-                leadCompany: lead.company || '',
-                score: lead.score || 0,
-                grade: lead.grade || 'C',
-                desafios: [],
-                urgencia: '',
-                date: dateFormatted,
-                time: timeFormatted,
-                meetingLink: meeting.teamsJoinUrl || undefined,
-                leadNotes: notes || undefined,
-                leadCrmUrl: `${appUrl}/dashboard/leads/${leadId}`,
-                appUrl,
-            }).catch((err) => console.error('[Schedule] Email to consultor failed:', err));
-
-            await createInAppNotifications([consultorId], {
+        try {
+            await notifyActiveManagers({
                 title: 'Reuniao agendada',
-                message: `Nova reuniao com ${lead.name}.`,
+                message: `${lead.name} teve reuniao agendada com ${consultor.name}.`,
                 link: `/dashboard/leads/${leadId}`,
-                type: 'info',
+                emailSubject: 'Nova reuniao agendada no CRM',
             });
+        } catch (notificationError) {
+            console.error('Error notifying managers about meeting booking:', notificationError);
         }
-
-        await notifyActiveManagers({
-            title: 'Reuniao agendada',
-            message: `${lead.name} teve reuniao agendada com ${consultor.name}.`,
-            link: `/dashboard/leads/${leadId}`,
-            emailSubject: 'Nova reuniao agendada no CRM',
-        });
 
         await logAudit({
             userId: consultorId,
@@ -444,6 +437,22 @@ export async function POST(request: Request) {
             entity: 'Meeting',
             entityId: meeting.id,
             changes: { leadId, consultorId, date, time },
+        });
+
+        const acquisitionSessionId = getAttributionSessionId(qualificationData);
+        await logAudit({
+            userId: consultorId,
+            action: 'CALENDAR_BOOK_SUCCESS',
+            entity: 'AcquisitionEvent',
+            entityId: acquisitionSessionId || leadId,
+            changes: {
+                eventName: 'CALENDAR_BOOK_SUCCESS',
+                sessionId: acquisitionSessionId || null,
+                leadId,
+                meetingId: meeting.id,
+                page: '/funnel/calendar',
+                timestamp: new Date().toISOString(),
+            },
         });
 
         return NextResponse.json({

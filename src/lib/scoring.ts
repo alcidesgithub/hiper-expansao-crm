@@ -36,9 +36,6 @@ export interface QualificationData {
     // Etapa 5: Investimento e Capacidade de Pagamento
     conscienciaInvestimento: string;
     reacaoValores: string;
-    capacidadeMarketing: string;
-    capacidadeAdmin: string;
-    capacidadePagamentoTotal: string; // capacidade de pagar o total mensal
     compromisso: string;
 }
 
@@ -102,10 +99,10 @@ export const CARGO_SUBS: Record<string, number> = {
 export const LOJAS: Record<string, { score: number; multiplicador?: number; descarta?: boolean }> = {
     '0': { score: 0, descarta: true },
     '1': { score: 10 },
-    '2-3': { score: 25 },
-    '4-5': { score: 30 },
-    '6-10': { score: 35 },
-    '11+': { score: 40, multiplicador: 1.3 },
+    '2-3': { score: 35 }, // Boosted from 25
+    '4-5': { score: 45 }, // Boosted from 30
+    '6-10': { score: 50 }, // Boosted from 35
+    '11+': { score: 60, multiplicador: 1.3 }, // Boosted from 40
 };
 
 export const LOJAS_SUBS: Record<string, number> = {
@@ -134,7 +131,7 @@ export const LOCALIZACAO: Record<string, { score: number }> = {
 };
 
 export const TEMPO_MERCADO: Record<string, { score: number }> = {
-    '<1a': { score: 5 },
+    '<1a': { score: -5 },
     '1-3a': { score: 10 },
     '3-5a': { score: 15 },
     '5-10a': { score: 20 },
@@ -198,31 +195,7 @@ export const REACAO_VALORES: Record<string, { score: number }> = {
     'sem-capacidade': { score: -30 },
 };
 
-export const CAPACIDADE_MARKETING: Record<string, { score: number }> = {
-    tranquilamente: { score: 25 },
-    planejamento: { score: 20 },
-    apertado: { score: 10 },
-    dificuldade: { score: -10 },
-    'nao-conseguiria': { score: -30 },
-};
 
-export const CAPACIDADE_ADMIN: Record<string, { score: number }> = {
-    tranquilamente: { score: 25 },
-    planejamento: { score: 20 },
-    apertado: { score: 10 },
-    dificuldade: { score: -10 },
-    'nao-conseguiria': { score: -30 },
-};
-
-// Capacidade de pagamento TOTAL (marketing + admin combinados)
-export const CAPACIDADE_PAGAMENTO_TOTAL: Record<string, { score: number; elimina?: boolean }> = {
-    'sim-tranquilo': { score: 30 },
-    'sim-planejamento': { score: 20 },
-    'apertado-possivel': { score: 10 },
-    'precisaria-ajustes': { score: 0 },
-    'dificil-agora': { score: -20 },
-    'nao-consigo': { score: -40, elimina: true },
-};
 
 export const COMPROMISSO: Record<string, { score: number }> = {
     'faz-sentido': { score: 50 },
@@ -298,8 +271,12 @@ export function calcularScore(data: QualificationData): ScoringResult {
     if (motInfo) etapa3 += motInfo.score;
 
     // --- Etapa 4: Urgência ---
+    let limiteGrade: string | undefined;
     const urgInfo = URGENCIA[data.urgencia];
-    if (urgInfo) etapa4 += urgInfo.score;
+    if (urgInfo) {
+        etapa4 += urgInfo.score;
+        if (urgInfo.limiteGrade) limiteGrade = urgInfo.limiteGrade;
+    }
 
     const histInfo = HISTORICO_REDES[data.historicoRedes];
     if (histInfo) etapa4 += histInfo.score;
@@ -311,23 +288,8 @@ export function calcularScore(data: QualificationData): ScoringResult {
     const reactInfo = REACAO_VALORES[data.reacaoValores];
     if (reactInfo) etapa5 += reactInfo.score;
 
-    const capMktInfo = CAPACIDADE_MARKETING[data.capacidadeMarketing];
-    if (capMktInfo) etapa5 += capMktInfo.score;
-
-    const capAdmInfo = CAPACIDADE_ADMIN[data.capacidadeAdmin];
-    if (capAdmInfo) etapa5 += capAdmInfo.score;
-
-    const capTotalInfo = CAPACIDADE_PAGAMENTO_TOTAL[data.capacidadePagamentoTotal];
-    if (capTotalInfo) {
-        etapa5 += capTotalInfo.score;
-        if (capTotalInfo.elimina) {
-            eliminado = true;
-            motivoEliminacao = 'SEM_CAPACIDADE_PAGAMENTO';
-        }
-    }
-
-    // Eliminação por incapacidade em AMBAS as taxas individuais
-    if (data.capacidadeMarketing === 'nao-conseguiria' && data.capacidadeAdmin === 'nao-conseguiria') {
+    // Eliminação por reação extremamente negativa
+    if (data.reacaoValores === 'sem-capacidade') {
         eliminado = true;
         motivoEliminacao = 'SEM_CAPACIDADE_PAGAMENTO';
     }
@@ -351,49 +313,46 @@ export function calcularScore(data: QualificationData): ScoringResult {
     const scoreBruto = etapa1 + etapa2 + etapa3 + etapa4 + etapa5;
     const scoreAjustado = scoreBruto + bonus + penalidades;
     const scoreMultiplicado = Math.round(scoreAjustado * multiplicador);
-    const maxScore = 800;
+    const maxScore = 800; // Mantemos a base alta, mesmo com redução de pesos
     const scoreNormalizado = Math.min(100, Math.max(0, Math.round((scoreMultiplicado / maxScore) * 100)));
 
-    // --- Classificação ---
+    // --- Classificação Base ---
+    let grade: 'A' | 'B' | 'C' | 'D' | 'F' = 'D';
+
     if (eliminado || scoreNormalizado < 35) {
-        return buildResult('F', scoreNormalizado, {
-            etapa1, etapa2, etapa3, etapa4, etapa5,
-            bonus, penalidades, multiplicador,
-            scoreBruto, scoreBonus: bonus, scorePenalidades: penalidades, scoreMultiplicado,
-            eliminado: true,
-            motivoEliminacao: motivoEliminacao || 'SCORE_BAIXO',
-        });
+        grade = 'F';
+    } else if (scoreNormalizado >= 85) {
+        grade = 'A';
+    } else if (scoreNormalizado >= 70) {
+        grade = 'B';
+    } else if (scoreNormalizado >= 55) {
+        grade = 'C';
     }
 
-    if (scoreNormalizado >= 85) {
-        return buildResult('A', scoreNormalizado, {
-            etapa1, etapa2, etapa3, etapa4, etapa5,
-            bonus, penalidades, multiplicador,
-            scoreBruto, scoreBonus: bonus, scorePenalidades: penalidades, scoreMultiplicado,
-        });
+    // Aplica limite de grade (ex: urgência baixa trava em C)
+    if (limiteGrade && grade !== 'F') {
+        const gradesRank = { 'A': 4, 'B': 3, 'C': 2, 'D': 1, 'F': 0 };
+        // @ts-ignore
+        if (gradesRank[grade] > gradesRank[limiteGrade]) {
+            // @ts-ignore
+            grade = limiteGrade;
+        }
     }
 
-    if (scoreNormalizado >= 70) {
-        return buildResult('B', scoreNormalizado, {
-            etapa1, etapa2, etapa3, etapa4, etapa5,
-            bonus, penalidades, multiplicador,
-            scoreBruto, scoreBonus: bonus, scorePenalidades: penalidades, scoreMultiplicado,
-        });
-    }
-
-    if (scoreNormalizado >= 55) {
-        return buildResult('C', scoreNormalizado, {
-            etapa1, etapa2, etapa3, etapa4, etapa5,
-            bonus, penalidades, multiplicador,
-            scoreBruto, scoreBonus: bonus, scorePenalidades: penalidades, scoreMultiplicado,
-        });
-    }
-
-    return buildResult('D', scoreNormalizado, {
+    const result = buildResult(grade, scoreNormalizado, {
         etapa1, etapa2, etapa3, etapa4, etapa5,
         bonus, penalidades, multiplicador,
         scoreBruto, scoreBonus: bonus, scorePenalidades: penalidades, scoreMultiplicado,
+        eliminado,
+        motivoEliminacao: motivoEliminacao || (grade === 'F' ? 'SCORE_BAIXO' : undefined),
     });
+
+    if (data.tempoMercado === '<1a') {
+        result.acoes = ['⚠️ ALERTA: Risco de Quebra (<1 ano)', ...result.acoes];
+        result.tag = result.tag + ' ⚠️';
+    }
+
+    return result;
 }
 
 
@@ -414,6 +373,19 @@ const GRADE_INFO: Record<string, Omit<ScoringResult, 'scoreBruto' | 'scoreBonus'
             '📞 Ligar em até 4h',
             '👨‍💼 SDR experiente',
             '📅 Agendar call esta semana',
+        ],
+    },
+    B: {
+        label: 'WARM LEAD - Alto Potencial',
+        tag: '⭐',
+        cor: '#EAB308',
+        prioridade: 'MÉDIA',
+        slaHoras: 8,
+        probabilidadeConversao: '30-45%',
+        acoes: [
+            '📞 Ligar em até 8h',
+            '📧 Email personalizado',
+            '📅 Qualificar por telefone',
         ],
     },
     C: {
@@ -647,4 +619,3 @@ function evaluateRule(actualValue: unknown, operator: string, expectedValue: str
             return false;
     }
 }
-

@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import { ArrowRight, X } from 'lucide-react';
 import {
-    LEAD_CAPACIDADE_TOTAL_OPTIONS as CAPACIDADE_TOTAL_OPTIONS,
     LEAD_CARGO_OPTIONS as CARGOS_OPTIONS,
     LEAD_COMPROMISSO_OPTIONS as COMPROMISSO_OPTIONS,
     LEAD_FATURAMENTO_OPTIONS as FATURAMENTO_OPTIONS,
@@ -46,9 +45,6 @@ interface NewLeadForm {
     historicoRedes: string;
     conscienciaInvestimento: string;
     reacaoValores: string;
-    capacidadeMarketing: string;
-    capacidadeAdmin: string;
-    capacidadePagamentoTotal: string;
     compromisso: string;
     source: string;
     priority: string;
@@ -79,9 +75,6 @@ const EMPTY_NEW_LEAD: NewLeadForm = {
     historicoRedes: 'nunca',
     conscienciaInvestimento: 'quero-conhecer',
     reacaoValores: 'alto-saber-mais',
-    capacidadeMarketing: 'planejamento',
-    capacidadeAdmin: 'planejamento',
-    capacidadePagamentoTotal: 'precisaria-ajustes',
     compromisso: 'curiosidade',
     source: 'PHONE',
     priority: 'MEDIUM',
@@ -102,13 +95,22 @@ export default function LeadCreateModal({ onClose, onCreated }: LeadCreateModalP
     const createLeadViaApi = async () => {
         const position = newLead.position.trim();
         const nowIso = new Date().toISOString();
-        const hasStep2 = Boolean(position && newLead.tempoMercado && newLead.stores && newLead.revenue);
-        const hasStep3 = Boolean(newLead.motivacao || newLead.desafios.length > 0);
+        const cargoSubRequired = ['proprietario', 'farmaceutico_rt', 'gerente_geral'].includes(position);
+        const lojasSubRequired = newLead.stores === '1';
+        const hasStep2 = Boolean(
+            position &&
+            newLead.stores &&
+            newLead.revenue &&
+            newLead.state &&
+            newLead.tempoMercado &&
+            (!cargoSubRequired || newLead.cargoSub) &&
+            (!lojasSubRequired || newLead.lojasSub)
+        );
+        const hasStep3 = Boolean(newLead.motivacao && newLead.desafios.length > 0 && newLead.urgencia && newLead.historicoRedes);
         const hasStep5 = Boolean(
-            newLead.capacidadePagamentoTotal ||
-            newLead.compromisso ||
-            newLead.conscienciaInvestimento ||
-            newLead.reacaoValores
+            newLead.conscienciaInvestimento &&
+            newLead.reacaoValores &&
+            newLead.compromisso
         );
 
         const response = await fetch('/api/leads', {
@@ -145,9 +147,6 @@ export default function LeadCreateModal({ onClose, onCreated }: LeadCreateModalP
                     historicoRedes: newLead.historicoRedes,
                     conscienciaInvestimento: newLead.conscienciaInvestimento,
                     reacaoValores: newLead.reacaoValores,
-                    capacidadeMarketing: newLead.capacidadeMarketing,
-                    capacidadeAdmin: newLead.capacidadeAdmin,
-                    capacidadePagamentoTotal: newLead.capacidadePagamentoTotal,
                     compromisso: newLead.compromisso,
                     step2CompletedAt: hasStep2 ? nowIso : null,
                     step3CompletedAt: hasStep3 ? nowIso : null,
@@ -329,15 +328,9 @@ export default function LeadCreateModal({ onClose, onCreated }: LeadCreateModalP
                         <div className="lg:col-span-2 space-y-4">
                             <h3 className="text-xs font-bold text-gray-700 uppercase flex items-center gap-2">
                                 <div className="w-1 h-1 rounded-full bg-blue-500" />
-                                Capacidade Financeira e Compromisso
+                                Compromisso
                             </h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-gray-500 uppercase">Capacidade Total Mensal</label>
-                                    <select className="w-full p-2 border rounded text-sm" value={newLead.capacidadePagamentoTotal} onChange={(e) => setNewLead({ ...newLead, capacidadePagamentoTotal: e.target.value })}>
-                                        {CAPACIDADE_TOTAL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                                    </select>
-                                </div>
                                 <div className="space-y-1">
                                     <label className="text-[10px] font-bold text-gray-500 uppercase">Nível de Compromisso</label>
                                     <select className="w-full p-2 border rounded text-sm" value={newLead.compromisso} onChange={(e) => setNewLead({ ...newLead, compromisso: e.target.value })}>

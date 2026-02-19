@@ -165,7 +165,68 @@ test('POST /api/meetings should create meeting for in-scope lead with safe lead 
         mockMethod(
             prisma.user,
             'findUnique',
-            (async () => ({ id: ROLE_USER_IDS.CONSULTANT, email: 'consultor@empresa.com', name: 'Consultor' })) as unknown as typeof prisma.user.findUnique
+            (async () => ({
+                id: ROLE_USER_IDS.CONSULTANT,
+                email: 'consultor@empresa.com',
+                name: 'Consultor',
+                status: 'ACTIVE',
+                role: 'CONSULTANT',
+            })) as unknown as typeof prisma.user.findUnique
+        )
+    );
+    restores.push(
+        mockMethod(
+            prisma.user,
+            'findMany',
+            (async () => []) as unknown as typeof prisma.user.findMany
+        )
+    );
+    restores.push(
+        mockMethod(
+            prisma.availabilitySlot,
+            'findMany',
+            (async () => []) as unknown as typeof prisma.availabilitySlot.findMany
+        )
+    );
+    restores.push(
+        mockMethod(
+            prisma.availabilitySlot,
+            'count',
+            (async () => 0) as unknown as typeof prisma.availabilitySlot.count
+        )
+    );
+    restores.push(
+        mockMethod(
+            prisma.availabilityBlock,
+            'findFirst',
+            (async () => null) as unknown as typeof prisma.availabilityBlock.findFirst
+        )
+    );
+    restores.push(
+        mockMethod(
+            prisma,
+            '$transaction',
+            (async (callback: unknown) => {
+                const tx = {
+                    $executeRaw: async () => undefined,
+                    meeting: {
+                        findFirst: async () => null,
+                        create: async () => ({
+                            id: 'meeting-1',
+                            leadId: 'lead-1',
+                            userId: ROLE_USER_IDS.CONSULTANT,
+                            title: 'Reunião',
+                            status: 'SCHEDULED',
+                            startTime: new Date('2026-03-10T13:00:00.000Z'),
+                            endTime: new Date('2026-03-10T14:00:00.000Z'),
+                        }),
+                    },
+                };
+                if (typeof callback === 'function') {
+                    return (callback as (arg: unknown) => unknown)(tx);
+                }
+                throw new Error('unexpected transaction call');
+            }) as unknown as typeof prisma.$transaction
         )
     );
     restores.push(

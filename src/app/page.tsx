@@ -1,37 +1,58 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Logo } from '@/components/ui/Logo';
+import { buildAssociarHref, shouldTrackLpView, trackAcquisitionEvent } from '@/app/funnel/_utils/attribution';
 import {
   Menu, ArrowRight, PlayCircle, Handshake, Store, Megaphone,
   TrendingUp, CreditCard, Building2, Tag, ChevronDown, Rocket,
   Phone, Mail, Facebook, Instagram, Linkedin, CheckCircle2,
-  ShoppingBag, Pill, HelpCircle, ShieldCheck, BadgeCheck, Clock3, X
+  ShoppingBag, Pill, HelpCircle, ShieldCheck, BadgeCheck, Clock3, X,
+  Star, Quote, Package, Percent, Users
 } from 'lucide-react';
+
+const LP_DEFAULT_VARIANT = process.env.NEXT_PUBLIC_LP_VARIANT_V1 || process.env.NEXT_PUBLIC_LP_VARIANT || 'control';
 
 export default function LandingPage() {
   const router = useRouter();
   const [isVideoOpen, setIsVideoOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  useEffect(() => {
+    if (!shouldTrackLpView()) return;
+    void trackAcquisitionEvent({
+      eventName: 'LP_VIEW',
+      page: '/',
+      variant: LP_DEFAULT_VARIANT,
+      metadata: { referrer: typeof document !== 'undefined' ? document.referrer : '' },
+    });
+  }, []);
 
   const toggleMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
   const closeMenu = () => setIsMobileMenuOpen(false);
 
-  const navigateTo = (page: string) => {
+  const navigateTo = (page: string, ctaId?: string) => {
 
     closeMenu();
 
     const routes: Record<string, string> = {
-      'wizard': '/associar',
+      'wizard': buildAssociarHref(LP_DEFAULT_VARIANT),
       'privacy': '/privacidade',
       'terms': '/termos'
     };
 
     const route = routes[page];
     if (route) {
+      if (page === 'wizard') {
+        void trackAcquisitionEvent({
+          eventName: 'LP_CTA_CLICK',
+          page: '/',
+          ctaId: ctaId || 'unknown',
+          variant: LP_DEFAULT_VARIANT,
+        });
+      }
       router.push(route);
     }
   }
@@ -58,7 +79,7 @@ export default function LandingPage() {
 
 
               <button
-                onClick={() => navigateTo('wizard')}
+                onClick={() => navigateTo('wizard', 'nav_desktop_primary')}
                 className="min-h-11 border-2 border-primary text-primary hover:bg-primary hover:text-white px-5 py-2 rounded-lg font-semibold transition-all duration-300"
               >
                 Seja um Associado
@@ -112,7 +133,7 @@ export default function LandingPage() {
               </a>
               <div className="pt-2 mt-2 border-t border-gray-100">
                 <button
-                  onClick={() => { closeMenu(); navigateTo('wizard'); }}
+                  onClick={() => { closeMenu(); navigateTo('wizard', 'nav_mobile_primary'); }}
                   className="min-h-11 w-full flex items-center justify-center px-5 py-3 border border-transparent text-base font-bold rounded-lg text-white bg-primary hover:bg-primary-dark transition-colors shadow-lg shadow-primary/20"
                 >
                   Seja um Associado
@@ -140,7 +161,7 @@ export default function LandingPage() {
               </p>
               <div className="flex flex-col sm:flex-row justify-center lg:justify-start gap-4">
                 <button
-                  onClick={() => navigateTo('wizard')}
+                  onClick={() => navigateTo('wizard', 'hero_primary')}
                   className="inline-flex justify-center items-center px-8 py-4 bg-primary hover:bg-primary-dark text-white font-bold rounded-lg text-lg transition-all duration-300 shadow-lg shadow-primary/30 transform hover:-translate-y-1"
                 >
                   Quero ser um Associado
@@ -197,7 +218,7 @@ export default function LandingPage() {
                   sizes="(max-width: 1024px) 100vw, 50vw"
                 />
               </div>
-              <div className="absolute -bottom-6 -left-6 bg-white p-4 rounded-xl shadow-xl border border-gray-100 flex items-center gap-3 z-20 animate-bounce" style={{ animationDuration: '3s' }}>
+              <div className="absolute -bottom-6 -left-6 bg-white p-4 rounded-xl shadow-xl border border-gray-100 flex items-center gap-3 z-20 animate-bounce [animation-duration:3s]">
                 <div className="bg-secondary/10 p-2 rounded-lg">
                   <Handshake className="text-secondary" size={24} />
                 </div>
@@ -216,24 +237,35 @@ export default function LandingPage() {
       {/* Stats Section */}
       <section className="bg-secondary py-12 relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center divide-x divide-white/10">
-            <div className="p-2">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 text-center">
+            <div className="p-3">
               <p className="text-3xl lg:text-4xl font-extrabold text-white mb-2">200+</p>
-              <p className="text-white/80 font-medium text-sm lg:text-base">Lojas Associadas</p>
+              <p className="text-white/80 font-medium text-sm">Lojas Associadas</p>
             </div>
-            <div className="p-2">
+            <div className="p-3">
               <p className="text-3xl lg:text-4xl font-extrabold text-white mb-2">500+</p>
-              <p className="text-white/80 font-medium text-sm lg:text-base">Empresas Conveniadas no PR e SC</p>
+              <p className="text-white/80 font-medium text-sm">Empresas Conveniadas</p>
             </div>
-            <div className="p-2">
+            <div className="p-3">
               <p className="text-3xl lg:text-4xl font-extrabold text-white mb-2">2M+</p>
-              <p className="text-white/80 font-medium text-sm lg:text-base">Clientes Conveniados</p>
+              <p className="text-white/80 font-medium text-sm">Clientes Conveniados</p>
             </div>
-            <div className="p-2">
+            <div className="p-3">
               <p className="text-3xl lg:text-4xl font-extrabold text-white mb-2">1M+</p>
-              <p className="text-white/80 font-medium text-sm lg:text-base">Clientes no Hiper Club</p>
+              <p className="text-white/80 font-medium text-sm">Clientes Hiper Club</p>
+            </div>
+            <div className="p-3 relative">
+              <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full animate-pulse hidden lg:block"></div>
+              <p className="text-3xl lg:text-4xl font-extrabold text-white mb-2">15,8%</p>
+              <p className="text-white/80 font-medium text-sm">Crescimento Médio a.a.</p>
+            </div>
+            <div className="p-3 relative">
+              <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full animate-pulse hidden lg:block"></div>
+              <p className="text-3xl lg:text-4xl font-extrabold text-white mb-2">12-18%</p>
+              <p className="text-white/80 font-medium text-sm">Economia em Compras</p>
             </div>
           </div>
+          <p className="text-center text-white/50 text-xs mt-4">* Dados do setor associativista farmacêutico (Febrafar, 2025)</p>
         </div>
       </section>
 
@@ -360,6 +392,80 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* OLs e Marca Propria */}
+      <section className="py-20 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 relative overflow-hidden" id="ols">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-10 left-10 w-64 h-64 bg-primary rounded-full blur-[120px]"></div>
+          <div className="absolute bottom-10 right-10 w-80 h-80 bg-secondary rounded-full blur-[120px]"></div>
+        </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            <div>
+              <div className="inline-flex items-center px-3 py-1 rounded-full bg-primary/20 text-primary text-sm font-semibold mb-4 border border-primary/30">
+                <Package size={16} className="mr-2" />
+                Diferencial Exclusivo
+              </div>
+              <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-6 leading-tight">
+                Ofertas de Laboratório e <span className="text-primary">Marca Própria</span>
+              </h2>
+              <p className="text-lg text-gray-300 mb-8 leading-relaxed">
+                Além das negociações em bloco, nossos associados têm acesso a ofertas exclusivas de laboratórios (OLs) e produtos de marca própria com margens superiores às do mercado.
+              </p>
+              <div className="space-y-6">
+                <div className="flex gap-4 items-start">
+                  <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
+                    <Percent className="text-primary" size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Margem Superior</h3>
+                    <p className="text-gray-400 mt-1">Produtos com margens de 40-60%, muito acima dos genéricos tradicionais. Mais lucro por unidade vendida.</p>
+                  </div>
+                </div>
+                <div className="flex gap-4 items-start">
+                  <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-secondary/20 flex items-center justify-center">
+                    <ShieldCheck className="text-secondary" size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Exclusividade Regional</h3>
+                    <p className="text-gray-400 mt-1">Ofertas negociadas exclusivamente para a rede — seus concorrentes não têm acesso às mesmas condições.</p>
+                  </div>
+                </div>
+                <div className="flex gap-4 items-start">
+                  <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
+                    <Users className="text-green-400" size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">Suporte de Implantação</h3>
+                    <p className="text-gray-400 mt-1">Treinamento de equipe, material de PDV e apoio do departamento comercial para maximizar suas vendas.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 text-center hover:border-primary/50 transition-colors">
+                <div className="w-14 h-14 bg-primary/20 rounded-xl flex items-center justify-center mx-auto mb-4">
+                  <Package className="text-primary" size={28} />
+                </div>
+                <p className="text-2xl font-extrabold text-white mb-1">OLs</p>
+                <p className="text-gray-400 text-sm">Ofertas de Laboratório com desconto exclusivo</p>
+              </div>
+              <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 text-center hover:border-primary/50 transition-colors">
+                <div className="w-14 h-14 bg-secondary/20 rounded-xl flex items-center justify-center mx-auto mb-4">
+                  <Store className="text-secondary" size={28} />
+                </div>
+                <p className="text-2xl font-extrabold text-white mb-1">Marca Própria</p>
+                <p className="text-gray-400 text-sm">Produtos exclusivos da rede Hiperfarma</p>
+              </div>
+              <div className="col-span-2 bg-gradient-to-r from-primary/10 to-secondary/10 backdrop-blur-sm border border-white/10 rounded-2xl p-6 text-center hover:border-primary/50 transition-colors">
+                <p className="text-3xl font-extrabold text-white mb-2">40-60%</p>
+                <p className="text-gray-300 text-sm">Margens médias em produtos de marca própria</p>
+                <p className="text-gray-500 text-xs mt-2">vs. 15-25% em genéricos convencionais</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Ferramentas e Convenios */}
       <section className="py-20 bg-white border-y border-gray-100 scroll-mt-24" id="ferramentas">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -412,7 +518,7 @@ export default function LandingPage() {
                 </div>
               </div>
               <div className="mt-8 pt-6 border-t border-gray-100">
-                <button onClick={() => navigateTo('wizard')} className="text-primary hover:text-primary-dark font-bold inline-flex items-center group">
+                <button onClick={() => navigateTo('wizard', 'tools_section_primary')} className="text-primary hover:text-primary-dark font-bold inline-flex items-center group">
                   Quero habilitar essas ferramentas
                   <ArrowRight className="ml-2 transform group-hover:translate-x-1 transition-transform" size={20} />
                 </button>
@@ -473,6 +579,107 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Depoimentos */}
+      <section className="py-20 bg-gray-50 border-y border-gray-100" id="depoimentos">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-3xl mx-auto mb-16">
+            <p className="text-primary font-bold tracking-wider uppercase text-sm mb-3">O que Dizem Nossos Associados</p>
+            <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-4">Histórias reais de quem já faz parte</h2>
+            <p className="text-gray-600 text-lg">Farmácias de diferentes portes e regiões que transformaram seus resultados com a Hiperfarma.</p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            {/* Depoimento 1 — 1 loja, interior */}
+            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-100 hover:border-primary/30 transition-all duration-300 hover:-translate-y-1 relative">
+              <div className="absolute -top-4 left-8">
+                <div className="bg-primary text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-lg shadow-primary/30">
+                  <Quote size={20} />
+                </div>
+              </div>
+              <div className="flex items-center gap-1 mb-4 mt-2">
+                {[...Array(5)].map((_, i) => <Star key={i} size={16} className="text-amber-400 fill-amber-400" />)}
+              </div>
+              <p className="text-gray-700 leading-relaxed mb-6 italic">
+                &quot;Com os convênios da rede, minha farmácia recebeu mais de 40% de clientes novos no primeiro trimestre. Gente que nunca tinha entrado na loja passou a ser cliente fiel.&quot;
+              </p>
+              <div className="border-t border-gray-100 pt-4 flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <span className="text-primary font-bold text-lg">FS</span>
+                </div>
+                <div>
+                  <p className="font-bold text-gray-900">Fernanda S.</p>
+                  <p className="text-sm text-gray-500">Proprietária · 1 loja · Londrina - PR</p>
+                </div>
+              </div>
+              <div className="mt-3">
+                <span className="text-xs font-semibold bg-green-50 text-green-700 px-2 py-1 rounded-full border border-green-200">+40% clientes novos</span>
+              </div>
+            </div>
+
+            {/* Depoimento 2 — Rede média */}
+            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-100 hover:border-primary/30 transition-all duration-300 hover:-translate-y-1 relative">
+              <div className="absolute -top-4 left-8">
+                <div className="bg-secondary text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-lg shadow-secondary/30">
+                  <Quote size={20} />
+                </div>
+              </div>
+              <div className="flex items-center gap-1 mb-4 mt-2">
+                {[...Array(5)].map((_, i) => <Star key={i} size={16} className="text-amber-400 fill-amber-400" />)}
+              </div>
+              <p className="text-gray-700 leading-relaxed mb-6 italic">
+                &quot;A negociação em bloco foi um divisor de águas. Economizamos 18% nas compras e conseguimos repassar parte dessa economia em preços mais competitivos para os clientes.&quot;
+              </p>
+              <div className="border-t border-gray-100 pt-4 flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center">
+                  <span className="text-secondary font-bold text-lg">CA</span>
+                </div>
+                <div>
+                  <p className="font-bold text-gray-900">Carlos A.</p>
+                  <p className="text-sm text-gray-500">Sócio-proprietário · 3 lojas · Florianópolis - SC</p>
+                </div>
+              </div>
+              <div className="mt-3">
+                <span className="text-xs font-semibold bg-blue-50 text-blue-700 px-2 py-1 rounded-full border border-blue-200">18% economia em compras</span>
+              </div>
+            </div>
+
+            {/* Depoimento 3 — Farmacêutico RT sócio */}
+            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-100 hover:border-primary/30 transition-all duration-300 hover:-translate-y-1 relative">
+              <div className="absolute -top-4 left-8">
+                <div className="bg-primary text-white w-10 h-10 rounded-xl flex items-center justify-center shadow-lg shadow-primary/30">
+                  <Quote size={20} />
+                </div>
+              </div>
+              <div className="flex items-center gap-1 mb-4 mt-2">
+                {[...Array(5)].map((_, i) => <Star key={i} size={16} className="text-amber-400 fill-amber-400" />)}
+              </div>
+              <p className="text-gray-700 leading-relaxed mb-6 italic">
+                &quot;O Hiper Club transformou minha relação com os clientes. Em seis meses fidelizamos mais de 3.000 pessoas. A ferramenta praticamente se paga com o retorno de clientes recorrentes.&quot;
+              </p>
+              <div className="border-t border-gray-100 pt-4 flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <span className="text-primary font-bold text-lg">JP</span>
+                </div>
+                <div>
+                  <p className="font-bold text-gray-900">Juliana P.</p>
+                  <p className="text-sm text-gray-500">Farmacêutica RT · 2 lojas · Maringá - PR</p>
+                </div>
+              </div>
+              <div className="mt-3">
+                <span className="text-xs font-semibold bg-purple-50 text-purple-700 px-2 py-1 rounded-full border border-purple-200">+3.000 clientes fidelizados</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-center mt-12">
+            <button onClick={() => navigateTo('wizard', 'testimonials_cta')} className="inline-flex items-center px-8 py-4 bg-primary hover:bg-primary-dark text-white font-bold rounded-lg text-lg transition-all duration-300 shadow-lg shadow-primary/30 transform hover:-translate-y-1">
+              Quero resultados assim
+              <ArrowRight className="ml-2" size={20} />
+            </button>
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="py-24 relative overflow-hidden scroll-mt-24" id="iniciar-analise">
         <div className="absolute inset-0 bg-secondary skew-y-3 transform origin-bottom-right scale-110"></div>
@@ -512,7 +719,7 @@ export default function LandingPage() {
                     </div>
                   </div>
                 </div>
-                <button onClick={() => navigateTo('wizard')} className="w-full sm:w-auto inline-flex justify-center items-center py-5 px-10 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl shadow-xl shadow-primary/30 transform hover:-translate-y-1 transition-all duration-300 text-xl">
+                <button onClick={() => navigateTo('wizard', 'final_cta_primary')} className="w-full sm:w-auto inline-flex justify-center items-center py-5 px-10 bg-primary hover:bg-primary-dark text-white font-bold rounded-xl shadow-xl shadow-primary/30 transform hover:-translate-y-1 transition-all duration-300 text-xl">
                   Solicitar Proposta Agora
                   <Rocket className="ml-3" size={24} />
                 </button>
@@ -577,13 +784,13 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="flex justify-center space-x-6 mb-8">
-            <a href="https://www.facebook.com/redehiperfarma" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-primary transition-colors transform hover:scale-110">
+            <a href="https://www.facebook.com/redehiperfarma" target="_blank" rel="noopener noreferrer" aria-label="Facebook da Rede Hiperfarma" title="Facebook da Rede Hiperfarma" className="text-gray-400 hover:text-primary transition-colors transform hover:scale-110">
               <Facebook size={24} />
             </a>
-            <a href="https://www.instagram.com/redehiperfarma/" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-primary transition-colors transform hover:scale-110">
+            <a href="https://www.instagram.com/redehiperfarma/" target="_blank" rel="noopener noreferrer" aria-label="Instagram da Rede Hiperfarma" title="Instagram da Rede Hiperfarma" className="text-gray-400 hover:text-primary transition-colors transform hover:scale-110">
               <Instagram size={24} />
             </a>
-            <a href="https://www.linkedin.com/company/redehiperfarma" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-primary transition-colors transform hover:scale-110">
+            <a href="https://www.linkedin.com/company/redehiperfarma" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn da Rede Hiperfarma" title="LinkedIn da Rede Hiperfarma" className="text-gray-400 hover:text-primary transition-colors transform hover:scale-110">
               <Linkedin size={24} />
             </a>
           </div>
@@ -607,7 +814,7 @@ export default function LandingPage() {
       {isVideoOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={() => setIsVideoOpen(false)}>
           <div className="relative w-full max-w-4xl aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
-            <button className="absolute top-4 right-4 text-white hover:text-primary z-10 bg-black/50 rounded-full p-2 transition-colors" onClick={() => setIsVideoOpen(false)}>
+            <button type="button" aria-label="Fechar video" title="Fechar video" className="absolute top-4 right-4 text-white hover:text-primary z-10 bg-black/50 rounded-full p-2 transition-colors" onClick={() => setIsVideoOpen(false)}>
               <X size={24} />
             </button>
             <iframe

@@ -7,6 +7,10 @@ import { buildLeadScope, mergeLeadWhere } from '@/lib/lead-scope';
 import { can } from '@/lib/permissions';
 import { cancelTeamsMeeting } from '@/lib/teams';
 import { buildLeadSelect } from '@/lib/lead-select';
+import { validateConsultorAvailabilityWindow } from '@/lib/availability';
+import { isMeetingOverlapError } from '@/lib/meeting-conflict';
+
+const MIN_SCHEDULING_ADVANCE_HOURS = 2;
 
 interface SessionUser {
     id?: string;
@@ -61,10 +65,10 @@ async function getMeetingWithAccess(id: string, user: SessionUser) {
         },
     });
 
-    if (!meeting) return { error: NextResponse.json({ error: 'Reunião não encontrada' }, { status: 404 }) };
+    if (!meeting) return { error: NextResponse.json({ error: 'Reuniao nao encontrada' }, { status: 404 }) };
 
     if (!isPrivileged(user.role) && meeting.userId !== user.id) {
-        return { error: NextResponse.json({ error: 'Sem permissão para acessar esta reunião' }, { status: 403 }) };
+        return { error: NextResponse.json({ error: 'Sem permissao para acessar esta reuniao' }, { status: 403 }) };
     }
 
     return { meeting };
@@ -103,8 +107,8 @@ export async function GET(
 ) {
     const session = await authHandler();
     const user = getSessionUser(session);
-    if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    if (!user.id) return NextResponse.json({ error: 'Usuário inválido' }, { status: 401 });
+    if (!user) return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 });
+    if (!user.id) return NextResponse.json({ error: 'Usuario invalido' }, { status: 401 });
 
     const { id } = await params;
 
@@ -114,7 +118,7 @@ export async function GET(
         return NextResponse.json(result.meeting);
     } catch (error) {
         console.error('Error fetching meeting:', error);
-        return NextResponse.json({ error: 'Erro ao buscar reunião' }, { status: 500 });
+        return NextResponse.json({ error: 'Erro ao buscar reuniao' }, { status: 500 });
     }
 }
 
@@ -125,10 +129,10 @@ export async function PATCH(
 ) {
     const session = await authHandler();
     const user = getSessionUser(session);
-    if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    if (!user.id) return NextResponse.json({ error: 'Usuário inválido' }, { status: 401 });
+    if (!user) return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 });
+    if (!user.id) return NextResponse.json({ error: 'Usuario invalido' }, { status: 401 });
     if (!can(user, 'leads:write:own')) {
-        return NextResponse.json({ error: 'Sem permissão para editar reuniões' }, { status: 403 });
+        return NextResponse.json({ error: 'Sem permissao para editar reunioes' }, { status: 403 });
     }
 
     const { id } = await params;
@@ -142,15 +146,53 @@ export async function PATCH(
         const parsed = meetingUpdateSchema.safeParse(body);
         if (!parsed.success) {
             return NextResponse.json(
-                { error: 'Dados inválidos', details: parsed.error.flatten().fieldErrors },
+                { error: 'Dados invalidos', details: parsed.error.flatten().fieldErrors },
                 { status: 400 }
             );
         }
 
         const data = parsed.data;
         if (data.status === 'COMPLETED' && !can(user, 'pipeline:advance')) {
-            return NextResponse.json({ error: 'Sem permissão para concluir reunião' }, { status: 403 });
+            return NextResponse.json({ error: 'Sem permissao para concluir reuniao' }, { status: 403 });
         }
+        const hasWindowUpdate = Boolean(data.startTime || data.endTime);
+        if (hasWindowUpdate) {
+            const nextStartTime = data.startTime ? new Date(data.startTime) : currentMeeting.startTime;
+            const nextEndTime = data.endTime ? new Date(data.endTime) : currentMeeting.endTime;
+            if (Number.isNaN(nextStartTime.getTime()) || Number.isNaN(nextEndTime.getTime())) {
+                return NextResponse.json({ error: 'Data/hora invalida' }, { status: 400 });
+            }
+            if (nextStartTime >= nextEndTime) {
+                return NextResponse.json({ error: 'Janela de reuniao invalida' }, { status: 400 });
+            }
+            const sameDay =
+                nextStartTime.getFullYear() === nextEndTime.getFullYear() &&
+                nextStartTime.getMonth() === nextEndTime.getMonth() &&
+                nextStartTime.getDate() === nextEndTime.getDate();
+            if (!sameDay) {
+                return NextResponse.json({ error: 'A reuniao deve iniciar e terminar no mesmo dia' }, { status: 400 });
+            }
+
+            const dayOfWeek = nextStartTime.getDay();
+            if (dayOfWeek === 0 || dayOfWeek === 6) {
+                return NextResponse.json({ error: 'Nao atendemos aos finais de semana' }, { status: 400 });
+            }
+
+            const minAdvanceTime = new Date(Date.now() + MIN_SCHEDULING_ADVANCE_HOURS * 60 * 60 * 1000);
+            if (nextStartTime < minAdvanceTime) {
+                return NextResponse.json({ error: 'Agende com no minimo 2 horas de antecedencia' }, { status: 400 });
+            }
+
+            const availabilityValidation = await validateConsultorAvailabilityWindow({
+                consultorId: currentMeeting.userId,
+                startTime: nextStartTime,
+                endTime: nextEndTime,
+            });
+            if (!availabilityValidation.ok) {
+                return NextResponse.json({ error: availabilityValidation.reason }, { status: 409 });
+            }
+        }
+
         const meeting = await prisma.meeting.update({
             where: { id },
             data: {
@@ -184,7 +226,7 @@ export async function PATCH(
                 data: {
                     leadId: meeting.leadId,
                     type: 'MEETING',
-                    title: 'Lead não compareceu à reunião',
+                    title: 'Lead nao compareceu a reuniao',
                     userId: user.id,
                 },
             });
@@ -212,8 +254,11 @@ export async function PATCH(
 
         return NextResponse.json(meeting);
     } catch (error) {
+        if (isMeetingOverlapError(error)) {
+            return NextResponse.json({ error: 'Horario nao disponivel para este consultor' }, { status: 409 });
+        }
         console.error('Error updating meeting:', error);
-        return NextResponse.json({ error: 'Erro ao atualizar reunião' }, { status: 500 });
+        return NextResponse.json({ error: 'Erro ao atualizar reuniao' }, { status: 500 });
     }
 }
 
@@ -224,10 +269,10 @@ export async function DELETE(
 ) {
     const session = await authHandler();
     const user = getSessionUser(session);
-    if (!user) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
-    if (!user.id) return NextResponse.json({ error: 'Usuário inválido' }, { status: 401 });
+    if (!user) return NextResponse.json({ error: 'Nao autorizado' }, { status: 401 });
+    if (!user.id) return NextResponse.json({ error: 'Usuario invalido' }, { status: 401 });
     if (!can(user, 'leads:write:own')) {
-        return NextResponse.json({ error: 'Sem permissão para cancelar reuniões' }, { status: 403 });
+        return NextResponse.json({ error: 'Sem permissao para cancelar reunioes' }, { status: 403 });
     }
 
     const { id } = await params;
@@ -266,6 +311,6 @@ export async function DELETE(
         return NextResponse.json({ success: true, meeting });
     } catch (error) {
         console.error('Error cancelling meeting:', error);
-        return NextResponse.json({ error: 'Erro ao cancelar reunião' }, { status: 500 });
+        return NextResponse.json({ error: 'Erro ao cancelar reuniao' }, { status: 500 });
     }
 }

@@ -795,7 +795,7 @@ const WeekGrid = ({ currentDate, meetingsByDay, onMeetingClick }: { currentDate:
 
                 {/* Day Columns */}
                 {weekDays.map(day => (
-                    <div key={day.toString()} className="border-r border-gray-100 relative border-b border-gray-100 min-h-[800px]">
+                    <div key={day.toString()} className="border-r border-gray-100 relative border-b border-gray-100" style={{ minHeight: `${11 * 80}px` }}>
                         {/* Grid Lines */}
                         {hours.map((_, i) => (
                             <div key={i} className="absolute w-full h-px bg-gray-50" style={{ top: `${i * 80}px` }}></div>
@@ -905,7 +905,7 @@ const DayGrid = ({ currentDate, meetingsByDay, onMeetingClick }: { currentDate: 
                     </div>
                 </div>
 
-                <div className="pt-16 relative h-full">
+                <div className="pt-16 relative" style={{ minHeight: `${11 * 128 + 64}px` }}>
                     {hours.map((_, i) => (
                         <div key={i} className="h-32 border-b border-gray-100 w-full"></div>
                     ))}
@@ -947,3 +947,4 @@ const DayGrid = ({ currentDate, meetingsByDay, onMeetingClick }: { currentDate: 
         </div>
     );
 }
+

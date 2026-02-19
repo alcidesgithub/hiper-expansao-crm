@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { captureAttributionFromCurrentUrl, getGateSessionIdFromAttribution, trackAcquisitionEvent } from '../_utils/attribution';
 
 type GateChoice = 'DECISOR' | 'INFLUENCIADOR' | 'PESQUISADOR';
 
@@ -33,13 +34,19 @@ export default function FunnelGatePage() {
     const [error, setError] = useState('');
     const [isSaving, setIsSaving] = useState(false);
 
+    useEffect(() => {
+        const snapshot = captureAttributionFromCurrentUrl();
+        const existingSession = window.localStorage.getItem(GATE_SESSION_KEY);
+        if (!existingSession && snapshot.sessionId) {
+            window.localStorage.setItem(GATE_SESSION_KEY, snapshot.sessionId);
+        }
+    }, []);
+
     function getOrCreateGateSessionId(): string {
         const existing = window.localStorage.getItem(GATE_SESSION_KEY);
         if (existing) return existing;
 
-        const generated = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-            ? crypto.randomUUID()
-            : `gate-${Date.now()}`;
+        const generated = getGateSessionIdFromAttribution();
         window.localStorage.setItem(GATE_SESSION_KEY, generated);
         return generated;
     }
@@ -66,6 +73,14 @@ export default function FunnelGatePage() {
 
         setIsSaving(true);
         try {
+            const sessionId = getOrCreateGateSessionId();
+            await trackAcquisitionEvent({
+                eventName: 'GATE_CONTINUE',
+                page: '/funnel/gate',
+                sessionId,
+                ctaId: `gate_${selection.toLowerCase()}`,
+                metadata: { selection },
+            });
             await persistGateChoice(selection);
         } catch (persistError) {
             console.error('Error persisting gate choice:', persistError);
@@ -82,8 +97,7 @@ export default function FunnelGatePage() {
 
         window.localStorage.removeItem(GATE_APPROVED_KEY);
         window.localStorage.setItem(GATE_PROFILE_KEY, selection);
-        const perfil = selection === 'INFLUENCIADOR' ? 'influenciador' : 'pesquisador';
-        router.push(`/funnel/educacao?perfil=${perfil}`);
+        router.push('/');
     }
 
     return (

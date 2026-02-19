@@ -9,6 +9,8 @@ import { isMeetingOverlapError } from '@/lib/meeting-conflict';
 import { createTeamsMeeting, isTeamsConfigured } from '@/lib/teams';
 
 const MEETING_STATUSES = ['SCHEDULED', 'COMPLETED', 'CANCELLED', 'NO_SHOW', 'RESCHEDULED'] as const;
+const MIN_MEETING_DURATION_MINUTES = 15;
+const MAX_MEETING_DURATION_MINUTES = 180;
 
 interface SessionUser {
     id?: string;
@@ -184,9 +186,21 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: 'Lead não encontrado' }, { status: 404 });
         }
 
-        const assignedUserId = isPrivileged(sessionRole)
+        const meetingOwnerUserId = isPrivileged(sessionRole)
             ? parsed.data.userId
             : sessionUserId;
+        const startTime = new Date(parsed.data.startTime);
+        const endTime = new Date(parsed.data.endTime);
+        if (Number.isNaN(startTime.getTime()) || Number.isNaN(endTime.getTime())) {
+            return NextResponse.json({ error: 'Data/hora invalida' }, { status: 400 });
+        }
+        if (startTime >= endTime) {
+            return NextResponse.json({ error: 'Janela de reuniao invalida' }, { status: 400 });
+        }
+        const duration = Math.round((endTime.getTime() - startTime.getTime()) / 60000);
+        if (duration < MIN_MEETING_DURATION_MINUTES || duration > MAX_MEETING_DURATION_MINUTES) {
+            return NextResponse.json({ error: 'Duracao de reuniao invalida' }, { status: 400 });
+        }
 
         // Versão Revisada v1.0 - Usando MeetingService
         const { meetingService } = await import('@/lib/services/meeting.service');
@@ -194,9 +208,9 @@ export async function POST(request: Request) {
         try {
             const { meeting } = await meetingService.scheduleMeeting({
                 leadId: parsed.data.leadId,
-                consultantId: assignedUserId,
-                scheduledAt: new Date(parsed.data.startTime),
-                duration: Math.round((new Date(parsed.data.endTime).getTime() - new Date(parsed.data.startTime).getTime()) / 60000),
+                consultantId: meetingOwnerUserId,
+                scheduledAt: startTime,
+                duration,
                 title: parsed.data.title,
                 leadNotes: parsed.data.description || undefined,
             });
@@ -234,13 +248,25 @@ export async function POST(request: Request) {
             const message = error instanceof Error ? error.message : 'Falha ao agendar reunião';
             const normalized = message.toLowerCase();
             const status =
-                isMeetingOverlapError(error) || normalized.includes('horario nao disponivel')
+                isMeetingOverlapError(error) ||
+                normalized.includes('horario nao disponivel') ||
+                normalized.includes('fora da disponibilidade') ||
+                normalized.includes('bloqueado') ||
+                normalized.includes('ja possui reuniao agendada')
                     ? 409
-                    : normalized.includes('nao configurada')
-                        ? 503
-                        : normalized.includes('falha ao criar reuniao no teams') || normalized.includes('sem link da reuniao')
-                            ? 502
-                            : 500;
+                    : normalized.includes('agende com no minimo') ||
+                        normalized.includes('nao atendemos aos finais de semana') ||
+                        normalized.includes('duracao de reuniao invalida') ||
+                        normalized.includes('janela de reuniao invalida') ||
+                        normalized.includes('data/hora invalida')
+                        ? 400
+                        : normalized.includes('consultor invalido ou inativo')
+                            ? 422
+                            : normalized.includes('nao configurada')
+                                ? 503
+                                : normalized.includes('falha ao criar reuniao no teams') || normalized.includes('sem link da reuniao')
+                                    ? 502
+                                    : 500;
             return NextResponse.json({ error: message }, { status });
         }
     } catch (error) {

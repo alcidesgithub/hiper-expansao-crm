@@ -124,7 +124,7 @@ test('PUT /api/crm/availability should return 400 when admin targets invalid rol
     const restores: RestoreFn[] = [];
 
     restores.push(
-        mockMethod(prisma.user, 'findUnique', (async () => ({ id: 'manager-1', role: 'MANAGER' })) as unknown as typeof prisma.user.findUnique)
+        mockMethod(prisma.user, 'findUnique', (async () => ({ id: 'director-1', role: 'DIRECTOR' })) as unknown as typeof prisma.user.findUnique)
     );
 
     try {

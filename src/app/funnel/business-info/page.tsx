@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { submitStepTwo } from '../actions';
 import { loadDraft, saveDraft } from '../_utils/draft';
+import { ArrowLeft } from 'lucide-react';
 
 const CARGOS = [
     { value: 'proprietario', label: 'Proprietário(a) / Sócio(a)' },
@@ -136,6 +137,7 @@ function RadioGroup({
 
 function BusinessInfoContent() {
     const searchParams = useSearchParams();
+    const router = useRouter();
     const leadId = searchParams.get('leadId') || '';
     const token = searchParams.get('token') || '';
     const hasSession = Boolean(leadId && token);
@@ -210,8 +212,16 @@ function BusinessInfoContent() {
                 <div className="bg-primary h-full w-[35%] transition-all duration-500" />
             </div>
             <div className="p-6 md:p-10">
+                <button
+                    type="button"
+                    onClick={() => router.back()}
+                    className="flex items-center gap-1 text-sm text-slate-400 hover:text-slate-600 transition-colors mb-4"
+                >
+                    <ArrowLeft size={16} /> Voltar
+                </button>
+
                 <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">ETAPA 2 DE 5</span>
+                    <span className="text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">ETAPA 2 DE 4</span>
                 </div>
                 <h1 className="text-2xl font-bold text-slate-900 mb-1">Perfil empresarial</h1>
                 <p className="text-sm text-slate-500 mb-6">Conte mais sobre sua farmácia para personalizar a proposta.</p>

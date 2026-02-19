@@ -55,7 +55,7 @@ const PUBLIC_JOURNEY = [
     'Etapa 3: desafios e motivação',
     'Etapa 4: urgência e histórico',
     'Etapa 5: investimento',
-    'Resultado por grade (A/B/C/D/F)',
+    'Resultado por grade (A a F)',
     'Agendamento para leads aptos',
 ] as const;
 

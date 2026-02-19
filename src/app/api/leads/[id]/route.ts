@@ -114,6 +114,14 @@ function resolveGateProfileFromCargo(cargo?: string): 'DECISOR' | 'INFLUENCIADOR
     return 'PESQUISADOR';
 }
 
+function requiresCargoSub(cargo: string): boolean {
+    return ['proprietario', 'farmaceutico_rt', 'gerente_geral'].includes(cargo);
+}
+
+function requiresLojasSub(numeroLojas: string): boolean {
+    return numeroLojas === '1';
+}
+
 function normalizeQualificationDataForUpdate(params: {
     incoming: unknown;
     current: unknown;
@@ -139,21 +147,37 @@ function normalizeQualificationDataForUpdate(params: {
 
     const nowIso = new Date().toISOString();
     const cargo = normalizeText(merged.cargo) || normalizeText(defaults.position) || '';
+    const cargoSub = normalizeText(merged.cargoSub) || '';
     const numeroLojas = normalizeText(merged.numeroLojas) || '';
+    const lojasSub = normalizeText(merged.lojasSub) || '';
     const faturamento = normalizeText(merged.faturamento) || '';
+    const localizacao = normalizeText(merged.localizacao) || normalizeText(merged.state) || '';
     const tempoMercado = normalizeText(merged.tempoMercado) || '';
+    const urgencia = normalizeText(merged.urgencia) || '';
+    const historicoRedes = normalizeText(merged.historicoRedes) || '';
     const motivacao = normalizeText(merged.motivacao) || '';
     const conscienciaInvestimento = normalizeText(merged.conscienciaInvestimento) || '';
     const reacaoValores = normalizeText(merged.reacaoValores) || '';
-    const capacidadePagamentoTotal = normalizeText(merged.capacidadePagamentoTotal) || '';
     const compromisso = normalizeText(merged.compromisso) || '';
     const desafios = Array.isArray(merged.desafios)
         ? merged.desafios.map((item) => String(item).trim()).filter(Boolean)
         : [];
 
-    const hasStep2 = Boolean(cargo && numeroLojas && faturamento && tempoMercado);
-    const hasStep3 = Boolean(motivacao || desafios.length > 0);
-    const hasStep5 = Boolean(capacidadePagamentoTotal || compromisso || conscienciaInvestimento || reacaoValores);
+    const hasStep2 = Boolean(
+        cargo &&
+        numeroLojas &&
+        faturamento &&
+        localizacao &&
+        tempoMercado &&
+        (!requiresCargoSub(cargo) || cargoSub) &&
+        (!requiresLojasSub(numeroLojas) || lojasSub)
+    );
+    const hasStep3 = Boolean(motivacao && desafios.length > 0 && urgencia && historicoRedes);
+    const hasStep5 = Boolean(
+        conscienciaInvestimento &&
+        reacaoValores &&
+        compromisso
+    );
 
     const normalized: Record<string, unknown> = {
         ...merged,
@@ -170,23 +194,20 @@ function normalizeQualificationDataForUpdate(params: {
         telefone: normalizeText(merged.telefone) || normalizeText(defaults.phone) || '',
         empresa: normalizeText(merged.empresa) || normalizeText(defaults.company) || '',
         cargo,
-        cargoSub: normalizeText(merged.cargoSub) || '',
+        cargoSub,
         numeroLojas,
-        lojasSub: normalizeText(merged.lojasSub) || '',
+        lojasSub,
         faturamento,
-        localizacao: normalizeText(merged.localizacao) || normalizeText(merged.state) || '',
+        localizacao,
         city: normalizeText(merged.city) || '',
         state: normalizeText(merged.state) || '',
         tempoMercado,
         desafios,
         motivacao,
-        urgencia: normalizeText(merged.urgencia) || '',
-        historicoRedes: normalizeText(merged.historicoRedes) || '',
+        urgencia,
+        historicoRedes,
         conscienciaInvestimento,
         reacaoValores,
-        capacidadeMarketing: normalizeText(merged.capacidadeMarketing) || '',
-        capacidadeAdmin: normalizeText(merged.capacidadeAdmin) || '',
-        capacidadePagamentoTotal,
         compromisso,
         step2CompletedAt: normalizeDateInputToIso(merged.step2CompletedAt) || (hasStep2 ? nowIso : undefined),
         step3CompletedAt: normalizeDateInputToIso(merged.step3CompletedAt) || (hasStep3 ? nowIso : undefined),

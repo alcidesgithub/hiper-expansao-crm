@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { RecentLeadsTable } from '@/components/dashboard/RecentLeadsTable';
-import { getDashboardMetrics, getRecentLeads, getFunnelGateAnalytics, getFunnelMetrics, getUpcomingMeetings } from './actions';
+import { getDashboardMetrics, getRecentLeads, getFunnelGateAnalytics, getAcquisitionFunnelMetrics, getUpcomingMeetings } from './actions';
 import { auth } from '@/auth';
 import { canAny } from '@/lib/permissions';
 
@@ -50,10 +50,10 @@ export default async function DashboardPage({ searchParams }: { searchParams?: D
     const period = normalizePeriod(resolvedSearch?.period);
     const periodLabel = getPeriodLabel(period);
 
-    const [metrics, recentLeads, funnelData, upcomingMeetings, gateAnalytics] = await Promise.all([
+    const [metrics, recentLeads, acquisitionFunnel, upcomingMeetings, gateAnalytics] = await Promise.all([
         getDashboardMetrics(period),
         getRecentLeads(),
-        getFunnelMetrics(period),
+        getAcquisitionFunnelMetrics(period),
         getUpcomingMeetings(5),
         getFunnelGateAnalytics(period),
     ]);
@@ -67,8 +67,13 @@ export default async function DashboardPage({ searchParams }: { searchParams?: D
         'N/A': 'bg-gray-400',
     };
 
-    const maxFunnelCount = Math.max(...funnelData.funnel.map((step) => step.count), 1);
+    const maxFunnelCount = Math.max(...acquisitionFunnel.stages.map((step) => step.count), 1);
     const maxSourceCount = Math.max(...metrics.sourceDistribution.map((source) => source.count), 1);
+    const firstAcquisitionStage = acquisitionFunnel.stages[0]?.count || 0;
+    const lastAcquisitionStage = acquisitionFunnel.stages[acquisitionFunnel.stages.length - 1]?.count || 0;
+    const acquisitionDropoff = firstAcquisitionStage > 0
+        ? Math.max(0, Math.round(((firstAcquisitionStage - lastAcquisitionStage) / firstAcquisitionStage) * 100))
+        : 0;
 
     return (
         <div className="space-y-6 p-6 font-sans text-slate-800">
@@ -103,24 +108,47 @@ export default async function DashboardPage({ searchParams }: { searchParams?: D
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                <MetricCard title="Total Leads" value={metrics.totalLeads.toString()} change={periodLabel} icon={<Users size={20} />} />
-                <MetricCard title="Taxa de Conversão" value={`${metrics.conversionRate}%`} changeType="positive" icon={<TrendingUp size={20} />} />
-                <MetricCard title="Qualificados" value={metrics.qualifiedLeads.toString()} subtext="Leads prontos" changeType="positive" icon={<Filter size={20} />} />
-                <MetricCard title="Convertidos" value={metrics.convertedLeads.toString()} subtext="Ganhos" changeType="positive" icon={<CheckCircle size={20} />} />
-                <MetricCard title="Reuniões Pendentes" value={metrics.upcomingMeetings.toString()} subtext="Agendadas" icon={<Calendar size={20} />} />
+                <MetricCard title="Leads no periodo" value={metrics.totalLeads.toString()} change={periodLabel} icon={<Users size={20} />} />
+                <MetricCard title="Conversao em vendas" value={`${metrics.conversionRate}%`} changeType="positive" icon={<TrendingUp size={20} />} />
+                <MetricCard title="Leads qualificados" value={metrics.qualifiedLeads.toString()} subtext="Nota A ou B" changeType="positive" icon={<Filter size={20} />} />
+                <MetricCard title="Leads convertidos" value={metrics.convertedLeads.toString()} subtext="Status WON" changeType="positive" icon={<CheckCircle size={20} />} />
+                <MetricCard title="Reunioes futuras" value={metrics.upcomingMeetings.toString()} subtext="Proximos agendamentos" icon={<Calendar size={20} />} />
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <MetricCard
+                    title="Conversão LP → Cadastro"
+                    value={`${acquisitionFunnel.cards.lpToStep1.toFixed(1)}%`}
+                    change={periodLabel}
+                    icon={<TrendingUp size={20} />}
+                />
+                <MetricCard
+                    title="Conversão Cadastro → Perfil"
+                    value={`${acquisitionFunnel.cards.step1ToStep2.toFixed(1)}%`}
+                    icon={<TrendingUp size={20} />}
+                />
+                <MetricCard
+                    title="Conversão Investimento → Aprovados"
+                    value={`${acquisitionFunnel.cards.step5ToAB.toFixed(1)}%`}
+                    icon={<Target size={20} />}
+                />
+                <MetricCard
+                    title="Conversão Aprovados → Agendamento"
+                    value={`${acquisitionFunnel.cards.abToAgendamento.toFixed(1)}%`}
+                    icon={<Calendar size={20} />}
+                />
+            </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
                     <div className="flex items-center gap-2 mb-4">
                         <BarChart3 size={18} className="text-red-600" />
-                        <h3 className="font-semibold text-gray-900">Funil de Qualificação</h3>
-                        <span className="ml-auto text-xs text-gray-400">Drop-off: {funnelData.dropoffRate}%</span>
+                        <h3 className="font-semibold text-gray-900">Funil de Aquisição</h3>
+                        <span className="ml-auto text-xs text-gray-400">Drop-off: {acquisitionDropoff}%</span>
                     </div>
                     <div className="space-y-3">
-                        {funnelData.funnel.map((step) => (
-                            <div key={step.step} className="flex items-center gap-3">
-                                <span className="text-xs text-gray-500 w-24 text-right truncate">{step.step}</span>
+                        {acquisitionFunnel.stages.map((step) => (
+                            <div key={step.key} className="flex items-center gap-3">
+                                <span className="text-xs text-gray-500 w-52 shrink-0 text-right leading-tight">{step.label}</span>
                                 <div className="flex-1 bg-gray-100 rounded-full h-7 overflow-hidden relative">
                                     <div
                                         className="h-full bg-gradient-to-r from-red-500 to-red-600 rounded-full transition-all duration-500 flex items-center justify-end pr-2"

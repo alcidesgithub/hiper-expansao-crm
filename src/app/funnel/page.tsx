@@ -10,11 +10,14 @@ import * as z from 'zod';
 import { ArrowRight, User, Phone, Mail, Building2 } from 'lucide-react';
 import { loadDraft, saveDraft } from './_utils/draft';
 import { toast } from 'sonner';
+import { getAttributionForLeadSubmission, trackAcquisitionEvent } from './_utils/attribution';
 
 const STEP_ONE_DRAFT_KEY = 'funnel:step1';
 const GATE_APPROVED_KEY = 'funnel:gate:approved';
 const GATE_PROFILE_KEY = 'funnel:gate:profile';
 const GATE_SESSION_KEY = 'funnel:gate:sessionId';
+const FALLBACK_CONTACT_PHONE = '(41) 3330-1300';
+const FALLBACK_CONTACT_EMAIL = 'expansao@redehiperfarma.com.br';
 
 const stepOneSchema = z.object({
     fullName: z.string().trim().min(3, 'Nome completo é obrigatório'),
@@ -113,21 +116,45 @@ function FunnelStepOneContent() {
                 ? gateProfileRaw
                 : 'DECISOR';
             const gateSessionId = window.localStorage.getItem(GATE_SESSION_KEY) || undefined;
+            const attribution = getAttributionForLeadSubmission();
 
             const result = await submitStepOne({
                 ...data,
                 isDecisionMaker: 'yes',
                 gateProfile,
                 gateSessionId,
+                sessionId: attribution.sessionId,
+                landingVariant: attribution.landingVariant,
+                utmSource: attribution.utmSource,
+                utmMedium: attribution.utmMedium,
+                utmCampaign: attribution.utmCampaign,
+                utmTerm: attribution.utmTerm,
+                utmContent: attribution.utmContent,
             });
             if (result?.error) {
                 setFormError(result.error);
                 toast.error(result.error);
+                await trackAcquisitionEvent({
+                    eventName: 'STEP1_SUBMIT_ERROR',
+                    page: '/funnel',
+                    sessionId: attribution.sessionId,
+                    ctaId: 'step1_submit',
+                    metadata: { error: result.error },
+                });
             }
         } catch (error) {
             console.error(error);
-            setFormError('Não foi possível continuar. Tente novamente.');
-            toast.error('Não foi possível continuar. Tente novamente.');
+            const fallbackMessage = `Nao foi possivel continuar. Tente novamente ou fale com Expansao em ${FALLBACK_CONTACT_PHONE} / ${FALLBACK_CONTACT_EMAIL}.`;
+            setFormError(fallbackMessage);
+            toast.error('Nao foi possivel continuar. Tente novamente.');
+            const attribution = getAttributionForLeadSubmission();
+            await trackAcquisitionEvent({
+                eventName: 'STEP1_SUBMIT_ERROR',
+                page: '/funnel',
+                sessionId: attribution.sessionId,
+                ctaId: 'step1_submit',
+                metadata: { error: error instanceof Error ? error.message : 'unknown_error' },
+            });
         } finally {
             setIsSubmitting(false);
         }
@@ -150,7 +177,7 @@ function FunnelStepOneContent() {
             <div className="p-8 md:p-10">
                 <div className="text-center mb-8">
                     <span className="inline-block px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold uppercase tracking-wider mb-3">
-                        Passo 1 de 5
+                        Passo 1 de 4
                     </span>
                     <h1 className="text-2xl md:text-3xl font-bold text-slate-900 mb-2">
                         Vamos começar!

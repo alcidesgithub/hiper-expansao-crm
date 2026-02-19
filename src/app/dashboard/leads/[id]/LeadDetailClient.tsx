@@ -22,7 +22,6 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import {
     getOptionLabel,
-    LEAD_CAPACIDADE_TOTAL_OPTIONS,
     LEAD_CARGO_OPTIONS,
     LEAD_COMPROMISSO_OPTIONS,
     LEAD_FATURAMENTO_OPTIONS,
@@ -223,12 +222,15 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
     const [editingData, setEditingData] = useState(false);
     const [savingData, setSavingData] = useState(false);
     const leadQualificationData = asRecord(lead.qualificationData);
+    const initialCargo = typeof leadQualificationData.cargo === 'string' && leadQualificationData.cargo.trim()
+        ? leadQualificationData.cargo
+        : (lead.position || '');
     const [dataForm, setDataForm] = useState({
         name: lead.name || '',
         email: lead.email || '',
         phone: lead.phone || '',
         company: lead.company || '',
-        position: lead.position || '',
+        position: initialCargo,
         priority: lead.priority || 'MEDIUM',
         expectedCloseDate: toInputDate(lead.expectedCloseDate),
         numeroLojas: typeof leadQualificationData.numeroLojas === 'string' ? leadQualificationData.numeroLojas : '',
@@ -237,7 +239,6 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
         tempoMercado: typeof leadQualificationData.tempoMercado === 'string' ? leadQualificationData.tempoMercado : '',
         motivacao: typeof leadQualificationData.motivacao === 'string' ? leadQualificationData.motivacao : '',
         urgencia: typeof leadQualificationData.urgencia === 'string' ? leadQualificationData.urgencia : '',
-        capacidadePagamentoTotal: typeof leadQualificationData.capacidadePagamentoTotal === 'string' ? leadQualificationData.capacidadePagamentoTotal : '',
         compromisso: typeof leadQualificationData.compromisso === 'string' ? leadQualificationData.compromisso : '',
     });
 
@@ -261,12 +262,15 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
     useEffect(() => {
         if (!editingData) {
             const qualificationData = asRecord(leadState.qualificationData);
+            const positionValue = typeof qualificationData.cargo === 'string' && qualificationData.cargo.trim()
+                ? qualificationData.cargo
+                : (leadState.position || '');
             setDataForm({
                 name: leadState.name || '',
                 email: leadState.email || '',
                 phone: leadState.phone || '',
                 company: leadState.company || '',
-                position: leadState.position || '',
+                position: positionValue,
                 priority: leadState.priority || 'MEDIUM',
                 expectedCloseDate: toInputDate(leadState.expectedCloseDate),
                 numeroLojas: typeof qualificationData.numeroLojas === 'string' ? qualificationData.numeroLojas : '',
@@ -275,7 +279,6 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
                 tempoMercado: typeof qualificationData.tempoMercado === 'string' ? qualificationData.tempoMercado : '',
                 motivacao: typeof qualificationData.motivacao === 'string' ? qualificationData.motivacao : '',
                 urgencia: typeof qualificationData.urgencia === 'string' ? qualificationData.urgencia : '',
-                capacidadePagamentoTotal: typeof qualificationData.capacidadePagamentoTotal === 'string' ? qualificationData.capacidadePagamentoTotal : '',
                 compromisso: typeof qualificationData.compromisso === 'string' ? qualificationData.compromisso : '',
             });
         }
@@ -380,7 +383,6 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
                         tempoMercado: dataForm.tempoMercado.trim(),
                         motivacao: dataForm.motivacao.trim(),
                         urgencia: dataForm.urgencia.trim(),
-                        capacidadePagamentoTotal: dataForm.capacidadePagamentoTotal.trim(),
                         compromisso: dataForm.compromisso.trim(),
                     },
                 }),
@@ -954,23 +956,6 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
                                             </select>
                                         ) : (
                                             <div className="text-gray-900 text-sm">{getOptionLabel(LEAD_URGENCIA_OPTIONS, dataForm.urgencia)}</div>
-                                        )}
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Capacidade de pagamento</label>
-                                        {editingData ? (
-                                            <select
-                                                value={dataForm.capacidadePagamentoTotal}
-                                                onChange={(e) => setDataForm((prev) => ({ ...prev, capacidadePagamentoTotal: e.target.value }))}
-                                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
-                                            >
-                                                <option value="">Selecione...</option>
-                                                {LEAD_CAPACIDADE_TOTAL_OPTIONS.map((option) => (
-                                                    <option key={option.value} value={option.value}>{option.label}</option>
-                                                ))}
-                                            </select>
-                                        ) : (
-                                            <div className="text-gray-900 text-sm">{getOptionLabel(LEAD_CAPACIDADE_TOTAL_OPTIONS, dataForm.capacidadePagamentoTotal)}</div>
                                         )}
                                     </div>
                                     <div>

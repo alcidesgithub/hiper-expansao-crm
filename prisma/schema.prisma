@@ -165,6 +165,7 @@ model Lead {
   updatedAt       DateTime      @updatedAt
   convertedAt     DateTime?
   lostAt          DateTime?
+  lostReason      String?
   
   @@index([email])
   @@index([phone])
