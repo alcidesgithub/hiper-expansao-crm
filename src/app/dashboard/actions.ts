@@ -172,6 +172,7 @@ async function ensureDashboardAnalyticsAccess() {
 }
 
 type AcquisitionStageKey =
+    | 'lpViewTotal'
     | 'lpView'
     | 'ctaClick'
     | 'step1'
@@ -191,6 +192,7 @@ type AcquisitionStage = {
 type AcquisitionBreakdownRow = {
     utmSource: string;
     utmCampaign: string;
+    lpViewTotal: number;
     lpView: number;
     ctaClick: number;
     step1: number;
@@ -208,6 +210,7 @@ type AcquisitionFunnelMetrics = {
     };
     stages: AcquisitionStage[];
     cards: {
+        totalToUnique?: number;
         lpToStep1: number;
         step1ToStep2: number;
         step5ToAB: number;
@@ -216,8 +219,9 @@ type AcquisitionFunnelMetrics = {
     bySourceCampaign: AcquisitionBreakdownRow[];
 };
 
-const STAGE_ORDER: Array<{ key: AcquisitionStageKey; label: string }> = [
-    { key: 'lpView', label: 'Visitas na LP' },
+const STAGE_ORDER: Array<{ key: keyof Omit<AcquisitionBreakdownRow, 'utmSource' | 'utmCampaign'>; label: string }> = [
+    { key: 'lpViewTotal', label: 'Visitas Totais' },
+    { key: 'lpView', label: 'Visitantes Únicos' },
     { key: 'ctaClick', label: 'Cliques no CTA' },
     { key: 'step1', label: 'Cadastro' },
     { key: 'step2', label: 'Perfil Empresarial' },
@@ -231,25 +235,6 @@ function safeDivisionRate(numerator: number, denominator: number): number {
     if (denominator <= 0) return 0;
     return Number(((numerator / denominator) * 100).toFixed(2));
 }
-
-function parseIsoDateLike(value: unknown): Date | null {
-    if (typeof value !== 'string' || value.trim().length === 0) return null;
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function normalizeDimension(value: unknown, fallback: string): string {
-    if (typeof value !== 'string') return fallback;
-    const trimmed = value.trim();
-    if (!trimmed) return fallback;
-    return trimmed.slice(0, 150);
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-    return value as Record<string, unknown>;
-}
-
 const getDashboardMetricsCached = unstable_cache(async (period: string = '30d') => {
     const startDate = getStartDate(period);
 
@@ -421,10 +406,12 @@ export async function getFunnelMetrics(period: string = '30d') {
 
     // 1. Contadores de eventos de aquisição (AuditLog)
     const auditCounts = await prisma.$queryRaw<Array<{
+        lpViewTotal: bigint;
         lpView: bigint;
         ctaClick: bigint;
     }>>`
         SELECT
+            COUNT(*) FILTER (WHERE "action" = 'LP_VIEW') as "lpViewTotal",
             COUNT(DISTINCT "entityId") FILTER (WHERE "action" = 'LP_VIEW') as "lpView",
             COUNT(DISTINCT "entityId") FILTER (WHERE "action" = 'LP_CTA_CLICK') as "ctaClick"
         FROM "AuditLog"
@@ -459,12 +446,13 @@ export async function getFunnelMetrics(period: string = '30d') {
            OR "updatedAt" >= ${startDate}
     `;
 
-    const audit = auditCounts[0] || { lpView: BigInt(0), ctaClick: BigInt(0) };
+    const audit = auditCounts[0] || { lpViewTotal: BigInt(0), lpView: BigInt(0), ctaClick: BigInt(0) }; // Updated
     const leads = leadCounts[0] || { step1: BigInt(0), step2: BigInt(0), step3: BigInt(0), step5: BigInt(0), resultAB: BigInt(0), agendamento: BigInt(0) };
 
     const funnel = [
-        { step: 'Visita LP', count: Number(audit.lpView) },
-        { step: 'Clique CTA', count: Number(audit.ctaClick) },
+        { step: 'Visitas Totais', count: Number(audit.lpViewTotal) }, // Added
+        { step: 'Visitantes Únicos', count: Number(audit.lpView) }, // Updated
+        { step: 'Cliques no CTA', count: Number(audit.ctaClick) }, // Updated
         { step: 'Cadastro', count: Number(leads.step1) },
         { step: 'Perfil', count: Number(leads.step2) },
         { step: 'Desafios', count: Number(leads.step3) },
@@ -473,9 +461,9 @@ export async function getFunnelMetrics(period: string = '30d') {
         { step: 'Agendamento', count: Number(leads.agendamento) },
     ];
 
-    const topCount = funnel[0].count;
-    const bottomCount = funnel[funnel.length - 1].count;
-    const dropoffRate = topCount > 0 ? Math.round(((topCount - bottomCount) / topCount) * 100) : 0;
+    const lpViewTotal = funnel[0].count; // Updated
+    const agendamentos = funnel[funnel.length - 1].count; // Updated
+    const dropoffRate = lpViewTotal > 0 ? Math.round(((lpViewTotal - agendamentos) / lpViewTotal) * 100) : 0; // Updated
 
     return {
         funnel,
@@ -492,16 +480,18 @@ const getAcquisitionFunnelMetricsCached = unstable_cache(async (period: string =
     const auditMetrics = await prisma.$queryRaw<Array<{
         utmSource: string | null;
         utmCampaign: string | null;
+        lpViewTotal: bigint; // Added
         lpView: bigint;
         ctaClick: bigint;
     }>>`
-        SELECT 
-            "changes"->>'utmSource' as "utmSource", 
-            "changes"->>'utmCampaign' as "utmCampaign", 
+        SELECT
+            "changes"->>'utmSource' as "utmSource",
+            "changes"->>'utmCampaign' as "utmCampaign",
+            COUNT(*) FILTER (WHERE "action" = 'LP_VIEW') as "lpViewTotal",
             COUNT(DISTINCT "entityId") FILTER (WHERE "action" = 'LP_VIEW') as "lpView",
             COUNT(DISTINCT "entityId") FILTER (WHERE "action" = 'LP_CTA_CLICK') as "ctaClick"
         FROM "AuditLog"
-        WHERE "entity" = 'AcquisitionEvent' 
+        WHERE "entity" = 'AcquisitionEvent'
           AND "action" IN ('LP_VIEW', 'LP_CTA_CLICK')
           AND "createdAt" >= ${startDate}
         GROUP BY 1, 2
@@ -519,7 +509,7 @@ const getAcquisitionFunnelMetricsCached = unstable_cache(async (period: string =
         resultAB: bigint;
         agendamento: bigint;
     }>>`
-        SELECT 
+        SELECT
             COALESCE("utmSource", "qualificationData"->'attribution'->>'utmSource') as "utmSource",
             COALESCE("utmCampaign", "qualificationData"->'attribution'->>'utmCampaign') as "utmCampaign",
             COUNT(*) FILTER (WHERE "qualificationData"->>'step1CompletedAt' >= ${startDateIso} OR "createdAt" >= ${startDate}) as "step1",
@@ -528,13 +518,13 @@ const getAcquisitionFunnelMetricsCached = unstable_cache(async (period: string =
             COUNT(*) FILTER (WHERE "qualificationData"->>'step5CompletedAt' >= ${startDateIso}) as "step5",
             COUNT(*) FILTER (WHERE ("grade" = 'A' OR "grade" = 'B') AND "qualificationData"->>'step5CompletedAt' >= ${startDateIso}) as "resultAB",
             COUNT(*) FILTER (WHERE ("grade" = 'A' OR "grade" = 'B') AND EXISTS (
-                SELECT 1 FROM "Meeting" m 
-                WHERE m."leadId" = "Lead".id 
+                SELECT 1 FROM "Meeting" m
+                WHERE m."leadId" = "Lead".id
                 AND m."createdAt" >= ${startDate}
                 AND m."status" IN ('SCHEDULED', 'RESCHEDULED', 'COMPLETED')
             )) as "agendamento"
         FROM "Lead"
-        WHERE "createdAt" >= ${startDate} 
+        WHERE "createdAt" >= ${startDate}
            OR "updatedAt" >= ${startDate}
         GROUP BY 1, 2
     `;
@@ -553,6 +543,7 @@ const getAcquisitionFunnelMetricsCached = unstable_cache(async (period: string =
             breakdownMap.set(key, {
                 utmSource: source,
                 utmCampaign: campaign,
+                lpViewTotal: 0, // Added
                 lpView: 0,
                 ctaClick: 0,
                 step1: 0,
@@ -567,7 +558,8 @@ const getAcquisitionFunnelMetricsCached = unstable_cache(async (period: string =
     };
 
     // Process Audit Metrics
-    const totalCounts = {
+    const totalCounts: Record<keyof Omit<AcquisitionBreakdownRow, 'utmSource' | 'utmCampaign'>, number> = {
+        lpViewTotal: 0, // Added
         lpView: 0,
         ctaClick: 0,
         step1: 0,
@@ -582,12 +574,15 @@ const getAcquisitionFunnelMetricsCached = unstable_cache(async (period: string =
         const { key, source, campaign } = normalizeKey(row.utmSource, row.utmCampaign);
         const mapRow = ensureRow(key, source, campaign);
 
+        const lpViewTotal = Number(row.lpViewTotal); // Added
         const lpView = Number(row.lpView);
         const ctaClick = Number(row.ctaClick);
 
+        mapRow.lpViewTotal += lpViewTotal; // Added
         mapRow.lpView += lpView;
         mapRow.ctaClick += ctaClick;
 
+        totalCounts.lpViewTotal += lpViewTotal; // Added
         totalCounts.lpView += lpView;
         totalCounts.ctaClick += ctaClick;
     }
@@ -622,24 +617,42 @@ const getAcquisitionFunnelMetricsCached = unstable_cache(async (period: string =
     // 4. Construct Final Result
     const stages: AcquisitionStage[] = STAGE_ORDER.map((stage, index) => {
         const count = totalCounts[stage.key];
-        if (index === 0) {
-            return { key: stage.key, label: stage.label, count, conversionFromPrevious: null };
+
+        // Custom conversion fallback for specific stages
+        if (stage.key === 'lpViewTotal') {
+            return { key: stage.key, label: stage.label, count, conversionFromPrevious: null } as unknown as AcquisitionStage;
         }
+
+        if (stage.key === 'lpView') {
+            const previousTotal = totalCounts.lpViewTotal;
+            return {
+                key: stage.key, label: stage.label, count,
+                conversionFromPrevious: safeDivisionRate(count, previousTotal)
+            } as unknown as AcquisitionStage;
+        }
+
+        if (index === 0) {
+            return { key: stage.key, label: stage.label, count, conversionFromPrevious: null } as unknown as AcquisitionStage;
+        }
+
         const previousKey = STAGE_ORDER[index - 1].key;
         const prevCount = totalCounts[previousKey];
         return {
-            key: stage.key,
+            key: stage.key as AcquisitionStageKey,
             label: stage.label,
             count,
             conversionFromPrevious: safeDivisionRate(count, prevCount)
-        };
+        } as unknown as AcquisitionStage;
     });
 
     const cards = {
+        totalToUnique: safeDivisionRate(totalCounts.lpView, totalCounts.lpViewTotal), // Added
         lpToStep1: safeDivisionRate(totalCounts.step1, totalCounts.lpView),
         step1ToStep2: safeDivisionRate(totalCounts.step2, totalCounts.step1),
         step5ToAB: safeDivisionRate(totalCounts.resultAB, totalCounts.step5),
-        abToAgendamento: safeDivisionRate(totalCounts.agendamento, totalCounts.resultAB),
+        // conversion baseada no total de unicos aprovado (total aprovado / base -> total agendado / aprovado)
+        // Para funil B2B geralmente usamos Aprovados AB -> Agendamento
+        abToAgendamento: safeDivisionRate(totalCounts.agendamento, totalCounts.resultAB)
     };
 
     const bySourceCampaign = Array.from(breakdownMap.values())

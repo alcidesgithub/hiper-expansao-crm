@@ -10,7 +10,7 @@ import {
   TrendingUp, CreditCard, Building2, Tag, ChevronDown, Rocket,
   Phone, Mail, Facebook, Instagram, Linkedin, CheckCircle2,
   ShoppingBag, Pill, HelpCircle, ShieldCheck, BadgeCheck, Clock3, X,
-  Star, Quote, Package, Percent, Users, TrendingDown, ShieldAlert
+  Star, Quote, Users, TrendingDown, ShieldAlert
 } from 'lucide-react';
 
 const LP_DEFAULT_VARIANT = process.env.NEXT_PUBLIC_LP_VARIANT_V1 || process.env.NEXT_PUBLIC_LP_VARIANT || 'control';

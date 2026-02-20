@@ -5,7 +5,6 @@ import {
     AlertTriangle,
     CheckCircle,
     ClipboardList,
-    DollarSign,
     Edit2,
     Megaphone,
     Plus,

@@ -2,6 +2,14 @@ version: '3.8'
 
 services:
   app:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.1'
+          memory: 256M
     build:
       context: .
       dockerfile: Dockerfile
@@ -43,6 +51,11 @@ services:
       - uploads_data:/app/uploads
 
   migrate:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
     build:
       context: .
       dockerfile: Dockerfile
@@ -59,6 +72,13 @@ services:
         condition: service_healthy
       
   postgres:
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          memory: 256M
     image: postgres:17-alpine
     restart: always
     environment:
@@ -74,6 +94,11 @@ services:
       retries: 5
 
   redis:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
     image: redis:7-alpine
     restart: always
     command: redis-server --appendonly yes

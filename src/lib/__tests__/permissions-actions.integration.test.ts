@@ -5,7 +5,7 @@ import {
     updateRolePermissions,
     __setPermissionActionsHandlersForTests,
     __resetPermissionActionsHandlersForTests,
-} from '@/app/dashboard/admin/settings/permissions/actions';
+} from '@/app/dashboard/config/permissionsActions';
 
 function withHandlers(handlers: Parameters<typeof __setPermissionActionsHandlersForTests>[0]): () => void {
     __setPermissionActionsHandlersForTests(handlers);

@@ -124,7 +124,7 @@ export default function FunnelGatePage() {
             setTimeout(() => {
                 router.push('/');
             }, 3000);
-        } catch (err) {
+        } catch {
             setError('Erro ao enviar contato.');
         } finally {
             setIsSaving(false);

@@ -20,7 +20,11 @@ export function PermissionsTab() {
             setLoading(true);
             const res = await getPermissionsConfigData();
             if (res.success && res.data) {
-                setPermissionsData(res.data as any);
+                setPermissionsData(res.data as unknown as {
+                    rolePermissions: Record<AppRole, Permission[]>;
+                    roles: string[];
+                    permissionsByResource: Record<string, Permission[]>;
+                });
             } else {
                 setError(res.error || 'Erro ao carregar permissões');
             }

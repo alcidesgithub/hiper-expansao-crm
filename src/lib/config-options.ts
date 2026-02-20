@@ -130,14 +130,7 @@ const HISTORICO_OPTIONS: SelectOption[] = [
     { value: 'atualmente', label: 'Participa atualmente' },
 ];
 
-const CAPACIDADE_TOTAL_OPTIONS: SelectOption[] = [
-    { value: 'sim-tranquilo', label: 'Consegue tranquilamente' },
-    { value: 'sim-planejamento', label: 'Consegue com planejamento' },
-    { value: 'apertado-possivel', label: 'Apertado, mas possivel' },
-    { value: 'precisaria-ajustes', label: 'Precisa de ajustes' },
-    { value: 'dificil-agora', label: 'Dificil agora' },
-    { value: 'nao-consigo', label: 'Nao consegue' },
-];
+
 
 const COMPROMISSO_OPTIONS: SelectOption[] = [
     { value: 'faz-sentido', label: 'Faz sentido avancar' },

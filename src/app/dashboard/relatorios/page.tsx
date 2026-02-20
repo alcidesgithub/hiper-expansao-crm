@@ -44,6 +44,7 @@ interface SourceDistributionItem {
 interface AcquisitionSourceCampaignItem {
     utmSource: string;
     utmCampaign: string;
+    lpViewTotal: number;
     lpView: number;
     ctaClick: number;
     step1: number;
@@ -296,7 +297,8 @@ export default function ReportsPage() {
                                         <tr className="text-left text-gray-500 border-b border-gray-200">
                                             <th className="py-2 pr-4 font-medium">Origem</th>
                                             <th className="py-2 pr-4 font-medium">Campanha</th>
-                                            <th className="py-2 pr-4 font-medium">Visitas LP</th>
+                                            <th className="py-2 pr-4 font-medium">Visitas Totais</th>
+                                            <th className="py-2 pr-4 font-medium">Visitantes Únicos</th>
                                             <th className="py-2 pr-4 font-medium">Cliques CTA</th>
                                             <th className="py-2 pr-4 font-medium">Cadastro</th>
                                             <th className="py-2 pr-4 font-medium">Perfil</th>
@@ -311,6 +313,7 @@ export default function ReportsPage() {
                                             <tr key={`${row.utmSource}-${row.utmCampaign}-${index}`} className="border-b border-gray-100 last:border-b-0">
                                                 <td className="py-2 pr-4 text-gray-700">{row.utmSource}</td>
                                                 <td className="py-2 pr-4 text-gray-700">{row.utmCampaign}</td>
+                                                <td className="py-2 pr-4 font-medium">{row.lpViewTotal}</td>
                                                 <td className="py-2 pr-4 font-medium">{row.lpView}</td>
                                                 <td className="py-2 pr-4 font-medium">{row.ctaClick}</td>
                                                 <td className="py-2 pr-4 font-medium">{row.step1}</td>

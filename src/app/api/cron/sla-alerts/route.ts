@@ -63,9 +63,9 @@ export async function GET(request: Request) {
 
         for (const lead of leadsSlaAtrasado) {
             // Parsing qualificationData properly
-            let qualData: any = {};
+            let qualData: Record<string, unknown> = {};
             if (lead.qualificationData && typeof lead.qualificationData === 'object' && !Array.isArray(lead.qualificationData)) {
-                qualData = lead.qualificationData as any;
+                qualData = lead.qualificationData as Record<string, unknown>;
             }
 
             if (qualData.slaNotifiedAt) {
@@ -100,7 +100,7 @@ export async function GET(request: Request) {
             await prisma.lead.update({
                 where: { id: lead.id },
                 data: {
-                    qualificationData: qualData
+                    qualificationData: qualData as Record<string, unknown> & import('@prisma/client').Prisma.InputJsonValue
                 }
             });
 

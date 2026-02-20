@@ -14,8 +14,6 @@ import {
     Home,
     LogOut,
     UserCog,
-    DollarSign,
-    ShieldCheck,
 } from 'lucide-react';
 import { signOutAction } from '@/app/dashboard/actions';
 
