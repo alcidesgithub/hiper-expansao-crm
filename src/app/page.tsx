@@ -219,7 +219,7 @@ export default function LandingPage() {
                 <Image
                   alt="Expansão Hiperfarma Hero"
                   className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700"
-                  src="/expansao-hiperfarma-hero.png"
+                  src="/expansao-hiperfarma-hero.webp"
                   width={1200}
                   height={900}
                   priority
@@ -454,7 +454,7 @@ export default function LandingPage() {
                 <Image
                   alt="Hiperfarma Club e Convenios"
                   className="w-full h-full object-cover"
-                  src="/expansao-hiperfarma-conv-club.png"
+                  src="/expansao-hiperfarma-conv-club.webp"
                   width={1200}
                   height={900}
                   sizes="(max-width: 1024px) 100vw, 50vw"
@@ -763,7 +763,7 @@ export default function LandingPage() {
               <Image
                 alt="Depoimento Hiperfarma"
                 className="w-full h-full object-cover transform scale-100 group-hover:scale-110 transition-transform duration-1000"
-                src="/expansao-hiperfarma-depo.png"
+                src="/expansao-hiperfarma-depo.webp"
                 width={1200}
                 height={900}
                 sizes="(max-width: 1024px) 100vw, 40vw"

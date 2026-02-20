@@ -16,7 +16,7 @@ export function Logo({ className = '', height = 40 }: LogoProps) {
 
     return (
         <Image
-            src="/logo-cor.png"
+            src="/logo-cor.webp"
             alt="Rede Hiperfarma"
             width={width}
             height={height}

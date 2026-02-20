@@ -29,7 +29,7 @@ export default function LoginPage() {
 
                 <div className="relative z-10">
                     <Image
-                        src="/logo-branca.png"
+                        src="/logo-branca.webp"
                         alt="Expansão Hiperfarma"
                         width={180}
                         height={50}
