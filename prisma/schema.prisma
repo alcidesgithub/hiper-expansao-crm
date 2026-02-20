@@ -53,6 +53,7 @@ model User {
   notes         Note[]
   tasks         Task[]
   notifications Notification[]
+  utmLinks      UtmLink[]
   
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
@@ -653,3 +654,31 @@ model Notification {
   @@index([read])
   @@index([userId, read, createdAt])
 }
+
+// ==========================================
+// GESTÃO DE UTM (TRACKING LINKS)
+// ==========================================
+
+model UtmLink {
+  id          String   @id @default(cuid())
+  name        String   // Nome de referência (ex: Campanha FB Black Friday)
+  url         String   // URL Base (ex: https://hiperfarma.com.br/funnel)
+  
+  utmSource   String
+  utmMedium   String?
+  utmCampaign String?
+  utmTerm     String?
+  utmContent  String?
+  
+  fullUrl     String   @db.Text
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  createdBy   String?
+  user        User?    @relation(fields: [createdBy], references: [id])
+
+  @@index([createdBy])
+  @@index([createdAt])
+}
+

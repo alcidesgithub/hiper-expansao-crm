@@ -31,6 +31,7 @@ import {
 
 import { PricingTab } from './PricingTab';
 import { PermissionsTab } from './PermissionsTab';
+import { UtmTab } from './UtmTab';
 
 interface ScoringCriterion {
     id: string;
@@ -105,7 +106,7 @@ export default function SettingsPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [canManage, setCanManage] = useState(false);
-    const [activeTab, setActiveTab] = useState<'scoring' | 'automation' | 'pipeline' | 'pricing' | 'permissions'>('scoring');
+    const [activeTab, setActiveTab] = useState<'scoring' | 'automation' | 'pipeline' | 'pricing' | 'permissions' | 'utm'>('scoring');
 
     const [scoringCriteria, setScoringCriteria] = useState<ScoringCriterion[]>([]);
     const [automationRules, setAutomationRules] = useState<AutomationRule[]>([]);
@@ -480,12 +481,26 @@ export default function SettingsPage() {
                         <ShieldCheck size={16} />
                         Permissões
                     </button>
+                    <button
+                        onClick={() => setActiveTab('utm')}
+                        className={`
+                            whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2
+                            ${activeTab === 'utm'
+                                ? 'border-primary text-primary'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }
+                        `}
+                    >
+                        <Zap size={16} /> {/* Reusing zap icon, or can be Link icon if imported */}
+                        UTM Builder
+                    </button>
                 </nav>
             </div>
 
             <div className="mt-6 w-full pb-10">
                 {activeTab === 'pricing' && <PricingTab />}
                 {activeTab === 'permissions' && <PermissionsTab />}
+                {activeTab === 'utm' && <UtmTab />}
                 {activeTab === 'scoring' && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
                         <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
