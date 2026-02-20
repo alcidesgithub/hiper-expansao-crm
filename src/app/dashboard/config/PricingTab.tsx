@@ -61,7 +61,7 @@ const emptyForm: PricingFormState = {
     isActive: false,
 };
 
-export default function PricingPage() {
+export function PricingTab() {
     const [tables, setTables] = useState<PricingTable[]>([]);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -241,7 +241,7 @@ export default function PricingPage() {
 
     const deleteTable = async (id: string) => {
         if (!canManage) return;
-        const confirmed = confirm('Tem certeza que deseja excluir esta tabela?');
+        const confirmed = window.confirm('Tem certeza que deseja excluir esta tabela?');
         if (!confirmed) return;
 
         clearFeedback();
@@ -262,15 +262,12 @@ export default function PricingPage() {
     };
 
     return (
-        <div className="w-full bg-slate-50 min-h-full font-sans text-slate-800 p-6 space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
-                        <DollarSign className="text-primary" size={24} />
-                        Gestão de Mensalidades
-                    </h1>
-                    <p className="mt-1 text-slate-500 text-sm">
-                        Configure as tabelas usadas no funil de qualificação.
+                    <h2 className="text-xl font-semibold text-slate-800 mb-2">Mensalidades</h2>
+                    <p className="text-sm text-slate-600">
+                        Configure as tabelas financeiras usadas no funil de qualificação estático do CRM.
                     </p>
                 </div>
                 <button

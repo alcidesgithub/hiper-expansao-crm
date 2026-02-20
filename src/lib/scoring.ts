@@ -332,9 +332,9 @@ export function calcularScore(data: QualificationData): ScoringResult {
     // Aplica limite de grade (ex: urgência baixa trava em C)
     if (limiteGrade && grade !== 'F') {
         const gradesRank = { 'A': 4, 'B': 3, 'C': 2, 'D': 1, 'F': 0 };
-        // @ts-ignore
+        // @ts-expect-error - Dictionary indexing
         if (gradesRank[grade] > gradesRank[limiteGrade]) {
-            // @ts-ignore
+            // @ts-expect-error - Dictionary assignment
             grade = limiteGrade;
         }
     }

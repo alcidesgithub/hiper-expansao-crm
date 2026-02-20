@@ -41,9 +41,7 @@ const NAV_ITEMS: readonly NavItem[] = [
     { href: '/dashboard/disponibilidade', icon: <CalendarIcon size={20} />, label: 'Disponibilidade', roles: ['ADMIN', 'CONSULTANT'] },
     { href: '/dashboard/relatorios', icon: <BarChart3 size={20} />, label: 'Relatórios', roles: ['ADMIN', 'DIRECTOR', 'MANAGER'] },
     { href: '/dashboard/usuarios', icon: <UserCog size={20} />, label: 'Gestão de Usuários', roles: ['ADMIN'] },
-    { href: '/dashboard/pricing', icon: <DollarSign size={20} />, label: 'Mensalidades', roles: ['ADMIN', 'DIRECTOR', 'MANAGER'] },
     { href: '/dashboard/config', icon: <Settings size={20} />, label: 'Configurações', roles: ['ADMIN'] },
-    { href: '/dashboard/admin/settings/permissions', icon: <ShieldCheck size={20} />, label: 'Permissões', roles: ['ADMIN'] },
     { href: '/dashboard/documentacao', icon: <FileText size={20} />, label: 'Documentação', roles: ['ADMIN', 'DIRECTOR', 'MANAGER', 'CONSULTANT'] },
 ];
 

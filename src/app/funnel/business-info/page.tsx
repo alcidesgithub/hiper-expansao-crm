@@ -85,6 +85,7 @@ type StepTwoDraft = {
     faturamento: string;
     localizacao: string;
     tempoMercado: string;
+    erpSystem: string;
 };
 
 function buildStepTwoDraftKey(leadId: string) {
@@ -150,6 +151,7 @@ function BusinessInfoContent() {
     const [faturamento, setFaturamento] = useState(() => initialDraft?.faturamento || '');
     const [localizacao, setLocalizacao] = useState(() => initialDraft?.localizacao || '');
     const [tempoMercado, setTempoMercado] = useState(() => initialDraft?.tempoMercado || '');
+    const [erpSystem, setErpSystem] = useState(() => initialDraft?.erpSystem || '');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
@@ -157,11 +159,11 @@ function BusinessInfoContent() {
     const requiresLojasSub = lojas === '1';
 
     const isFormValid = useMemo(() => {
-        if (!cargo || !lojas || !faturamento || !localizacao || !tempoMercado) return false;
+        if (!cargo || !lojas || !faturamento || !localizacao || !tempoMercado || !erpSystem) return false;
         if (requiresCargoSub && !cargoSub) return false;
         if (requiresLojasSub && !lojasSub) return false;
         return true;
-    }, [cargo, lojas, faturamento, localizacao, tempoMercado, requiresCargoSub, cargoSub, requiresLojasSub, lojasSub]);
+    }, [cargo, lojas, faturamento, localizacao, tempoMercado, erpSystem, requiresCargoSub, cargoSub, requiresLojasSub, lojasSub]);
 
     useEffect(() => {
         if (!leadId) return;
@@ -173,8 +175,9 @@ function BusinessInfoContent() {
             faturamento,
             localizacao,
             tempoMercado,
+            erpSystem,
         });
-    }, [leadId, cargo, cargoSub, lojas, lojasSub, faturamento, localizacao, tempoMercado]);
+    }, [leadId, cargo, cargoSub, lojas, lojasSub, faturamento, localizacao, tempoMercado, erpSystem]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -198,6 +201,7 @@ function BusinessInfoContent() {
             faturamento,
             localizacao,
             tempoMercado,
+            erpSystem,
         });
 
         if (result?.error) {
@@ -253,6 +257,14 @@ function BusinessInfoContent() {
 
                     <RadioGroup label="Onde ficam suas farmácias?" options={LOCALIZACAO} value={localizacao} onChange={setLocalizacao} />
                     <RadioGroup label="Há quanto tempo está no mercado farmacêutico?" options={TEMPO_MERCADO} value={tempoMercado} onChange={setTempoMercado} />
+                    <RadioGroup label="Qual sistema de gestão (ERP) você utiliza na farmácia?" options={[
+                        { value: 'trier', label: 'Trier Sistemas' },
+                        { value: 'linx', label: 'Linx / Big' },
+                        { value: 'softpharma', label: 'Softpharma' },
+                        { value: 'alterdata', label: 'Alterdata' },
+                        { value: 'vetorh', label: 'Vetorh' },
+                        { value: 'outro', label: 'Outro ERP / Não utilizo' },
+                    ]} value={erpSystem} onChange={setErpSystem} />
 
                     {!isFormValid && (
                         <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 p-3 rounded-lg">

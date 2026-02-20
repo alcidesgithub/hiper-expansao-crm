@@ -258,20 +258,24 @@ export class MeetingService {
             notifyConsultant: shouldNotifyConsultant,
         });
 
-        await notifyActiveManagers({
-            title: 'Reuniao agendada',
-            message: `${lead.name} teve reuniao agendada com ${consultant.name}.`,
-            link: `/dashboard/leads/${lead.id}`,
-            emailSubject: 'Nova reuniao agendada no CRM',
-        });
-
-        if (shouldNotifyConsultant) {
-            await createInAppNotifications([consultant.id], {
+        try {
+            await notifyActiveManagers({
                 title: 'Reuniao agendada',
-                message: `Nova reuniao com ${lead.name}.`,
+                message: `${lead.name} teve reuniao agendada com ${consultant.name}.`,
                 link: `/dashboard/leads/${lead.id}`,
-                type: 'info',
+                emailSubject: 'Nova reuniao agendada no CRM',
             });
+
+            if (shouldNotifyConsultant) {
+                await createInAppNotifications([consultant.id], {
+                    title: 'Reuniao agendada',
+                    message: `Nova reuniao com ${lead.name}.`,
+                    link: `/dashboard/leads/${lead.id}`,
+                    type: 'info',
+                });
+            }
+        } catch (notifyErr) {
+            console.error('Failed to create in-app notifications for meeting:', notifyErr);
         }
 
         return {

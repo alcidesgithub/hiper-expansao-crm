@@ -10,7 +10,7 @@ import {
   TrendingUp, CreditCard, Building2, Tag, ChevronDown, Rocket,
   Phone, Mail, Facebook, Instagram, Linkedin, CheckCircle2,
   ShoppingBag, Pill, HelpCircle, ShieldCheck, BadgeCheck, Clock3, X,
-  Star, Quote, Package, Percent, Users
+  Star, Quote, Package, Percent, Users, TrendingDown, ShieldAlert
 } from 'lucide-react';
 
 const LP_DEFAULT_VARIANT = process.env.NEXT_PUBLIC_LP_VARIANT_V1 || process.env.NEXT_PUBLIC_LP_VARIANT || 'control';
@@ -205,11 +205,20 @@ export default function LandingPage() {
               </div>
             </div>
             <div className="relative lg:h-full flex items-center justify-center">
-              <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl border-4 border-white bg-white">
+              <div
+                className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl border-4 border-white bg-white group cursor-pointer"
+                onClick={() => setIsVideoOpen(true)}
+              >
                 <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 to-transparent z-10"></div>
+                <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors duration-500 z-20 flex flex-col items-center justify-center">
+                  <div className="w-24 h-24 bg-white/95 rounded-full flex items-center justify-center mb-5 text-primary shadow-2xl transform group-hover:scale-110 transition-transform duration-300">
+                    <PlayCircle size={48} className="ml-1" />
+                  </div>
+                  <span className="text-white font-bold text-xl drop-shadow-lg hidden sm:block">Clique para assistir ao vídeo</span>
+                </div>
                 <Image
                   alt="Expansão Hiperfarma Hero"
-                  className="w-full h-full object-contain"
+                  className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-700"
                   src="/expansao-hiperfarma-hero.png"
                   width={1200}
                   height={900}
@@ -232,6 +241,45 @@ export default function LandingPage() {
         </div>
         <div className="absolute top-0 right-0 -mr-20 -mt-20 w-96 h-96 bg-primary/5 rounded-full blur-3xl -z-10"></div>
         <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-80 h-80 bg-secondary/5 rounded-full blur-3xl -z-10"></div>
+      </section>
+
+      {/* Agitacao de Dor */}
+      <section className="py-20 bg-white border-b border-gray-100 relative overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+          <div className="text-center max-w-4xl mx-auto mb-16">
+            <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-6">
+              O varejo farmacêutico mudou. <br className="hidden md:block" />
+              <span className="text-red-500">Trabalhar sozinho está cada vez mais caro.</span>
+            </h2>
+            <p className="text-xl text-gray-600 leading-relaxed max-w-[70ch] mx-auto">
+              Está difícil competir com as grandes redes? Suas margens estão sendo pressionadas e os clientes procuram apenas o maior desconto? Você não precisa enfrentar esses desafios no escuro.
+            </p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+            <div className="bg-red-50/50 p-8 rounded-3xl border border-red-100 flex flex-col items-center justify-center text-center hover:-translate-y-2 transition-transform duration-300">
+              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6 shadow-sm"><TrendingDown size={32} /></div>
+              <h3 className="font-bold text-gray-900 text-xl mb-3">Margens Pressionadas</h3>
+              <p className="text-gray-600 text-sm leading-relaxed">Sem o volume de negociação de uma grande rede, você paga mais caro pelas perfumarias e medicamentos, perdendo margem de lucro na venda direta.</p>
+            </div>
+            <div className="bg-orange-50/50 p-8 rounded-3xl border border-orange-100 flex flex-col items-center justify-center text-center hover:-translate-y-2 transition-transform duration-300">
+              <div className="w-16 h-16 bg-orange-100 text-orange-600 rounded-2xl flex items-center justify-center mb-6 shadow-sm"><Users size={32} /></div>
+              <h3 className="font-bold text-gray-900 text-xl mb-3">Fuga de Clientes</h3>
+              <p className="text-gray-600 text-sm leading-relaxed">Sem um forte programa de fidelidade ativo ou convênios corporativos atrelando empresas locais a você, seu cliente é facilmente roubado pela concorrência.</p>
+            </div>
+            <div className="bg-yellow-50/50 p-8 rounded-3xl border border-yellow-100 flex flex-col items-center justify-center text-center hover:-translate-y-2 transition-transform duration-300">
+              <div className="w-16 h-16 bg-yellow-100 text-yellow-600 rounded-2xl flex items-center justify-center mb-6 shadow-sm"><ShieldAlert size={32} /></div>
+              <h3 className="font-bold text-gray-900 text-xl mb-3">Excesso Operacional</h3>
+              <p className="text-gray-600 text-sm leading-relaxed">Ter que gerir o estoque, criar encartes de marketing do zero e buscar inovações em treinamentos trava o seu crescimento e consome o que lhe resta de tempo livre.</p>
+            </div>
+          </div>
+
+          <div className="mt-12 bg-primary/5 rounded-2xl p-6 mx-auto flex items-center justify-center gap-4 w-full max-w-4xl border border-primary/20">
+            <CheckCircle2 size={32} className="text-primary flex-shrink-0" />
+            <p className="font-bold text-gray-900 text-lg sm:text-xl text-left">
+              É exatamente isso que a Rede Hiperfarma resolve para a sua farmácia.
+            </p>
+          </div>
+        </div>
       </section>
 
       {/* Stats Section */}
@@ -504,6 +552,26 @@ export default function LandingPage() {
                 Na Hiperfarma o associado não é somente mais uma farmácia ou número. É um empresário em fase de crescimento, com total administração do seu estabelecimento comercial. Ele usufrui de todas as ferramentas disponibilizadas pela Rede que trabalham interligados: Sistema de informação gerencial, Departamento de Convênios, Departamento Comercial e Negociação, Departamento de Marketing. Contamos com um quadro de diretores qualificados, sempre à disposição dos seus associados, e entendem no seu dia-a-dia o que faz a diferença na sua empresa. Uma assembleia mensal, onde de forma transparente, todos os seus associados são ouvidos e recebem informações voltadas ao seu negócio. Um modelo de associativismo que em conjunto fortalece sua marca.
               </div>
             </details>
+
+            <details className="group bg-white p-6 rounded-xl border border-gray-200 open:border-primary/50 cursor-pointer transition-all">
+              <summary className="flex justify-between items-center font-bold text-lg text-gray-900 list-none">
+                <span className="flex items-center gap-3"><ShieldAlert className="text-primary" size={20} /> E se eu decidir sair da rede no futuro? Existe multa?</span>
+                <ChevronDown className="transition-transform group-open:rotate-180 text-primary" size={24} />
+              </summary>
+              <div className="mt-4 max-w-[65ch] text-gray-600 leading-relaxed pl-8 border-l-2 border-primary/20">
+                Nós apostamos na liberdade e satisfação do associado. Não prendemos nossos parceiros com multas abusivas de rescisão. O nosso objetivo é que você permaneça porque sua farmácia está crescendo e lucrando mais. Caso o modelo não atenda às suas expectativas, a desfiliação ocorre de maneira simples e transparente, cumprido o aviso mínimo estipulado em contrato associativo.
+              </div>
+            </details>
+
+            <details className="group bg-white p-6 rounded-xl border border-gray-200 open:border-primary/50 cursor-pointer transition-all">
+              <summary className="flex justify-between items-center font-bold text-lg text-gray-900 list-none">
+                <span className="flex items-center gap-3"><Clock3 className="text-primary" size={20} /> Quanto tempo demora para iniciar a operação com a marca?</span>
+                <ChevronDown className="transition-transform group-open:rotate-180 text-primary" size={24} />
+              </summary>
+              <div className="mt-4 max-w-[65ch] text-gray-600 leading-relaxed pl-8 border-l-2 border-primary/20">
+                Nosso processo de implantação gera previsibilidade com o mínimo de interrupções na sua operação. Após o estudo de viabilidade, a virada de bandeira, adequação de layout e implantação dos sistemas operacionais e Hiper Club leva, em média, de 30 a 60 dias, dependendo do ritmo das adaptações e do parceiro fornecedor. Nossa equipe oferece suporte completo em cada etapa da transição e inauguração.
+              </div>
+            </details>
           </div>
         </div>
       </section>
@@ -605,6 +673,39 @@ export default function LandingPage() {
               Quero resultados assim
               <ArrowRight className="ml-2" size={20} />
             </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Lead Magnet CTA */}
+      <section className="py-20 bg-primary/5 border-y border-primary/10">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-6">
+            <HelpCircle size={32} className="text-primary" />
+          </div>
+          <h2 className="text-3xl md:text-4xl font-extrabold text-gray-900 mb-6">
+            Ainda na dúvida se o modelo é para você?
+          </h2>
+          <p className="text-xl text-gray-600 mb-10 leading-relaxed">
+            Nós compreendemos. Uma mudança de bandeira ou parceria exige confiança. Tire suas dúvidas diretamente com nossa equipe de expansão ou veja os números de casos de sucesso em detalhes, sem nenhum compromisso.
+          </p>
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
+            <button
+              onClick={() => navigateTo('wizard', 'middle_cta_doubt')}
+              className="inline-flex justify-center items-center px-8 py-4 bg-white border-2 border-primary text-primary hover:bg-primary hover:text-white font-bold rounded-lg text-lg transition-all duration-300 shadow-lg shadow-primary/10"
+            >
+              Fazer Análise de Viabilidade Gratuita
+              <ArrowRight className="ml-2" size={20} />
+            </button>
+            <a
+              href="https://wa.me/5541984060755"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex justify-center items-center px-8 py-4 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold rounded-lg text-lg transition-all duration-300 shadow-lg shadow-[#25D366]/30 transform hover:-translate-y-1"
+            >
+              <Phone className="mr-2" size={20} />
+              Tirar Dúvidas no WhatsApp
+            </a>
           </div>
         </div>
       </section>

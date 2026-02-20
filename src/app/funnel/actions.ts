@@ -282,12 +282,16 @@ export async function submitStepOne(formData: {
             },
         });
 
-        await notifyActiveManagers({
-            title: 'Novo lead no funil',
-            message: `${lead.name} iniciou o funil de qualificação.`,
-            link: `/dashboard/leads/${lead.id}`,
-            emailSubject: 'Novo lead no funil de qualificação',
-        });
+        try {
+            await notifyActiveManagers({
+                title: 'Novo lead no funil',
+                message: `${lead.name} iniciou o funil de qualificação.`,
+                link: `/dashboard/leads/${lead.id}`,
+                emailSubject: 'Novo lead no funil de qualificação',
+            });
+        } catch (notifyErr) {
+            console.error('Failed to notify managers on funnel step 1:', notifyErr);
+        }
 
         redirect(
             buildFunnelUrl('/funnel/business-info', {
@@ -316,6 +320,7 @@ export async function submitStepTwo(
         faturamento: string;
         localizacao: string;
         tempoMercado: string;
+        erpSystem: string;
     }
 ) {
     if (!leadId || !token) return { error: 'Sessão de qualificação inválida.' };
@@ -568,12 +573,16 @@ export async function submitStepFive(
             },
         });
 
-        await notifyActiveManagers({
-            title: 'Lead concluiu qualificação',
-            message: `${lead.name} concluiu o formulário. Grade ${resolvedGrade} e score ${dynamicScore}.`,
-            link: `/dashboard/leads/${leadId}`,
-            emailSubject: 'Lead concluiu o formulário de qualificação',
-        });
+        try {
+            await notifyActiveManagers({
+                title: 'Lead concluiu qualificação',
+                message: `${lead.name} concluiu o formulário. Grade ${resolvedGrade} e score ${dynamicScore}.`,
+                link: `/dashboard/leads/${leadId}`,
+                emailSubject: 'Lead concluiu o formulário de qualificação',
+            });
+        } catch (notifyErr) {
+            console.error('Failed to notify managers on funnel step 5:', notifyErr);
+        }
 
         redirect(
             buildFunnelUrl('/funnel/resultado', {
@@ -586,5 +595,36 @@ export async function submitStepFive(
         if (isRedirectError(error)) throw error;
         console.error('Error step 5:', error);
         return { error: 'Erro ao finalizar qualificação.' };
+    }
+}
+
+export async function submitInfluencerLead(data: {
+    name: string;
+    email: string;
+    profile: string;
+    sessionId?: string;
+}) {
+    try {
+        const lead = await prisma.lead.create({
+            data: {
+                name: data.name,
+                email: data.email,
+                phone: '',
+                source: LeadSource.WEBSITE,
+                status: LeadStatus.NEW,
+                priority: LeadPriority.LOW,
+                score: 0,
+                grade: 'F',
+                customFields: {
+                    influencerProfile: data.profile,
+                    sessionId: data.sessionId,
+                },
+            },
+        });
+
+        return { success: true, leadId: lead.id };
+    } catch (error) {
+        console.error('Error submitting influencer lead:', error);
+        return { error: 'Erro ao registrar contato de influenciador.' };
     }
 }

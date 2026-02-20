@@ -924,12 +924,16 @@ export async function createLead(data: CreateLeadData) {
             }
         });
 
-        await notifyActiveManagers({
-            title: 'Novo lead criado no CRM',
-            message: `${lead.name} foi criado manualmente e está disponível para triagem.`,
-            link: `/dashboard/leads/${lead.id}`,
-            emailSubject: 'Novo lead criado no CRM',
-        });
+        try {
+            await notifyActiveManagers({
+                title: 'Novo lead criado no CRM',
+                message: `${lead.name} foi criado manualmente e está disponível para triagem.`,
+                link: `/dashboard/leads/${lead.id}`,
+                emailSubject: 'Novo lead criado no CRM',
+            });
+        } catch (notifyErr) {
+            console.error('Failed to notify managers on manual lead creation:', notifyErr);
+        }
 
         revalidatePath('/dashboard/leads');
         return { success: true, lead };

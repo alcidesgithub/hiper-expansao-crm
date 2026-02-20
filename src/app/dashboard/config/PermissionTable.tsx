@@ -2,7 +2,7 @@
 
 import React, { useTransition } from 'react';
 import { toast } from 'sonner';
-import { updateRolePermissions } from './actions';
+import { updateRolePermissions } from './permissionsActions';
 import { AppRole, Permission } from '@/lib/permissions';
 import { useSession } from 'next-auth/react';
 import {
@@ -158,4 +158,3 @@ export function PermissionTable({ rolePermissions, roles, permissionsByResource 
         </div>
     );
 }
-

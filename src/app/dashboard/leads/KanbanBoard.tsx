@@ -4,7 +4,7 @@ import React, { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { DragDropContext, Draggable, Droppable, type DropResult } from '@hello-pangea/dnd';
 import { useRouter } from 'next/navigation';
-import { ChevronRight, Clock, Layout, Plus } from 'lucide-react';
+import { AlertTriangle, ChevronRight, Clock, Layout, Plus } from 'lucide-react';
 
 interface Lead {
     id: string;
@@ -188,53 +188,65 @@ export default function KanbanBoard({ initialStages, initialLeads, permissions }
                                                     ${stage.isLost ? 'bg-gray-50/80 border-gray-200 border-dashed opacity-75' : ''}
                                                 `}
                                             >
-                                                {stageLeads.map((lead, index) => (
-                                                    <Draggable key={lead.id} draggableId={lead.id} index={index} isDragDisabled={!canAdvancePipeline}>
-                                                        {(dragProvided, dragSnapshot) => (
-                                                            <div
-                                                                ref={dragProvided.innerRef}
-                                                                {...dragProvided.draggableProps}
-                                                                {...dragProvided.dragHandleProps}
-                                                                style={dragProvided.draggableProps.style}
-                                                                className="relative"
-                                                            >
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        if (!dragSnapshot.isDragging) {
-                                                                            router.push(`/dashboard/leads/${lead.id}`);
-                                                                        }
-                                                                    }}
-                                                                    className={`w-full text-left bg-white p-4 rounded-lg shadow-sm border transition-all duration-200 group relative
+                                                {stageLeads.map((lead, index) => {
+                                                    const isSlaBreached = lead.grade === 'A' && !stage.isWon && !stage.isLost && (Date.now() - new Date(lead.updatedAt || lead.createdAt).getTime()) / (1000 * 60 * 60) > 4;
+                                                    return (
+                                                        <Draggable key={lead.id} draggableId={lead.id} index={index} isDragDisabled={!canAdvancePipeline}>
+                                                            {(dragProvided, dragSnapshot) => (
+                                                                <div
+                                                                    ref={dragProvided.innerRef}
+                                                                    {...dragProvided.draggableProps}
+                                                                    {...dragProvided.dragHandleProps}
+                                                                    style={dragProvided.draggableProps.style}
+                                                                    className="relative"
+                                                                >
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            if (!dragSnapshot.isDragging) {
+                                                                                router.push(`/dashboard/leads/${lead.id}`);
+                                                                            }
+                                                                        }}
+                                                                        className={`w-full text-left bg-white p-4 rounded-lg shadow-sm border transition-all duration-200 group relative
                                                                         ${dragSnapshot.isDragging
-                                                                            ? 'shadow-2xl border-primary ring-2 ring-primary/20 rotate-1 scale-[1.02] z-[100] cursor-grabbing'
-                                                                            : 'border-gray-200/60 hover:border-primary/50 hover:shadow-md cursor-grab active:cursor-grabbing'
-                                                                        }
+                                                                                ? 'shadow-2xl border-primary ring-2 ring-primary/20 rotate-1 scale-[1.02] z-[100] cursor-grabbing'
+                                                                                : isSlaBreached
+                                                                                    ? 'border-red-400 hover:border-red-500 hover:shadow-md cursor-grab active:cursor-grabbing ring-1 ring-red-400/50 bg-red-50/10'
+                                                                                    : 'border-gray-200/60 hover:border-primary/50 hover:shadow-md cursor-grab active:cursor-grabbing'
+                                                                            }
                                                                         ${!canAdvancePipeline ? 'cursor-pointer active:cursor-pointer' : ''}
                                                                     `}
-                                                                >
-                                                                    <div className="flex justify-between items-start mb-2">
-                                                                        {lead.grade ? (
-                                                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${lead.grade === 'A' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
-                                                                                {lead.score} ({lead.grade})
-                                                                            </span>
-                                                                        ) : (
-                                                                            <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider bg-gray-100 text-gray-600">
-                                                                                Novo
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                    <h4 className="font-semibold text-gray-800 mb-0.5">{lead.name}</h4>
-                                                                    <p className="text-xs text-gray-500 mb-3 font-medium">{lead.company || 'Empresa não informada'}</p>
-                                                                    <div className="flex items-center gap-1.5 text-xs text-gray-400 border-t border-gray-100 pt-3">
-                                                                        <Clock size={14} />
-                                                                        <span>{formatLeadDate(lead.createdAt)}</span>
-                                                                    </div>
-                                                                </button>
-                                                            </div>
-                                                        )}
-                                                    </Draggable>
-                                                ))}
+                                                                    >
+                                                                        <div className="flex justify-between items-start mb-2">
+                                                                            {lead.grade ? (
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${lead.grade === 'A' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
+                                                                                        {lead.score} ({lead.grade})
+                                                                                    </span>
+                                                                                    {isSlaBreached && (
+                                                                                        <span className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider bg-red-100/80 text-red-800 animate-pulse border border-red-200" title="SLA: Sem ação há mais de 4 horas">
+                                                                                            <AlertTriangle size={10} /> Atrasado
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                            ) : (
+                                                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider bg-gray-100 text-gray-600">
+                                                                                    Novo
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        <h4 className="font-semibold text-gray-800 mb-0.5">{lead.name}</h4>
+                                                                        <p className="text-xs text-gray-500 mb-3 font-medium">{lead.company || 'Empresa não informada'}</p>
+                                                                        <div className={`flex items-center gap-1.5 text-xs border-t pt-3 ${isSlaBreached ? 'text-red-500 border-red-100' : 'text-gray-400 border-gray-100'}`}>
+                                                                            <Clock size={14} />
+                                                                            <span>{formatLeadDate(lead.createdAt)}</span>
+                                                                        </div>
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                        </Draggable>
+                                                    )
+                                                })}
                                                 {provided.placeholder}
                                             </div>
                                         )}

@@ -240,6 +240,7 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
         motivacao: typeof leadQualificationData.motivacao === 'string' ? leadQualificationData.motivacao : '',
         urgencia: typeof leadQualificationData.urgencia === 'string' ? leadQualificationData.urgencia : '',
         compromisso: typeof leadQualificationData.compromisso === 'string' ? leadQualificationData.compromisso : '',
+        erpSystem: typeof leadQualificationData.erpSystem === 'string' ? leadQualificationData.erpSystem : '',
     });
 
     const [noteContent, setNoteContent] = useState('');
@@ -280,6 +281,7 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
                 motivacao: typeof qualificationData.motivacao === 'string' ? qualificationData.motivacao : '',
                 urgencia: typeof qualificationData.urgencia === 'string' ? qualificationData.urgencia : '',
                 compromisso: typeof qualificationData.compromisso === 'string' ? qualificationData.compromisso : '',
+                erpSystem: typeof qualificationData.erpSystem === 'string' ? qualificationData.erpSystem : '',
             });
         }
     }, [editingData, leadState]);
@@ -384,6 +386,7 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
                         motivacao: dataForm.motivacao.trim(),
                         urgencia: dataForm.urgencia.trim(),
                         compromisso: dataForm.compromisso.trim(),
+                        erpSystem: dataForm.erpSystem.trim(),
                     },
                 }),
             });
@@ -973,6 +976,26 @@ export default function LeadDetailClient({ lead }: LeadDetailClientProps) {
                                             </select>
                                         ) : (
                                             <div className="text-gray-900 text-sm">{getOptionLabel(LEAD_COMPROMISSO_OPTIONS, dataForm.compromisso)}</div>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Sistema ERP</label>
+                                        {editingData ? (
+                                            <select
+                                                value={dataForm.erpSystem}
+                                                onChange={(e) => setDataForm((prev) => ({ ...prev, erpSystem: e.target.value }))}
+                                                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                                            >
+                                                <option value="">Selecione...</option>
+                                                <option value="trier">Trier Sistemas</option>
+                                                <option value="linx">Linx / Big</option>
+                                                <option value="softpharma">Softpharma</option>
+                                                <option value="alterdata">Alterdata</option>
+                                                <option value="vetorh">Vetorh</option>
+                                                <option value="outro">Outro/Nenhum</option>
+                                            </select>
+                                        ) : (
+                                            <div className="text-gray-900 text-sm">{dataForm.erpSystem ? dataForm.erpSystem.charAt(0).toUpperCase() + dataForm.erpSystem.slice(1) : '-'}</div>
                                         )}
                                     </div>
                                     <div>

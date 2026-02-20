@@ -19,8 +19,6 @@ function canAccessDashboardPath(pathname: string, user: SessionUser): boolean {
     if (pathname.startsWith('/dashboard/config')) {
         return canAny(scopedUser, ['pipeline:configure', 'system:configure']);
     }
-    if (pathname.startsWith('/dashboard/admin/settings/permissions')) return can(scopedUser, 'system:configure');
-    if (pathname.startsWith('/dashboard/pricing')) return can(scopedUser, 'pricing:read');
     if (pathname.startsWith('/dashboard/relatorios')) {
         return canAny(scopedUser, ['dashboard:operational', 'dashboard:executive']);
     }

@@ -13,6 +13,10 @@ import {
     Trash2,
     Zap,
     ShieldCheck,
+    BarChart2,
+    GitMerge,
+    Trello,
+    DollarSign
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -24,6 +28,9 @@ import {
     type ConfigFieldOption,
     type SelectOption,
 } from '@/lib/config-options';
+
+import { PricingTab } from './PricingTab';
+import { PermissionsTab } from './PermissionsTab';
 
 interface ScoringCriterion {
     id: string;
@@ -98,6 +105,7 @@ export default function SettingsPage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [canManage, setCanManage] = useState(false);
+    const [activeTab, setActiveTab] = useState<'scoring' | 'automation' | 'pipeline' | 'pricing' | 'permissions'>('scoring');
 
     const [scoringCriteria, setScoringCriteria] = useState<ScoringCriterion[]>([]);
     const [automationRules, setAutomationRules] = useState<AutomationRule[]>([]);
@@ -404,426 +412,525 @@ export default function SettingsPage() {
                 </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 space-y-6">
-                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                        <div className="px-6 py-4 border-b bg-gray-50/70 flex items-center justify-between">
-                            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                                <Sliders className="text-primary" size={18} /> Matriz de Pontuação
-                            </h3>
-                            <span className="text-xs font-bold uppercase text-slate-500 bg-slate-100 px-2 py-1 rounded">
-                                Soma Atual: {scoringTotal}
-                            </span>
+            {/* Navegação por Abas */}
+            <div className="border-b border-gray-200">
+                <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+                    <button
+                        onClick={() => setActiveTab('scoring')}
+                        className={`
+                            whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2
+                            ${activeTab === 'scoring'
+                                ? 'border-primary text-primary'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }
+                        `}
+                    >
+                        <BarChart2 size={16} />
+                        Matriz de Pontuação
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('automation')}
+                        className={`
+                            whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2
+                            ${activeTab === 'automation'
+                                ? 'border-primary text-primary'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }
+                        `}
+                    >
+                        <Zap size={16} />
+                        Automações
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('pipeline')}
+                        className={`
+                            whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2
+                            ${activeTab === 'pipeline'
+                                ? 'border-primary text-primary'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }
+                        `}
+                    >
+                        <Trello size={16} />
+                        Etapas do Pipeline
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('pricing')}
+                        className={`
+                            whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2
+                            ${activeTab === 'pricing'
+                                ? 'border-primary text-primary'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }
+                        `}
+                    >
+                        <DollarSign size={16} />
+                        Mensalidades
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('permissions')}
+                        className={`
+                            whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2
+                            ${activeTab === 'permissions'
+                                ? 'border-primary text-primary'
+                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                            }
+                        `}
+                    >
+                        <ShieldCheck size={16} />
+                        Permissões
+                    </button>
+                </nav>
+            </div>
+
+            <div className="mt-6 w-full pb-10">
+                {activeTab === 'pricing' && <PricingTab />}
+                {activeTab === 'permissions' && <PermissionsTab />}
+                {activeTab === 'scoring' && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                            <h2 className="text-xl font-semibold text-slate-800 mb-2">Como funciona a pontuação?</h2>
+                            <p className="text-sm text-slate-600 mb-4">
+                                Os critérios abaixo definem os perfis ideais de clientes (Scores). Leads no topo do funil serão pontuados automaticamente de 0 a 100 baseados nestas configurações.
+                            </p>
                         </div>
-                        <div className="p-6 space-y-6">
-                            {(['PROFILE', 'FINANCIAL', 'BEHAVIOR'] as const).map((category) => (
-                                <div key={category} className="space-y-2">
-                                    <div className="flex items-center justify-between">
-                                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                                            {CATEGORY_LABELS[category]}
-                                        </h4>
-                                        <button
-                                            disabled={!canManage}
-                                            onClick={() => addCriterion(category)}
-                                            className="text-xs text-primary font-medium inline-flex items-center gap-1 disabled:opacity-50"
-                                        >
-                                            <Plus size={14} /> Adicionar
-                                        </button>
-                                    </div>
-                                    {scoringCriteria
-                                        .filter((item) => item.category === category)
-                                        .map((item) => (
-                                            <div key={item.id} className="border border-gray-200 rounded-lg p-3 space-y-2">
-                                                <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
-                                                    <input
-                                                        disabled={!canManage}
-                                                        value={item.name}
-                                                        onChange={(e) => updateCriterion(item.id, { name: e.target.value })}
-                                                        className="md:col-span-2 border border-gray-300 rounded px-2 py-1.5 text-sm"
-                                                    />
-                                                    <select
-                                                        disabled={!canManage}
-                                                        value={item.fieldKey}
-                                                        onChange={(e) => {
-                                                            const selectedField = findFieldOption(scoringFieldOptions, e.target.value);
-                                                            const nextOperator = item.operator || (selectedField?.type === 'number' ? '>=' : '=');
-                                                            updateCriterion(item.id, {
-                                                                fieldKey: e.target.value,
-                                                                subtitle: selectedField?.label || item.subtitle,
-                                                                operator: nextOperator,
-                                                                expectedValue: resolveDefaultExpectedValue(selectedField, nextOperator),
-                                                            });
-                                                        }}
-                                                        className="md:col-span-2 border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
-                                                    >
-                                                        {scoringFieldOptions.map((field) => (
-                                                            <option key={field.key} value={field.key}>
-                                                                {field.label}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                    <select
-                                                        disabled={!canManage}
-                                                        value={item.operator}
-                                                        onChange={(e) => {
+
+                        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                            <div className="px-6 py-4 border-b bg-gray-50 flex items-center justify-between">
+                                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                                    <Sliders className="text-primary" size={18} /> Critérios de Avaliação
+                                </h3>
+                                <span className="text-xs font-bold uppercase text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200">
+                                    Soma Atual: {scoringTotal}
+                                </span>
+                            </div>
+                            <div className="p-6 space-y-6">
+                                {(['PROFILE', 'FINANCIAL', 'BEHAVIOR'] as const).map((category) => (
+                                    <div key={category} className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                                {CATEGORY_LABELS[category]}
+                                            </h4>
+                                            <button
+                                                disabled={!canManage}
+                                                onClick={() => addCriterion(category)}
+                                                className="text-xs text-primary font-medium inline-flex items-center gap-1 disabled:opacity-50"
+                                            >
+                                                <Plus size={14} /> Adicionar
+                                            </button>
+                                        </div>
+                                        {scoringCriteria
+                                            .filter((item) => item.category === category)
+                                            .map((item) => (
+                                                <div key={item.id} className="border border-gray-200 rounded-lg p-3 space-y-2">
+                                                    <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
+                                                        <input
+                                                            disabled={!canManage}
+                                                            value={item.name}
+                                                            onChange={(e) => updateCriterion(item.id, { name: e.target.value })}
+                                                            className="md:col-span-2 border border-gray-300 rounded px-2 py-1.5 text-sm"
+                                                        />
+                                                        <select
+                                                            disabled={!canManage}
+                                                            value={item.fieldKey}
+                                                            onChange={(e) => {
+                                                                const selectedField = findFieldOption(scoringFieldOptions, e.target.value);
+                                                                const nextOperator = item.operator || (selectedField?.type === 'number' ? '>=' : '=');
+                                                                updateCriterion(item.id, {
+                                                                    fieldKey: e.target.value,
+                                                                    subtitle: selectedField?.label || item.subtitle,
+                                                                    operator: nextOperator,
+                                                                    expectedValue: resolveDefaultExpectedValue(selectedField, nextOperator),
+                                                                });
+                                                            }}
+                                                            className="md:col-span-2 border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
+                                                        >
+                                                            {scoringFieldOptions.map((field) => (
+                                                                <option key={field.key} value={field.key}>
+                                                                    {field.label}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                        <select
+                                                            disabled={!canManage}
+                                                            value={item.operator}
+                                                            onChange={(e) => {
+                                                                const selectedField = findFieldOption(scoringFieldOptions, item.fieldKey);
+                                                                const operator = e.target.value;
+                                                                updateCriterion(item.id, {
+                                                                    operator,
+                                                                    expectedValue:
+                                                                        requiresTriggerValue(operator) && item.expectedValue
+                                                                            ? item.expectedValue
+                                                                            : resolveDefaultExpectedValue(selectedField, operator),
+                                                                });
+                                                            }}
+                                                            className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
+                                                        >
+                                                            {scoringOperatorOptions.map((operator) => (
+                                                                <option key={operator.value} value={operator.value}>
+                                                                    {operator.label}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                        {(() => {
                                                             const selectedField = findFieldOption(scoringFieldOptions, item.fieldKey);
-                                                            const operator = e.target.value;
-                                                            updateCriterion(item.id, {
-                                                                operator,
-                                                                expectedValue:
-                                                                    requiresTriggerValue(operator) && item.expectedValue
-                                                                        ? item.expectedValue
-                                                                        : resolveDefaultExpectedValue(selectedField, operator),
-                                                            });
-                                                        }}
-                                                        className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
-                                                    >
-                                                        {scoringOperatorOptions.map((operator) => (
-                                                            <option key={operator.value} value={operator.value}>
-                                                                {operator.label}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                    {(() => {
-                                                        const selectedField = findFieldOption(scoringFieldOptions, item.fieldKey);
-                                                        const shouldRenderSelect =
-                                                            requiresTriggerValue(item.operator) &&
-                                                            Boolean(selectedField?.options?.length) &&
-                                                            usesSingleValueSelect(item.operator);
-                                                        if (!requiresTriggerValue(item.operator)) {
+                                                            const shouldRenderSelect =
+                                                                requiresTriggerValue(item.operator) &&
+                                                                Boolean(selectedField?.options?.length) &&
+                                                                usesSingleValueSelect(item.operator);
+                                                            if (!requiresTriggerValue(item.operator)) {
+                                                                return (
+                                                                    <input
+                                                                        disabled
+                                                                        value="-"
+                                                                        className="border border-gray-200 rounded px-2 py-1.5 text-sm bg-gray-50 text-gray-400"
+                                                                    />
+                                                                );
+                                                            }
+                                                            if (shouldRenderSelect && selectedField?.options) {
+                                                                return (
+                                                                    <select
+                                                                        disabled={!canManage}
+                                                                        value={item.expectedValue}
+                                                                        onChange={(e) => updateCriterion(item.id, { expectedValue: e.target.value })}
+                                                                        className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
+                                                                    >
+                                                                        {selectedField.options.map((option) => (
+                                                                            <option key={option.value} value={option.value}>
+                                                                                {option.label}
+                                                                            </option>
+                                                                        ))}
+                                                                    </select>
+                                                                );
+                                                            }
                                                             return (
                                                                 <input
-                                                                    disabled
-                                                                    value="-"
-                                                                    className="border border-gray-200 rounded px-2 py-1.5 text-sm bg-gray-50 text-gray-400"
-                                                                />
-                                                            );
-                                                        }
-                                                        if (shouldRenderSelect && selectedField?.options) {
-                                                            return (
-                                                                <select
                                                                     disabled={!canManage}
                                                                     value={item.expectedValue}
                                                                     onChange={(e) => updateCriterion(item.id, { expectedValue: e.target.value })}
-                                                                    className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
-                                                                >
-                                                                    {selectedField.options.map((option) => (
-                                                                        <option key={option.value} value={option.value}>
-                                                                            {option.label}
-                                                                        </option>
-                                                                    ))}
-                                                                </select>
+                                                                    className="border border-gray-300 rounded px-2 py-1.5 text-sm"
+                                                                    placeholder={item.operator === 'in' || item.operator === 'not_in' ? 'valor1,valor2' : 'Valor'}
+                                                                />
                                                             );
-                                                        }
-                                                        return (
-                                                            <input
-                                                                disabled={!canManage}
-                                                                value={item.expectedValue}
-                                                                onChange={(e) => updateCriterion(item.id, { expectedValue: e.target.value })}
-                                                                className="border border-gray-300 rounded px-2 py-1.5 text-sm"
-                                                                placeholder={item.operator === 'in' || item.operator === 'not_in' ? 'valor1,valor2' : 'Valor'}
-                                                            />
-                                                        );
-                                                    })()}
+                                                        })()}
+                                                    </div>
+                                                    <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
+                                                        <input
+                                                            disabled={!canManage}
+                                                            value={item.subtitle}
+                                                            onChange={(e) => updateCriterion(item.id, { subtitle: e.target.value })}
+                                                            className="md:col-span-4 border border-gray-300 rounded px-2 py-1.5 text-sm"
+                                                        />
+                                                        <input
+                                                            disabled={!canManage}
+                                                            type="number"
+                                                            min={item.min}
+                                                            max={item.max}
+                                                            value={item.value}
+                                                            onChange={(e) => updateCriterion(item.id, { value: Number(e.target.value) })}
+                                                            className="border border-gray-300 rounded px-2 py-1.5 text-sm"
+                                                        />
+                                                        <button
+                                                            disabled={!canManage}
+                                                            onClick={() => removeCriterion(item.id)}
+                                                            className="border border-red-200 text-red-600 rounded px-2 py-1.5 text-sm disabled:opacity-50"
+                                                        >
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                                <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
-                                                    <input
-                                                        disabled={!canManage}
-                                                        value={item.subtitle}
-                                                        onChange={(e) => updateCriterion(item.id, { subtitle: e.target.value })}
-                                                        className="md:col-span-4 border border-gray-300 rounded px-2 py-1.5 text-sm"
-                                                    />
-                                                    <input
-                                                        disabled={!canManage}
-                                                        type="number"
-                                                        min={item.min}
-                                                        max={item.max}
-                                                        value={item.value}
-                                                        onChange={(e) => updateCriterion(item.id, { value: Number(e.target.value) })}
-                                                        className="border border-gray-300 rounded px-2 py-1.5 text-sm"
-                                                    />
-                                                    <button
-                                                        disabled={!canManage}
-                                                        onClick={() => removeCriterion(item.id)}
-                                                        className="border border-red-200 text-red-600 rounded px-2 py-1.5 text-sm disabled:opacity-50"
-                                                    >
-                                                        <Trash2 size={14} className="mx-auto" />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                </div>
-                            ))}
+                                            ))}
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
+                )}
 
-                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                        <div className="px-6 py-4 border-b bg-gray-50/70 flex items-center justify-between">
-                            <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                                <Zap className="text-primary" size={18} /> Regras de Automação
-                            </h3>
-                            <button
-                                disabled={!canManage}
-                                onClick={addRule}
-                                className="text-xs text-primary font-medium inline-flex items-center gap-1 disabled:opacity-50"
-                            >
-                                <Plus size={14} /> Nova Regra
-                            </button>
+                {activeTab === 'automation' && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                            <h2 className="text-xl font-semibold text-slate-800 mb-2">Gatilhos de Sistema</h2>
+                            <p className="text-sm text-slate-600 mb-4">
+                                Automações permitem que o CRM tome ações reativas (mover um lead, alertar gestores, etc.) sempre que regras predeterminadas forem alcançadas.
+                            </p>
                         </div>
-                        <div className="p-6 space-y-3">
-                            {automationRules.map((rule) => (
-                                <div key={rule.id} className="border border-gray-200 rounded-lg p-3 space-y-3">
-                                    <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
-                                        <input
-                                            disabled={!canManage}
-                                            value={rule.name}
-                                            onChange={(e) => updateRule(rule.id, { name: e.target.value })}
-                                            className="md:col-span-3 border border-gray-300 rounded px-2 py-1.5 text-sm"
-                                        />
-                                        <label className="md:col-span-2 flex items-center gap-2 text-sm text-slate-600">
+
+                        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                            <div className="px-6 py-4 border-b bg-gray-50 flex items-center justify-between">
+                                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                                    <Zap className="text-amber-500" size={18} /> Regras de Ação
+                                </h3>
+                                <button
+                                    disabled={!canManage}
+                                    onClick={addRule}
+                                    className="text-xs text-primary font-medium inline-flex items-center gap-1 disabled:opacity-50"
+                                >
+                                    <Plus size={14} /> Nova Regra
+                                </button>
+                            </div>
+                            <div className="p-6 space-y-3">
+                                {automationRules.map((rule) => (
+                                    <div key={rule.id} className="border border-gray-200 rounded-lg p-3 space-y-3">
+                                        <div className="grid grid-cols-1 md:grid-cols-6 gap-2">
                                             <input
                                                 disabled={!canManage}
-                                                type="checkbox"
-                                                checked={rule.enabled}
-                                                onChange={(e) => updateRule(rule.id, { enabled: e.target.checked })}
+                                                value={rule.name}
+                                                onChange={(e) => updateRule(rule.id, { name: e.target.value })}
+                                                className="md:col-span-3 border border-gray-300 rounded px-2 py-1.5 text-sm"
                                             />
-                                            Ativa
-                                        </label>
-                                        <button
-                                            disabled={!canManage}
-                                            onClick={() => removeRule(rule.id)}
-                                            className="border border-red-200 text-red-600 rounded px-2 py-1.5 text-sm disabled:opacity-50"
-                                        >
-                                            <Trash2 size={14} className="mx-auto" />
-                                        </button>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
-                                        <select
-                                            disabled={!canManage}
-                                            value={rule.triggerField}
-                                            onChange={(e) => {
-                                                const selectedField = findFieldOption(automationFieldOptions, e.target.value);
-                                                const operator = rule.operator || (selectedField?.type === 'number' ? '>=' : '=');
-                                                updateRule(rule.id, {
-                                                    triggerField: e.target.value,
-                                                    operator,
-                                                    triggerValue: resolveDefaultExpectedValue(selectedField, operator) || rule.triggerValue || '',
-                                                });
-                                            }}
-                                            className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
-                                        >
-                                            {automationFieldOptions.map((field) => (
-                                                <option key={field.key} value={field.key}>
-                                                    {field.label}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <select
-                                            disabled={!canManage}
-                                            value={rule.operator}
-                                            onChange={(e) => {
+                                            <label className="md:col-span-2 flex items-center gap-2 text-sm text-slate-600">
+                                                <input
+                                                    disabled={!canManage}
+                                                    type="checkbox"
+                                                    checked={rule.enabled}
+                                                    onChange={(e) => updateRule(rule.id, { enabled: e.target.checked })}
+                                                />
+                                                Ativa
+                                            </label>
+                                            <button
+                                                disabled={!canManage}
+                                                onClick={() => removeRule(rule.id)}
+                                                className="border border-red-200 text-red-600 rounded px-2 py-1.5 text-sm disabled:opacity-50"
+                                            >
+                                                <Trash2 size={14} className="mx-auto" />
+                                            </button>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
+                                            <select
+                                                disabled={!canManage}
+                                                value={rule.triggerField}
+                                                onChange={(e) => {
+                                                    const selectedField = findFieldOption(automationFieldOptions, e.target.value);
+                                                    const operator = rule.operator || (selectedField?.type === 'number' ? '>=' : '=');
+                                                    updateRule(rule.id, {
+                                                        triggerField: e.target.value,
+                                                        operator,
+                                                        triggerValue: resolveDefaultExpectedValue(selectedField, operator) || rule.triggerValue || '',
+                                                    });
+                                                }}
+                                                className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
+                                            >
+                                                {automationFieldOptions.map((field) => (
+                                                    <option key={field.key} value={field.key}>
+                                                        {field.label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            <select
+                                                disabled={!canManage}
+                                                value={rule.operator}
+                                                onChange={(e) => {
+                                                    const selectedField = findFieldOption(automationFieldOptions, rule.triggerField);
+                                                    const operator = e.target.value;
+                                                    updateRule(rule.id, {
+                                                        operator,
+                                                        triggerValue:
+                                                            requiresTriggerValue(operator) && rule.triggerValue
+                                                                ? rule.triggerValue
+                                                                : resolveDefaultExpectedValue(selectedField, operator),
+                                                    });
+                                                }}
+                                                className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
+                                            >
+                                                {automationOperatorOptions.map((operator) => (
+                                                    <option key={operator.value} value={operator.value}>
+                                                        {operator.label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            {(() => {
                                                 const selectedField = findFieldOption(automationFieldOptions, rule.triggerField);
-                                                const operator = e.target.value;
-                                                updateRule(rule.id, {
-                                                    operator,
-                                                    triggerValue:
-                                                        requiresTriggerValue(operator) && rule.triggerValue
-                                                            ? rule.triggerValue
-                                                            : resolveDefaultExpectedValue(selectedField, operator),
-                                                });
-                                            }}
-                                            className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
-                                        >
-                                            {automationOperatorOptions.map((operator) => (
-                                                <option key={operator.value} value={operator.value}>
-                                                    {operator.label}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        {(() => {
-                                            const selectedField = findFieldOption(automationFieldOptions, rule.triggerField);
-                                            const shouldRenderSelect =
-                                                requiresTriggerValue(rule.operator) &&
-                                                Boolean(selectedField?.options?.length) &&
-                                                usesSingleValueSelect(rule.operator);
-                                            if (!requiresTriggerValue(rule.operator)) {
+                                                const shouldRenderSelect =
+                                                    requiresTriggerValue(rule.operator) &&
+                                                    Boolean(selectedField?.options?.length) &&
+                                                    usesSingleValueSelect(rule.operator);
+                                                if (!requiresTriggerValue(rule.operator)) {
+                                                    return (
+                                                        <input
+                                                            disabled
+                                                            value="-"
+                                                            className="border border-gray-200 rounded px-2 py-1.5 text-sm bg-gray-50 text-gray-400"
+                                                        />
+                                                    );
+                                                }
+                                                if (shouldRenderSelect && selectedField?.options) {
+                                                    return (
+                                                        <select
+                                                            disabled={!canManage}
+                                                            value={rule.triggerValue}
+                                                            onChange={(e) => updateRule(rule.id, { triggerValue: e.target.value })}
+                                                            className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
+                                                        >
+                                                            {selectedField.options.map((option) => (
+                                                                <option key={option.value} value={option.value}>
+                                                                    {option.label}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    );
+                                                }
                                                 return (
                                                     <input
-                                                        disabled
-                                                        value="-"
-                                                        className="border border-gray-200 rounded px-2 py-1.5 text-sm bg-gray-50 text-gray-400"
-                                                    />
-                                                );
-                                            }
-                                            if (shouldRenderSelect && selectedField?.options) {
-                                                return (
-                                                    <select
                                                         disabled={!canManage}
                                                         value={rule.triggerValue}
                                                         onChange={(e) => updateRule(rule.id, { triggerValue: e.target.value })}
-                                                        className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
-                                                    >
-                                                        {selectedField.options.map((option) => (
-                                                            <option key={option.value} value={option.value}>
-                                                                {option.label}
-                                                            </option>
-                                                        ))}
-                                                    </select>
+                                                        className="border border-gray-300 rounded px-2 py-1.5 text-sm"
+                                                        placeholder={rule.operator === 'in' || rule.operator === 'not_in' ? 'valor1,valor2' : 'Valor'}
+                                                    />
                                                 );
-                                            }
-                                            return (
+                                            })()}
+
+                                            <select
+                                                disabled={!canManage}
+                                                value={rule.actionType}
+                                                onChange={(e) => {
+                                                    const actionType = e.target.value;
+                                                    updateRule(rule.id, {
+                                                        actionType,
+                                                        actionTarget: resolveRuleActionTarget(actionType),
+                                                    });
+                                                }}
+                                                className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
+                                            >
+                                                {automationActionTypeOptions.map((actionType) => (
+                                                    <option key={actionType.value} value={actionType.value}>
+                                                        {actionType.label}
+                                                    </option>
+                                                ))}
+                                            </select>
+
+                                            {rule.actionType === 'move_stage' ? (
+                                                <select
+                                                    disabled={!canManage}
+                                                    value={rule.actionTarget}
+                                                    onChange={(e) => updateRule(rule.id, { actionTarget: e.target.value })}
+                                                    className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
+                                                >
+                                                    <option value="">Selecione o estágio...</option>
+                                                    {stages.map(stage => (
+                                                        <option key={stage.id} value={stage.id}>{stage.name}</option>
+                                                    ))}
+                                                </select>
+                                            ) : rule.actionType === 'assign_user' || rule.actionType === 'notify_user' ? (
+                                                <select
+                                                    disabled={!canManage}
+                                                    value={rule.actionTarget}
+                                                    onChange={(e) => updateRule(rule.id, { actionTarget: e.target.value })}
+                                                    className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
+                                                >
+                                                    <option value="">Selecione o usuário...</option>
+                                                    {users.map(user => (
+                                                        <option key={user.id} value={user.id}>{user.name || user.id} ({user.role})</option>
+                                                    ))}
+                                                </select>
+                                            ) : rule.actionType === 'notify_manager' ? (
+                                                <select
+                                                    disabled={!canManage}
+                                                    value={rule.actionTarget}
+                                                    onChange={(e) => updateRule(rule.id, { actionTarget: e.target.value })}
+                                                    className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
+                                                >
+                                                    <option value="all_managers">Todos os gestores</option>
+                                                    {managerUsers.map(user => (
+                                                        <option key={user.id} value={user.id}>{user.name || user.id} ({user.role})</option>
+                                                    ))}
+                                                </select>
+                                            ) : (
                                                 <input
                                                     disabled={!canManage}
-                                                    value={rule.triggerValue}
-                                                    onChange={(e) => updateRule(rule.id, { triggerValue: e.target.value })}
+                                                    value={rule.actionTarget}
+                                                    onChange={(e) => updateRule(rule.id, { actionTarget: e.target.value })}
                                                     className="border border-gray-300 rounded px-2 py-1.5 text-sm"
-                                                    placeholder={rule.operator === 'in' || rule.operator === 'not_in' ? 'valor1,valor2' : 'Valor'}
+                                                    placeholder="Alvo da ação"
                                                 />
-                                            );
-                                        })()}
-
-                                        <select
-                                            disabled={!canManage}
-                                            value={rule.actionType}
-                                            onChange={(e) => {
-                                                const actionType = e.target.value;
-                                                updateRule(rule.id, {
-                                                    actionType,
-                                                    actionTarget: resolveRuleActionTarget(actionType),
-                                                });
-                                            }}
-                                            className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
-                                        >
-                                            {automationActionTypeOptions.map((actionType) => (
-                                                <option key={actionType.value} value={actionType.value}>
-                                                    {actionType.label}
-                                                </option>
-                                            ))}
-                                        </select>
-
-                                        {rule.actionType === 'move_stage' ? (
-                                            <select
-                                                disabled={!canManage}
-                                                value={rule.actionTarget}
-                                                onChange={(e) => updateRule(rule.id, { actionTarget: e.target.value })}
-                                                className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
-                                            >
-                                                <option value="">Selecione o estágio...</option>
-                                                {stages.map(stage => (
-                                                    <option key={stage.id} value={stage.id}>{stage.name}</option>
-                                                ))}
-                                            </select>
-                                        ) : rule.actionType === 'assign_user' || rule.actionType === 'notify_user' ? (
-                                            <select
-                                                disabled={!canManage}
-                                                value={rule.actionTarget}
-                                                onChange={(e) => updateRule(rule.id, { actionTarget: e.target.value })}
-                                                className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
-                                            >
-                                                <option value="">Selecione o usuário...</option>
-                                                {users.map(user => (
-                                                    <option key={user.id} value={user.id}>{user.name || user.id} ({user.role})</option>
-                                                ))}
-                                            </select>
-                                        ) : rule.actionType === 'notify_manager' ? (
-                                            <select
-                                                disabled={!canManage}
-                                                value={rule.actionTarget}
-                                                onChange={(e) => updateRule(rule.id, { actionTarget: e.target.value })}
-                                                className="border border-gray-300 rounded px-2 py-1.5 text-sm bg-white"
-                                            >
-                                                <option value="all_managers">Todos os gestores</option>
-                                                {managerUsers.map(user => (
-                                                    <option key={user.id} value={user.id}>{user.name || user.id} ({user.role})</option>
-                                                ))}
-                                            </select>
-                                        ) : (
-                                            <input
-                                                disabled={!canManage}
-                                                value={rule.actionTarget}
-                                                onChange={(e) => updateRule(rule.id, { actionTarget: e.target.value })}
-                                                className="border border-gray-300 rounded px-2 py-1.5 text-sm"
-                                                placeholder="Alvo da ação"
-                                            />
-                                        )}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-
-                <div className="space-y-6">
-                    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                        <div className="px-6 py-4 border-b bg-gray-50/70 flex items-center justify-between">
-                            <h3 className="text-lg font-bold text-slate-900">Etapas do Pipeline</h3>
-                            <button
-                                disabled={!canManage}
-                                onClick={addStage}
-                                className="text-xs text-primary font-medium inline-flex items-center gap-1 disabled:opacity-50"
-                            >
-                                <Plus size={14} /> Adicionar
-                            </button>
-                        </div>
-                        <div className="p-4 space-y-2">
-                            {stages.map((stage, index) => (
-                                <div key={stage.id} className="border border-gray-200 rounded-lg p-3 space-y-2">
-                                    <div className="flex items-center gap-2">
-                                        <GripVertical size={14} className="text-gray-300" />
-                                        <input
-                                            disabled={!canManage}
-                                            value={stage.name}
-                                            onChange={(e) => updateStage(stage.id, { name: e.target.value })}
-                                            className="flex-1 border border-gray-300 rounded px-2 py-1.5 text-sm"
-                                        />
-                                        <input
-                                            disabled={!canManage}
-                                            type="color"
-                                            value={stage.color}
-                                            onChange={(e) => updateStage(stage.id, { color: e.target.value })}
-                                            className="w-10 h-9 border border-gray-300 rounded"
-                                        />
-                                    </div>
-                                    <div className="flex items-center justify-between text-xs text-slate-500">
-                                        <div className="flex items-center gap-2">
-                                            <label className="inline-flex items-center gap-1">
-                                                <input disabled={!canManage} type="checkbox" checked={stage.isWon} onChange={() => setWonStage(stage.id)} />
-                                                Ganho
-                                            </label>
-                                            <label className="inline-flex items-center gap-1">
-                                                <input disabled={!canManage} type="checkbox" checked={stage.isLost} onChange={() => setLostStage(stage.id)} />
-                                                Perdido
-                                            </label>
-                                            {stage.reserved && <span className="text-[11px] bg-slate-100 px-2 py-0.5 rounded">Reservado</span>}
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                            <button disabled={!canManage || index === 0} onClick={() => moveStage(stage.id, -1)} className="p-1 border rounded disabled:opacity-40">
-                                                <ArrowUp size={12} />
-                                            </button>
-                                            <button disabled={!canManage || index === stages.length - 1} onClick={() => moveStage(stage.id, 1)} className="p-1 border rounded disabled:opacity-40">
-                                                <ArrowDown size={12} />
-                                            </button>
-                                            <button disabled={!canManage || stage.reserved} onClick={() => removeStage(stage.id)} className="p-1 border border-red-200 text-red-600 rounded disabled:opacity-40">
-                                                <Trash2 size={12} />
-                                            </button>
+                                            )}
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                ))}
+                            </div>
                         </div>
                     </div>
+                )}
 
-                    <div className="bg-blue-50 rounded-xl p-4 border border-blue-100 flex gap-3">
-                        <Lightbulb className="text-blue-500 shrink-0" size={20} />
-                        <div>
-                            <h5 className="text-sm font-bold text-blue-800">Observação</h5>
-                            <p className="text-xs text-blue-700 mt-1 leading-relaxed">
-                                As configurações desta tela são persistidas no banco e impactam fluxo operacional.
-                                Estágios reservados do funil padrão não podem ser removidos.
+                {activeTab === 'pipeline' && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                            <h2 className="text-xl font-semibold text-slate-800 mb-2">Gestão do Funil (Kanban)</h2>
+                            <p className="text-sm text-slate-600 mb-4">
+                                Personalize os degraus exatos pelos quais os leads devem passar, desde a prospecção até o encerramento da jornada com a Hiperfarma.
                             </p>
                         </div>
+
+                        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+                            <div className="px-6 py-4 border-b bg-gray-50 flex items-center justify-between">
+                                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+                                    <GitMerge className="text-indigo-500" size={18} /> Etapas do Funil
+                                </h3>
+                                <button
+                                    disabled={!canManage}
+                                    onClick={addStage}
+                                    className="text-xs text-primary font-medium inline-flex items-center gap-1 disabled:opacity-50"
+                                >
+                                    <Plus size={14} /> Adicionar
+                                </button>
+                            </div>
+                            <div className="p-4 space-y-2">
+                                {stages.map((stage, index) => (
+                                    <div key={stage.id} className="border border-gray-200 rounded-lg p-3 space-y-2">
+                                        <div className="flex items-center gap-2">
+                                            <GripVertical size={14} className="text-gray-300" />
+                                            <input
+                                                disabled={!canManage}
+                                                value={stage.name}
+                                                onChange={(e) => updateStage(stage.id, { name: e.target.value })}
+                                                className="flex-1 border border-gray-300 rounded px-2 py-1.5 text-sm"
+                                            />
+                                            <input
+                                                disabled={!canManage}
+                                                type="color"
+                                                value={stage.color}
+                                                onChange={(e) => updateStage(stage.id, { color: e.target.value })}
+                                                className="w-10 h-9 border border-gray-300 rounded"
+                                            />
+                                        </div>
+                                        <div className="flex items-center justify-between text-xs text-slate-500">
+                                            <div className="flex items-center gap-2">
+                                                <label className="inline-flex items-center gap-1">
+                                                    <input disabled={!canManage} type="checkbox" checked={stage.isWon} onChange={() => setWonStage(stage.id)} />
+                                                    Ganho
+                                                </label>
+                                                <label className="inline-flex items-center gap-1">
+                                                    <input disabled={!canManage} type="checkbox" checked={stage.isLost} onChange={() => setLostStage(stage.id)} />
+                                                    Perdido
+                                                </label>
+                                                {stage.reserved && <span className="text-[11px] bg-slate-100 px-2 py-0.5 rounded">Reservado</span>}
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                                <button disabled={!canManage || index === 0} onClick={() => moveStage(stage.id, -1)} className="p-1 border rounded disabled:opacity-40">
+                                                    <ArrowUp size={12} />
+                                                </button>
+                                                <button disabled={!canManage || index === stages.length - 1} onClick={() => moveStage(stage.id, 1)} className="p-1 border rounded disabled:opacity-40">
+                                                    <ArrowDown size={12} />
+                                                </button>
+                                                <button disabled={!canManage || stage.reserved} onClick={() => removeStage(stage.id)} className="p-1 border border-red-200 text-red-600 rounded disabled:opacity-40">
+                                                    <Trash2 size={12} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="bg-slate-50 p-4 border-t border-gray-100 flex items-start gap-3">
+                                <Lightbulb className="text-amber-500 shrink-0 mt-0.5" size={18} />
+                                <div className="text-xs text-slate-600">
+                                    <strong>Importante:</strong> Ao menos uma etapa deve ser marcada como &quot;Ganho&quot; e uma como &quot;Perdido&quot;.
+                                    As etapas &quot;Reservadas&quot;, quando existirem, não podem ser deletadas pois estão amarradas às lógicas do sistema.
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
         </div>
     );

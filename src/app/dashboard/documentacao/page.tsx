@@ -7,6 +7,10 @@ import {
     Settings,
     ShieldCheck,
     Users,
+    LayoutDashboard,
+    UserCog,
+    Clock,
+    PieChart,
 } from 'lucide-react';
 
 const ROLE_CARDS = [
@@ -64,7 +68,7 @@ const INTERNAL_MODULES = [
         name: 'Dashboard',
         route: '/dashboard',
         description: 'Métricas gerais, funil, fontes, grades e reuniões futuras.',
-        icon: BarChart3,
+        icon: LayoutDashboard,
     },
     {
         name: 'Leads CRM',
@@ -79,9 +83,27 @@ const INTERNAL_MODULES = [
         icon: Calendar,
     },
     {
-        name: 'Configuracoes',
+        name: 'Disponibilidade',
+        route: '/dashboard/disponibilidade',
+        description: 'Gestão de horários de atendimento dos consultores.',
+        icon: Clock,
+    },
+    {
+        name: 'Relatórios',
+        route: '/dashboard/relatorios',
+        description: 'Análise detalhada de performance, conversão e SLA.',
+        icon: PieChart,
+    },
+    {
+        name: 'Gestão de Usuários',
+        route: '/dashboard/usuarios',
+        description: 'Criação, edição e inativação de contas de acesso.',
+        icon: UserCog,
+    },
+    {
+        name: 'Configurações',
         route: '/dashboard/config',
-        description: 'Scoring, automações e configuração de pipeline.',
+        description: 'Scoring, automações, pipeline, mensalidades e matriz de permissões.',
         icon: Settings,
     },
 ] as const;

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { captureAttributionFromCurrentUrl, getGateSessionIdFromAttribution, trackAcquisitionEvent } from '../_utils/attribution';
+import { submitInfluencerLead } from '../actions';
 
 type GateChoice = 'DECISOR' | 'INFLUENCIADOR' | 'PESQUISADOR';
 
@@ -33,6 +34,9 @@ export default function FunnelGatePage() {
     const [selection, setSelection] = useState<GateChoice | null>(null);
     const [error, setError] = useState('');
     const [isSaving, setIsSaving] = useState(false);
+    const [showInfluenceForm, setShowInfluenceForm] = useState(false);
+    const [isFormSuccess, setIsFormSuccess] = useState(false);
+    const [formData, setFormData] = useState({ name: '', email: '' });
 
     useEffect(() => {
         const snapshot = captureAttributionFromCurrentUrl();
@@ -97,7 +101,34 @@ export default function FunnelGatePage() {
 
         window.localStorage.removeItem(GATE_APPROVED_KEY);
         window.localStorage.setItem(GATE_PROFILE_KEY, selection);
-        router.push('/');
+
+        setShowInfluenceForm(true);
+    }
+
+    async function handleInfluencerSubmit(e: React.FormEvent) {
+        e.preventDefault();
+        if (!formData.name || !formData.email) {
+            setError('Preencha nome e e-mail.');
+            return;
+        }
+        setIsSaving(true);
+        try {
+            const sessionId = window.localStorage.getItem(GATE_SESSION_KEY) || undefined;
+            await submitInfluencerLead({
+                name: formData.name,
+                email: formData.email,
+                profile: selection || 'INFLUENCIADOR',
+                sessionId
+            });
+            setIsFormSuccess(true);
+            setTimeout(() => {
+                router.push('/');
+            }, 3000);
+        } catch (err) {
+            setError('Erro ao enviar contato.');
+        } finally {
+            setIsSaving(false);
+        }
     }
 
     return (
@@ -142,19 +173,69 @@ export default function FunnelGatePage() {
                     })}
                 </div>
 
-                {error && (
-                    <p className="mt-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">{error}</p>
-                )}
+                {isFormSuccess ? (
+                    <div className="text-center p-6 border border-green-200 bg-green-50 rounded-xl mt-6">
+                        <h3 className="text-green-800 font-bold text-lg mb-2">Tudo certo!</h3>
+                        <p className="text-green-700 text-sm">Recebemos seu contato. Redirecionando para a página inicial...</p>
+                    </div>
+                ) : showInfluenceForm ? (
+                    <form onSubmit={handleInfluencerSubmit} className="mt-8 space-y-4 animate-in fade-in duration-300">
+                        <div className="text-center mb-6">
+                            <h3 className="text-lg font-bold text-slate-800">Legal! Vamos manter contato.</h3>
+                            <p className="text-sm text-slate-500 mt-1">Preencha seus dados para receber nosso material de apresentação.</p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Seu Nome</label>
+                            <input
+                                type="text"
+                                required
+                                value={formData.name}
+                                onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                                placeholder="Como devemos te chamar?"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Seu E-mail Corporativo</label>
+                            <input
+                                type="email"
+                                required
+                                value={formData.email}
+                                onChange={e => setFormData({ ...formData, email: e.target.value })}
+                                className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                                placeholder="seu@email.com.br"
+                            />
+                        </div>
 
-                <button
-                    type="button"
-                    data-testid="gate-continue"
-                    onClick={handleContinue}
-                    disabled={isSaving}
-                    className="mt-6 w-full bg-primary hover:bg-primary-hover text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/25 transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                    {isSaving ? 'Salvando...' : 'Continuar'}
-                </button>
+                        {error && (
+                            <p className="mt-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">{error}</p>
+                        )}
+
+                        <button
+                            type="submit"
+                            disabled={isSaving}
+                            className="w-full bg-primary hover:bg-primary-hover text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/25 transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70 mt-6"
+                        >
+                            {isSaving ? 'Enviando...' : 'Receber Material'}
+                        </button>
+                    </form>
+                ) : (
+                    <>
+                        {error && (
+                            <p className="mt-4 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">{error}</p>
+                        )}
+
+                        <button
+                            type="button"
+                            data-testid="gate-continue"
+                            onClick={handleContinue}
+                            disabled={isSaving}
+                            className="mt-6 w-full bg-primary hover:bg-primary-hover text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/25 transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
+                        >
+                            {isSaving ? 'Salvando...' : 'Continuar'}
+                        </button>
+                    </>
+                )}
             </div>
         </div>
     );
