@@ -35,24 +35,18 @@ Este repositorio concentra:
 1. Copie o arquivo de ambiente de desenvolvimento:
 
 ```bash
-cp .env.example .env
+cp .env.compose.local .env
 ```
 
 No Windows PowerShell:
 
 ```powershell
-Copy-Item .env.example .env
-```
-
-Ou use os scripts:
-
-```bash
-npm run env:dev
+Copy-Item .env.compose.local .env
 ```
 
 Templates disponiveis:
 
-- `.env.example`: desenvolvimento/local
+- `.env.compose.local`: desenvolvimento/local
 - `.env.production.example`: producao/Coolify
 
 2. Ajuste no `.env` os valores minimos para ambiente local:
@@ -88,6 +82,7 @@ npm run dev
 O seed cria usuarios padrao para o ambiente de desenvolvimento/teste:
 
 - `admin@hiperfarma.com.br` (Perfil: Admin)
+- `gerente@hiperfarma.com.br` (Perfil: Manager)
 - `consultor@hiperfarma.com.br` (Perfil: Consultor)
 
 **Senha:**
@@ -105,10 +100,6 @@ O seed cria usuarios padrao para o ambiente de desenvolvimento/teste:
 - `npm run db:migrate`: Aplica migrations pendentes
 - `npx prisma migrate status`: Confere se o banco esta alinhado com as migrations versionadas
 - `npm run db:seed`: Executa o script de seed
-- `npm run env:dev`: Copia `.env.example` para `.env` (falha se `.env` existir)
-- `npm run env:prod`: Copia `.env.production.example` para `.env` (falha se `.env` existir)
-- `npm run env:dev:force`: Sobrescreve `.env` com `.env.example`
-- `npm run env:prod:force`: Sobrescreve `.env` com `.env.production.example`
 - `npm run lint`: Verifica padroes de codigo (ESLint)
 - `npm run test`: Executa suite principal de testes (unitarios + integracao)
 - `npm run test:roles`: Executa testes de autorizacao e permissoes (RBAC)
@@ -155,7 +146,6 @@ Observacao para Teams em producao:
 - `src/services`: Servicos de integracao e logica complexa
 - `src/types`: Definicoes de tipos TypeScript globais/compartilhados
 - `prisma`: Schema do banco de dados, migrations e seed
-- `e2e`: Testes E2E com Playwright
 - `scripts`: Utilitarios de manutencao e CI/CD
 
 ## Fluxo de Release Recomendado
